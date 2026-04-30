@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-aura-primary: #5B4FF5;
+  --color-aura-primary-hover: #483edf;
+  --color-aura-pink: #FF6B9D;
+  --color-aura-teal: #00D4AA;
+  --color-aura-navy: #1A1A2E;
+  --color-aura-panel: #24243D;
+  --color-aura-border: #323254;
+  --color-aura-lavender: #F3F0FF;
+}
+
+body {
+  background-color: var(--color-aura-navy);
+  color: white;
+}
+
+.ProseMirror {
+  outline: none;
+}
+.ProseMirror p {
+  margin-bottom: 0.5rem;
+}
+.ProseMirror h2 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}

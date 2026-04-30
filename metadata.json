@@ -1,0 +1,6 @@
+{
+  "name": "PeerSync",
+  "description": "Real-time collaborative chat application with live avatars, smart vault, and shared workspaces.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
