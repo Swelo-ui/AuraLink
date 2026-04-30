@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9d4edd" />
+      <stop offset="100%" stop-color="#7b2cbf" />
+    </linearGradient>
+    <linearGradient id="pinkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff7eb3" />
+      <stop offset="100%" stop-color="#ff758c" />
+    </linearGradient>
+  </defs>
+
+  <!-- Title / Text Placeholder -->
+  <text x="200" y="320" font-family="Arial, sans-serif" font-weight="bold" font-size="50" fill="#a051d1" text-anchor="middle">Aura<tspan fill="#ff7eb3">Link</tspan></text>
+  <text x="200" y="355" font-family="Arial, sans-serif" font-weight="bold" font-size="20" fill="#6c5287" text-anchor="middle">chat • connect • closer</text>
+
+  <!-- Purple Bubble -->
+  <path d="M 120,120 C 60,120 60,240 120,240 L 120,280 L 160,240 C 220,240 220,120 120,120 Z" fill="url(#purpleGrad)" />
+  <!-- Purple Face -->
+  <circle cx="100" cy="180" r="8" fill="#1f1f1f"/>
+  <circle cx="150" cy="180" r="8" fill="#1f1f1f"/>
+  <path d="M 115,190 Q 125,200 135,190" fill="none" stroke="#1f1f1f" stroke-width="4" stroke-linecap="round"/>
+  <!-- Blush -->
+  <ellipse cx="90" cy="190" rx="10" ry="6" fill="#ff7eb3" opacity="0.6"/>
+  <ellipse cx="160" cy="190" rx="10" ry="6" fill="#ff7eb3" opacity="0.6"/>
+
+  <!-- Pink Bubble -->
+  <path d="M 280,120 C 340,120 340,240 280,240 L 280,280 L 240,240 C 180,240 180,120 280,120 Z" fill="url(#pinkGrad)" />
+  <!-- Pink Face -->
+  <circle cx="240" cy="180" r="8" fill="#1f1f1f"/>
+  <circle cx="290" cy="180" r="8" fill="#1f1f1f"/>
+  <path d="M 255,190 Q 265,200 275,190" fill="none" stroke="#1f1f1f" stroke-width="4" stroke-linecap="round"/>
+  <!-- Blush -->
+  <ellipse cx="230" cy="190" rx="10" ry="6" fill="#ff4d6d" opacity="0.4"/>
+  <ellipse cx="300" cy="190" rx="10" ry="6" fill="#ff4d6d" opacity="0.4"/>
+
+  <!-- Links / Paperclip between them -->
+  <path d="M 170,180 C 160,160 190,140 210,160 L 210,190 C 230,210 240,180 230,160" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+</svg>

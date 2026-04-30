@@ -42,7 +42,13 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   };
 
   return (
-    <div className={clsx("w-full md:w-80 bg-aura-panel border-r border-aura-border flex-col h-full shrink-0", className)}>
+    <div className={clsx("w-full md:w-80 bg-aura-panel border-r border-aura-border flex-col h-full shrink-0 flex", className)}>
+      <div className="p-4 border-b border-aura-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <img src="/logo.svg" alt="AuraLink Logo" className="w-8 h-8" />
+          <h1 className="text-xl font-bold text-white tracking-tight">Auralink</h1>
+        </div>
+      </div>
       <div className="p-4 border-b border-aura-border flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-aura-primary flex items-center justify-center text-white font-bold text-lg">

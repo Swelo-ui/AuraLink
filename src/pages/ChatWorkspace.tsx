@@ -73,11 +73,14 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           "liquid/lfm-2.5-1.2b-thinking:free"
         ];
 
+        const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || (window as any).process?.env?.OPENROUTER_API_KEY || "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";
+        
+        setPartnerStatus(partner.id, "thinking");
         const fetchPromises = models.map(async (model) => {
           const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
-              "Authorization": "Bearer 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",
+              "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
               "Content-Type": "application/json",
               "HTTP-Referer": window.location.origin, // Site URL
               "X-Title": "AuraLink" // Site Name
@@ -122,12 +125,46 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         
         if (textResponse) {
            socket.emit('save_bot_message', { content: textResponse });
+           
+           // Parse emotion from text
+           let nextState = 'happy';
+           const t = textResponse.toLowerCase();
+           if (t.includes('sad') || t.includes('sorry')) nextState = 'sad';
+           else if (t.includes('angry') || t.includes('mad')) nextState = 'angry';
+           else if (t.includes('confus') || t.includes('what')) nextState = 'confused';
+           else if (t.includes('wow') || t.includes('surpris')) nextState = 'surprised';
+           else if (t.includes('party') || t.includes('yay') || t.includes('congrat')) nextState = 'partying';
+           else if (t.includes('mind') || t.includes('blown')) nextState = 'mind_blown';
+           else if (t.includes('love') || t.includes('heart')) nextState = 'heart_eyes';
+           else if (t.includes('star') || t.includes('amazing')) nextState = 'starry_eyes';
+           else if (t.includes('cool') || t.includes('awesome')) nextState = 'cool';
+           else if (t.includes('cry') || t.includes('tear')) nextState = 'crying';
+           else if (t.includes('cold') || t.includes('freez')) nextState = 'freezing';
+           else if (t.includes('hot') || t.includes('sweat')) nextState = 'hot';
+           else if (t.includes('run') || t.includes('fast')) nextState = 'running';
+           else if (t.includes('gym') || t.includes('workout') || t.includes('lift')) nextState = 'gym';
+           else if (t.includes('music') || t.includes('song')) nextState = 'listening_music';
+           else if (t.includes('game') || t.includes('play')) nextState = 'playing_games';
+           else if (t.includes('read') || t.includes('book')) nextState = 'reading_book';
+           else if (t.includes('code') || t.includes('programm')) nextState = 'writing_code';
+           else if (t.includes('coffee') || t.includes('drink')) nextState = 'coffee_break';
+           else if (t.includes('magic') || t.includes('spell')) nextState = 'magic';
+           else if (t.includes('ghost') || t.includes('boo')) nextState = 'ghost';
+           else if (t.includes('ninja') || t.includes('stealth')) nextState = 'ninja';
+           else if (t.includes('alien') || t.includes('space')) nextState = 'alien';
+           else if (t.includes('robot') || t.includes('bot')) nextState = 'robot';
+           else if (t.includes('detective') || t.includes('investigat')) nextState = 'detective';
+           else if (t.includes('hero') || t.includes('super')) nextState = 'superhero';
+           
+           setPartnerStatus(partner.id, nextState);
         } else {
            socket.emit('save_bot_message', { content: "I'm having some trouble connecting to my AI core right now!" });
+           setPartnerStatus(partner.id, "sad");
         }
       } catch (err) {
         console.error("AI Gen Error", err);
         socket.emit('save_bot_message', { content: "I'm having some trouble connecting to my AI core right now!" });
+        setPartnerStatus(partner.id, "sad");
       }
     };
 

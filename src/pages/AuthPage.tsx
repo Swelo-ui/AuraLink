@@ -36,6 +36,9 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-aura-navy flex items-center justify-center p-4">
       <div className="bg-aura-panel p-8 rounded-2xl shadow-2xl max-w-sm w-full border border-aura-border">
+        <div className="flex justify-center mb-4">
+          <img src="/logo.svg" alt="AuraLink Logo" className="w-24 h-24" />
+        </div>
         <h1 className="text-4xl font-extrabold text-white text-center mb-2 tracking-tight">AURALINK</h1>
         <p className="text-aura-lavender/70 text-center mb-8 text-sm">
           {isLogin ? 'Welcome back to your workspace' : 'Link Your Aura, Study in Sync'}
