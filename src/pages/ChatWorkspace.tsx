@@ -9,12 +9,13 @@ import SmartVault from '../components/SmartVault';
 import SharedTimetable from '../components/SharedTimetable';
 import { motion, AnimatePresence } from 'motion/react';
 import ActionMojiAvatar from '../components/ActionMojiAvatar';
+import { GoogleGenAI } from '@google/genai';
 
 export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const { id: connectionId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { socket, partnerStatus } = useSocket();
+  const { socket, partnerStatus, setPartnerStatus } = useSocket();
   const [messages, setMessages] = useState<any[]>([]);
   const messagesRef = useRef(messages);
   const [input, setInput] = useState('');
@@ -60,29 +61,69 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             content: m.content || ""
           }));
 
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": "Bearer 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",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "nvidia/nemotron-3-super-120b-a12b:free",
-            messages: [
-              { role: "system", content: "You are AuraBot, a friendly AI collaborator on the AuraLink app for students. Keep it short." },
-              ...history
-            ]
-          })
+        const messagesPayload = [
+          { role: "system", content: "You are AuraBot, a friendly AI collaborator on the AuraLink app for students. Keep it short and cute like a nanobanana theme." },
+          ...history
+        ];
+
+        const models = [
+          "tencent/hy3-preview:free",
+          "minimax/minimax-m2.5:free",
+          "nvidia/nemotron-3-nano-30b-a3b:free",
+          "liquid/lfm-2.5-1.2b-thinking:free"
+        ];
+
+        const fetchPromises = models.map(async (model) => {
+          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": "Bearer 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",
+              "Content-Type": "application/json",
+              "HTTP-Referer": window.location.origin, // Site URL
+              "X-Title": "AuraLink" // Site Name
+            },
+            body: JSON.stringify({
+              model,
+              messages: messagesPayload
+            })
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          if (json.error) throw new Error(json.error.message || "API Error");
+          const text = json.choices?.[0]?.message?.content;
+          if (!text) throw new Error("Empty response");
+          return text;
         });
+
+        let textResponse;
         
-        const json = await response.json();
-        const text = json.choices?.[0]?.message?.content;
+        try {
+          textResponse = await Promise.any(fetchPromises);
+        } catch (openRouterErr) {
+          console.warn("OpenRouter fetch failed (possibly due to API key error). Falling back to Google Gemini...", openRouterErr);
+          
+          try {
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            const historyText = messagesRef.current
+              .filter(m => m.type === 'text')
+              .slice(-15)
+              .map(m => `${m.senderId === user?.id ? "User" : "AuraBot"}: ${m.content}`)
+              .join('\n');
+            
+            const response = await ai.models.generateContent({
+               model: 'gemini-2.5-flash',
+               contents: `System: You are AuraBot, a friendly AI collaborator on the AuraLink app for students. Keep it short and cute like a nanobanana theme.\n\nRecent chat history:\n${historyText || "(no history)"}\n\nPlease respond to the User's latest message.`
+            });
+            textResponse = response.text;
+          } catch (geminiErr) {
+            console.error("Gemini Fallback Error", geminiErr);
+          }
+        }
         
-        if (text) {
-           socket.emit('save_bot_message', { content: text });
+        if (textResponse) {
+           socket.emit('save_bot_message', { content: textResponse });
         } else {
-           console.error("Open router response issue: ", json);
-           socket.emit('save_bot_message', { content: "Sorry, I am having trouble thinking clearly right now!" });
+           socket.emit('save_bot_message', { content: "I'm having some trouble connecting to my AI core right now!" });
         }
       } catch (err) {
         console.error("AI Gen Error", err);
@@ -99,7 +140,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       socket.off('message_sent', handleNewMessage);
       socket.off('request_bot_generation', handleBotGeneration);
     };
-  }, [socket, connectionId, partner]);
+  }, [socket, connectionId, partner?.id, partner?.username, user?.id]);
 
   // Status tracking
   useEffect(() => {
@@ -120,7 +161,21 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       else state = 'reading_chat';
 
       updateStatus(state);
-      timeout = setTimeout(() => updateStatus('idle'), 60000); // idle after 1 min
+      
+      // Bot mimics interaction state dynamically
+      if (partner.username === 'AuraBot') {
+        let botState = state;
+        if (state === 'typing') botState = 'reading_chat';
+        else if (state === 'reading_chat' && messagesRef.current.length > 0) botState = 'idle';
+        setPartnerStatus(partner.id, botState);
+      }
+
+      timeout = setTimeout(() => {
+        updateStatus('idle');
+        if (partner.username === 'AuraBot') {
+          setPartnerStatus(partner.id, 'idle');
+        }
+      }, 60000); // idle after 1 min
     };
 
     window.addEventListener('mousemove', handleInteraction);
@@ -132,7 +187,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       window.removeEventListener('keydown', handleInteraction);
       clearTimeout(timeout);
     };
-  }, [socket, partner, input, toolTab]);
+  }, [socket, partner?.id, partner?.username, input, toolTab, setPartnerStatus]);
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();

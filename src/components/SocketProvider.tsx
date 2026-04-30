@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../store/authStore';
 
@@ -17,9 +17,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [partnerStatus, setPartnerStatusMap] = useState<{ [userId: string]: string }>({});
   const { token } = useAuthStore();
 
-  const setPartnerStatus = (userId: string, status: string) => {
-    setPartnerStatusMap(prev => ({ ...prev, [userId]: status }));
-  };
+  const setPartnerStatus = useCallback((userId: string, status: string) => {
+    setPartnerStatusMap(prev => {
+      if (prev[userId] === status) return prev;
+      return { ...prev, [userId]: status };
+    });
+  }, []);
 
   useEffect(() => {
     if (!token) return;
