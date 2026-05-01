@@ -39,8 +39,6 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       if (outcome === 'accepted') {
         setDeferredPrompt(null);
       }
-    } else {
-      alert('PWA installation is only available on supported browsers and when served over HTTPS. If you are on Chrome, look for the install icon in the address bar.');
     }
   };
 
@@ -258,15 +256,23 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                   </button>
                   <button 
                     onClick={handleInstallApp} 
+                    disabled={!deferredPrompt}
                     className={clsx(
-                      "w-full flex items-center justify-between p-3 rounded-xl border transition-colors",
-                      deferredPrompt ? "bg-aura-primary/20 border-aura-primary/40" : "bg-aura-navy border-aura-border opacity-60"
+                      "w-full flex items-center justify-between p-3 rounded-xl border transition-all",
+                      deferredPrompt 
+                        ? "bg-aura-primary/20 border-aura-primary/40 hover:bg-aura-primary/30 active:scale-[0.98]" 
+                        : "bg-aura-navy border-aura-border opacity-40 cursor-not-allowed"
                     )}
                   >
-                    <div className="flex items-center gap-3 text-white"><Download size={18} className={deferredPrompt ? "text-aura-primary" : "text-aura-lavender/50"} /> Install App</div>
-                    <span className={clsx("text-xs font-medium", deferredPrompt ? "text-aura-primary" : "text-aura-lavender/50")}>
-                      {deferredPrompt ? 'Available' : 'Not Ready'}
-                    </span>
+                    <div className="flex items-center gap-3 text-white">
+                      <Download size={18} className={deferredPrompt ? "text-aura-primary" : "text-aura-lavender/50"} /> 
+                      Install App
+                    </div>
+                    {deferredPrompt ? (
+                      <span className="text-[10px] bg-aura-primary text-white px-2 py-0.5 rounded-full font-bold animate-pulse">READY</span>
+                    ) : (
+                      <span className="text-[10px] text-aura-lavender/40">Checking...</span>
+                    )}
                   </button>
                 </div>
               </div>

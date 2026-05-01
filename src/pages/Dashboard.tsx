@@ -33,37 +33,25 @@ export default function Dashboard() {
       return;
     }
 
-    // 2. Fetch AuraBot user
-    const { data: botData } = await supabase
-      .from('users')
-      .select('id, username, avatar_url')
-      .eq('username', 'AuraBot')
-      .single();
+    // 2. Add AuraBot as a permanent virtual connection
+    const aurabotId = '00000000-0000-0000-0000-000000000000'; // Fixed ID for virtual bot
+    const aurabot = {
+      id: `bot-${aurabotId}`,
+      status: 'accepted',
+      created_at: new Date().toISOString(),
+      user1_id: user.id,
+      user2_id: aurabotId,
+      user1: { id: user.id, username: user.username, avatar_url: null },
+      user2: { id: aurabotId, username: 'AuraBot', avatar_url: null },
+      isVirtual: true
+    };
 
-    let finalConnections = realConnections || [];
+    // Filter out any real bot connections to avoid duplicates
+    const filteredReal = realConnections?.filter(conn => 
+      conn.user1?.username !== 'AuraBot' && conn.user2?.username !== 'AuraBot'
+    ) || [];
 
-    // 3. If AuraBot exists and not already in connections, add a virtual connection
-    if (botData) {
-      const hasBotConnection = realConnections?.some(conn => 
-        (conn.user1_id === botData.id) || (conn.user2_id === botData.id)
-      );
-
-      if (!hasBotConnection) {
-        const virtualBotConnection = {
-          id: `bot-${botData.id}`,
-          status: 'accepted',
-          created_at: new Date().toISOString(),
-          user1_id: user.id,
-          user2_id: botData.id,
-          user1: { id: user.id, username: user.username, avatar_url: null },
-          user2: botData,
-          isVirtual: true
-        };
-        finalConnections = [virtualBotConnection, ...finalConnections];
-      }
-    }
-
-    setConnections(finalConnections);
+    setConnections([aurabot, ...filteredReal]);
   };
 
   useEffect(() => {
