@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { API_URL } from '../lib/utils';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -34,7 +35,7 @@ export default function AuthPage() {
 
         // We also need to get/sync the user in our Prisma database
         // Let's call a custom endpoint to sync the user, or just use the session directly
-        const res = await fetch('/api/auth/sync', {
+        const res = await fetch(`${API_URL}/api/auth/sync`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -62,7 +63,7 @@ export default function AuthPage() {
         if (!data.session) throw new Error('Signup successful, but please sign in.');
 
         // Sync the new user with Prisma
-        const res = await fetch('/api/auth/sync', {
+        const res = await fetch(`${API_URL}/api/auth/sync`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

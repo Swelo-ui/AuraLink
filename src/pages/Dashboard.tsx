@@ -5,6 +5,7 @@ import ChatWorkspace from './ChatWorkspace';
 import PersonalWorkspace from './PersonalWorkspace';
 import { SocketProvider } from '../components/SocketProvider';
 import clsx from 'clsx';
+import { API_URL } from '../lib/utils';
 
 export default function Dashboard() {
   const [connections, setConnections] = useState<any[]>([]);
@@ -13,7 +14,7 @@ export default function Dashboard() {
 
   const fetchConnections = async () => {
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/connections', {
+    const res = await fetch(`${API_URL}/api/connections`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {

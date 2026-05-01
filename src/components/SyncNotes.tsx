@@ -3,6 +3,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useState, useRef } from 'react';
 import { useSocket } from './SocketProvider';
 import clsx from 'clsx';
+import { API_URL } from '../lib/utils';
 
 export default function SyncNotes({ connectionId, partner }: { connectionId?: string, partner?: any }) {
   const { socket } = useSocket();
@@ -26,7 +27,7 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
         socket.emit('note_update', { connectionId, content: html });
       } else {
         const token = localStorage.getItem('token');
-        await fetch('/api/notes', {
+        await fetch(`${API_URL}/api/notes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ connectionId: connectionId || undefined, content: html })
@@ -41,7 +42,7 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
     const fetchNote = async () => {
       try {
         const token = localStorage.getItem('token');
-        const url = connectionId ? `/api/notes?connectionId=${connectionId}` : '/api/notes';
+        const url = connectionId ? `${API_URL}/api/notes?connectionId=${connectionId}` : `${API_URL}/api/notes`;
         const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });

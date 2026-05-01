@@ -9,6 +9,7 @@ import SmartVault from '../components/SmartVault';
 import SharedTimetable from '../components/SharedTimetable';
 import { motion, AnimatePresence } from 'motion/react';
 import ActionMojiAvatar from '../components/ActionMojiAvatar';
+import { API_URL } from '../lib/utils';
 
 // Human-readable status labels
 const STATUS_LABELS: Record<string, string> = {
@@ -97,7 +98,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     if (!connectionId) return;
     const fetchMessages = async () => {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/messages/${connectionId}`, { headers: { 'Authorization': `Bearer ${token}` }});
+      const res = await fetch(`${API_URL}/api/messages/${connectionId}`, { headers: { 'Authorization': `Bearer ${token}` }});
       if(res.ok) setMessages(await res.json());
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
@@ -200,7 +201,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/upload', {
+      const res = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData

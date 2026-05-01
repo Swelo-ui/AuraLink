@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
 import { supabase } from '../lib/supabaseClient';
+import { API_URL } from '../lib/utils';
 
 export default function Sidebar({ connections, onRefresh, className }: { connections: any[], onRefresh: () => void, className?: string }) {
   const { user, logout } = useAuthStore();
@@ -44,13 +45,13 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     e.preventDefault();
     if (!search) return setResults([]);
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/users/search?q=${search}`, { headers: { 'Authorization': `Bearer ${token}` }});
+    const res = await fetch(`${API_URL}/api/users/search?q=${search}`, { headers: { 'Authorization': `Bearer ${token}` }});
     setResults(await res.json());
   };
 
   const addFriend = async (targetUserId: string) => {
     const token = localStorage.getItem('token');
-    await fetch('/api/connections', {
+    await fetch(`${API_URL}/api/connections`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ targetUserId })
@@ -62,7 +63,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
 
   const acceptFriend = async (id: string) => {
     const token = localStorage.getItem('token');
-    await fetch(`/api/connections/${id}/accept`, {
+    await fetch(`${API_URL}/api/connections/${id}/accept`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     });

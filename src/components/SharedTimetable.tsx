@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, Trash2, Check } from 'lucide-react';
 import { useSocket } from './SocketProvider';
 import clsx from 'clsx';
+import { API_URL } from '../lib/utils';
 
 interface Task {
   id: string;
@@ -17,7 +18,7 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
   const fetchTimetable = async () => {
     try {
       const token = localStorage.getItem('token');
-      const url = connectionId ? `/api/timetable?connectionId=${connectionId}` : '/api/timetable';
+      const url = connectionId ? `${API_URL}/api/timetable?connectionId=${connectionId}` : `${API_URL}/api/timetable`;
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -50,7 +51,7 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
     if (!newTask.trim()) return;
     const token = localStorage.getItem('token');
     
-    await fetch('/api/timetable', {
+    await fetch(`${API_URL}/api/timetable`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ connectionId: connectionId || undefined, title: newTask })
@@ -68,7 +69,7 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
     const token = localStorage.getItem('token');
     const newStatus = task.status === 'todo' ? 'done' : 'todo';
     
-    await fetch(`/api/timetable/${task.id}`, {
+    await fetch(`${API_URL}/api/timetable/${task.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ status: newStatus, title: task.title })
@@ -84,7 +85,7 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
   const deleteTask = async (id: string) => {
     const token = localStorage.getItem('token');
     
-    await fetch(`/api/timetable/${id}`, {
+    await fetch(`${API_URL}/api/timetable/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });

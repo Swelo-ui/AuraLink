@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import * as dotenv from 'dotenv';
 dotenv.config();
 import { createServer } from 'http';
@@ -52,6 +53,7 @@ async function startServer() {
   const upload = multer({ storage: multer.memoryStorage() });
 
   app.disable('x-powered-by');
+  app.use(cors({ origin: '*' }));
   app.use((_req, res, next) => {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-Content-Type-Options', 'nosniff');

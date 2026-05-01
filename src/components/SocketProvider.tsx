@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../store/authStore';
+import { API_URL } from '../lib/utils';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -27,7 +28,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!token) return;
 
-    const newSocket = io({ auth: { token } });
+    // Use API_URL as the host if specified, otherwise it defaults to current origin
+    const newSocket = io(API_URL || undefined, { auth: { token } });
     
     newSocket.on('connect', () => {
       console.log('Socket connected');

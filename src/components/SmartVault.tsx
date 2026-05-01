@@ -1,6 +1,7 @@
 import { Download, File, Image as ImageIcon, FileText, Upload, Plus, X, Lock } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
 import { useSocket } from './SocketProvider';
+import { API_URL } from '../lib/utils';
 
 export default function SmartVault({ connectionId, messages, partner, isPersonal = false }: { connectionId: string, messages: any[], partner: any, isPersonal?: boolean }) {
   const { socket } = useSocket();
@@ -16,7 +17,7 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
 
   const fetchPersonalVault = async () => {
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/vault', { headers: { 'Authorization': `Bearer ${token}` }});
+    const res = await fetch(`${API_URL}/api/vault`, { headers: { 'Authorization': `Bearer ${token}` }});
     if (res.ok) setVaultItems(await res.json());
   };
 
@@ -29,7 +30,7 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
     
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/upload', {
+      const res = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -40,7 +41,7 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
       if(data.url) {
         if (isPersonal) {
           // Add to personal vault
-          await fetch('/api/vault', {
+          await fetch(`${API_URL}/api/vault`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ name: data.name, content: data.url, type: 'file' })
