@@ -35,7 +35,38 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function getStatusLabel(status: string) {
+  if (status.startsWith('typing_')) return '✏️ Typing...';
   return STATUS_LABELS[status] || status.replace(/_/g, ' ');
+}
+
+// ── Sentiment keywords ──────────────────────────────────────────────────
+const SENTIMENT_MAP: { states: string[]; keywords: string[] }[] = [
+  { states: ['angry'],    keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'worst', 'horrible', 'useless', 'terrible', 'rude', 'frustrated', 'annoying', 'mad', 'furious', 'damn', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas'] },
+  { states: ['sad'],      keywords: ['sad', 'depressed', 'unhappy', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'tears', 'unfortunate', 'broken', 'lost', 'hopeless', 'sorry', 'regret', 'fail', 'bad', 'worst day', 'dukhi', 'rona', 'akela', 'bura', 'udas'] },
+  { states: ['confused'], keywords: ['confused', 'what', 'huh', 'idk', 'not sure', 'don\'t understand', 'unclear', 'weird', 'strange', 'why', 'how', 'lost', 'really?', 'seriously', '??', 'kya', 'samajh nahi', 'kaise', 'kyu'] },
+  { states: ['surprised'],keywords: ['wow', 'omg', 'whoa', 'no way', 'seriously', 'really', 'oh my', 'unbelievable', 'shocking', 'unexpected', 'wait what', 'sachme', 'are waah', 'kya baat'] },
+  { states: ['happy'],    keywords: ['happy', 'great', 'awesome', 'love', 'haha', 'lol', 'fun', 'nice', 'good', 'cool', 'yes!', 'yay', 'excited', 'amazing', 'perfect', 'thanks', 'thank you', 'lmao', 'hehe', ':)', '😊', '❤️', '🔥', 'khush', 'acha', 'mast', 'badiya', 'sahi'] },
+  { states: ['thinking'], keywords: ['hmm', 'think', 'maybe', 'perhaps', 'possibly', 'consider', 'let me', 'actually', 'well...', 'interesting', 'i guess'] },
+  { states: ['heart_eyes'],keywords: ['love you', 'adore', 'crush', 'beautiful', 'gorgeous', 'cute', '❤️', '🥰', '😍', 'i like you', 'sundar', 'pyar', 'khoobsurat', 'mast lag'] },
+];
+
+function deriveMoodFromString(text: string): string | null {
+  if (!text) return null;
+  const lowerText = text.toLowerCase();
+  for (const { states, keywords } of SENTIMENT_MAP) {
+    if (keywords.some(kw => lowerText.includes(kw))) {
+      return states[0];
+    }
+  }
+  return null;
+}
+
+function deriveAvatarMoodFromMessages(msgs: any[], myId: string): string | null {
+  // Look at last 3 messages from PARTNER (not me)
+  const partnerMsgs = msgs.filter(m => m.senderId !== myId).slice(-3);
+  if (partnerMsgs.length === 0) return null;
+  const combined = partnerMsgs.map(m => (m.content || '')).join(' ');
+  return deriveMoodFromString(combined);
 }
 
 export default function ChatWorkspace({ connections }: { connections: any[] }) {
@@ -48,13 +79,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const [input, setInput] = useState('');
   const [toolTab, setToolTab] = useState<'notes' | 'vault' | 'timetable' | 'none'>('notes');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [sentimentState, setSentimentState] = useState<string | null>(null);
 
   const conn = connections.find(c => c.id === connectionId);
   const partner = conn ? (conn.user1Id === user?.id ? conn.user2 : conn.user1) : null;
 
   useEffect(() => {
     messagesRef.current = messages;
-  }, [messages]);
+    // Re-derive mood when messages change
+    if (user?.id) {
+      const mood = deriveAvatarMoodFromMessages(messages, user.id);
+      setSentimentState(mood);
+    }
+  }, [messages, user?.id]);
 
   useEffect(() => {
     if (!connectionId) return;
@@ -72,6 +109,11 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
     // Join room for this connection
     socket.emit('join_rooms', [partner.id]);
+
+    // Ensure AuraBot is never 'offline' initially
+    if (partner.username === 'AuraBot' && !partnerStatus[partner.id]) {
+      setPartnerStatus(partner.id, 'online');
+    }
 
     const handleNewMessage = (msg: any) => {
       setMessages(prev => [...prev, msg]);
@@ -100,7 +142,11 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     const handleInteraction = () => {
       clearTimeout(timeout);
       let state = 'online';
-      if (input.trim().length > 0) state = 'typing';
+      
+      if (input.trim().length > 0) {
+        const inputMood = deriveMoodFromString(input);
+        state = inputMood ? `typing_${inputMood}` : 'typing';
+      }
       else if (toolTab === 'notes') state = 'viewing_notes';
       else if (toolTab === 'vault') state = 'browsing_files';
       else if (toolTab === 'timetable') state = 'timetable_open';
@@ -111,8 +157,11 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       // Bot mimics interaction state dynamically
       if (partner.username === 'AuraBot') {
         let botState = state;
-        if (state === 'typing') botState = 'reading_chat';
-        else if (state === 'reading_chat' && messagesRef.current.length > 0) botState = 'idle';
+        if (state.startsWith('typing')) {
+          botState = 'online'; // The bot stays online and reacts visually via realTimeMood, it doesn't type
+        } else if (state === 'reading_chat' && messagesRef.current.length > 0) {
+          botState = 'idle';
+        }
         setPartnerStatus(partner.id, botState);
       }
 
@@ -174,6 +223,32 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
   const currentPartnerStatus = partnerStatus[partner.id] || 'offline';
 
+  // Extract actual mood if status is typing_mood
+  const isPartnerTyping = currentPartnerStatus.startsWith('typing');
+  const partnerTypingMood = currentPartnerStatus.startsWith('typing_') ? currentPartnerStatus.replace('typing_', '') : null;
+
+  // Real-time typing mood takes priority locally ONLY for AuraBot (bot has no client)
+  let realTimeMood = null;
+  if (partner.username === 'AuraBot' && input.trim().length > 0) {
+    realTimeMood = deriveMoodFromString(input);
+  }
+
+  // Activity states that should ALWAYS override historical emotions
+  const activityStates = new Set(['browsing_files', 'viewing_notes', 'timetable_open', 'offline', 'idle']);
+  
+  let avatarMood = currentPartnerStatus;
+  
+  if (realTimeMood) {
+    avatarMood = realTimeMood; // Local bot reaction
+  } else if (partnerTypingMood) {
+    avatarMood = partnerTypingMood; // Partner is typing an emotion
+  } else if (isPartnerTyping) {
+    avatarMood = 'typing'; // Partner is just typing
+  } else if (!activityStates.has(currentPartnerStatus) && sentimentState) {
+    // If not doing a specific activity (meaning they are online/reading_chat), show their historical emotional state
+    avatarMood = sentimentState;
+  }
+
   return (
     <div className="flex w-full h-full bg-aura-navy relative overflow-hidden">
       {/* Chat Area */}
@@ -211,23 +286,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                overflow-visible on wrapper lets emoji props show outside bounds. */}
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentPartnerStatus}
-              initial={{ opacity: 0, scale: 0.6, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.7 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-              className="flex-shrink-0 flex flex-col items-center overflow-visible"
-              title={getStatusLabel(currentPartnerStatus)}
+              key={avatarMood}
+              initial={{ opacity: 0, scale: 0.7, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 4 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              className="flex-shrink-0 flex items-center overflow-visible self-center"
+              title={getStatusLabel(avatarMood)}
               style={{ width: 48 }}
             >
-              {/* Scale wrapper: 80px avatar shrunk to 48px visual = scale 0.6 */}
-              <div style={{ width: 80, height: 80, transform: 'scale(0.6)', transformOrigin: 'top center', overflow: 'visible' }}>
-                <ActionMojiAvatar state={currentPartnerStatus} username={partner.username} />
+              {/* Scale wrapper: 80px avatar shrunk to ~48px visual */}
+              <div style={{ width: 80, height: 80, transform: 'scale(0.6)', transformOrigin: 'center center', overflow: 'visible' }}>
+                <ActionMojiAvatar state={avatarMood} username={partner.username} showStatusRing={false} />
               </div>
-              {/* Status label — sits below avatar (shifted up because of transform gap) */}
-              <span className="text-[9px] font-bold text-aura-lavender/60 uppercase tracking-wide -mt-6 text-center max-w-[54px] leading-tight truncate">
-                {currentPartnerStatus.replace(/_/g, ' ')}
-              </span>
             </motion.div>
           </AnimatePresence>
 
