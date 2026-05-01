@@ -4,25 +4,34 @@ import { useEffect, useState, useRef } from 'react';
 import { useSocket } from './SocketProvider';
 import clsx from 'clsx';
 
-export default function SyncNotes({ connectionId, partner }: { connectionId: string, partner: any }) {
+export default function SyncNotes({ connectionId, partner }: { connectionId?: string, partner?: any }) {
   const { socket } = useSocket();
   const [syncedStatus, setSyncedStatus] = useState('Synced');
   const isUpdatingRef = useRef(false);
 
   const editor = useEditor({
     extensions: [StarterKit],
-    content: '<p>Start collaborating...</p>',
+    content: '<p>Start writing your notes...</p>',
     editorProps: {
       attributes: {
         class: 'prose prose-invert prose-sm sm:prose-base focus:outline-none max-w-none p-6 min-h-full'
       }
     },
-    onUpdate: ({ editor }) => {
+    onUpdate: async ({ editor }) => {
       if (isUpdatingRef.current) return;
       
       setSyncedStatus('Saving...');
       const html = editor.getHTML();
-      socket?.emit('note_update', { connectionId, content: html });
+      if (connectionId && socket) {
+        socket.emit('note_update', { connectionId, content: html });
+      } else {
+        const token = localStorage.getItem('token');
+        await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ connectionId: connectionId || undefined, content: html })
+        });
+      }
       
       setTimeout(() => setSyncedStatus('Synced'), 1000);
     }
@@ -32,7 +41,8 @@ export default function SyncNotes({ connectionId, partner }: { connectionId: str
     const fetchNote = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`/api/notes/${connectionId}`, {
+        const url = connectionId ? `/api/notes?connectionId=${connectionId}` : '/api/notes';
+        const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
@@ -53,11 +63,11 @@ export default function SyncNotes({ connectionId, partner }: { connectionId: str
   }, [connectionId, editor]);
 
   useEffect(() => {
-    if (!socket || !editor) return;
+    if (!socket || !editor || !connectionId) return;
 
     const handleNoteUpdate = (data: { content: string, by: string }) => {
       // Prevent echoing back
-      if (data.by !== partner.id) return;
+      if (partner && data.by !== partner.id) return;
       
       isUpdatingRef.current = true;
       const { from, to } = editor.state.selection;
@@ -71,14 +81,18 @@ export default function SyncNotes({ connectionId, partner }: { connectionId: str
       } catch (e) {}
       
       isUpdatingRef.current = false;
-      setSyncedStatus('Synced from ' + partner.username);
+      if (partner?.username) {
+        setSyncedStatus('Synced from ' + partner.username);
+      } else {
+        setSyncedStatus('Synced');
+      }
     };
 
     socket.on('note_updated', handleNoteUpdate);
     return () => {
       socket.off('note_updated', handleNoteUpdate);
     };
-  }, [socket, editor, partner]);
+  }, [socket, editor, partner, connectionId]);
 
   return (
     <div className="flex flex-col h-full bg-aura-navy overflow-hidden">

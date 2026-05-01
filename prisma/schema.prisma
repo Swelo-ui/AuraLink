@@ -3,33 +3,37 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id           String       @id @default(uuid())
-  username     String       @unique
+  id           String   @id @default(uuid())
+  username     String   @unique
   passwordHash String
   avatarUrl    String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   connectionsInitiated Connection[] @relation("User1Connections")
   connectionsReceived  Connection[] @relation("User2Connections")
   messagesSent         Message[]    @relation("SenderMessages")
   messagesReceived     Message[]    @relation("ReceiverMessages")
+  notes                Note[]       @relation("UserNotes")
+  timetables           Timetable[]  @relation("UserTimetables")
+  vaultItems           VaultItem[]  @relation("UserVaultItems")
 }
 
 model Connection {
   id        String   @id @default(uuid())
   user1Id   String
   user2Id   String
-  status    String   // "pending", "accepted"
+  status    String // "pending", "accepted"
   createdAt DateTime @default(now())
 
-  user1     User     @relation("User1Connections", fields: [user1Id], references: [id])
-  user2     User     @relation("User2Connections", fields: [user2Id], references: [id])
+  user1 User @relation("User1Connections", fields: [user1Id], references: [id])
+  user2 User @relation("User2Connections", fields: [user2Id], references: [id])
 
   notes     Note[]
   timetable Timetable[]
@@ -42,30 +46,47 @@ model Message {
   senderId   String
   receiverId String
   content    String
-  type       String   // "text", "file"
+  type       String // "text", "file"
   fileUrl    String?
   timestamp  DateTime @default(now())
 
-  sender     User     @relation("SenderMessages", fields: [senderId], references: [id])
-  receiver   User     @relation("ReceiverMessages", fields: [receiverId], references: [id])
+  sender   User @relation("SenderMessages", fields: [senderId], references: [id])
+  receiver User @relation("ReceiverMessages", fields: [receiverId], references: [id])
 }
 
 model Note {
   id           String   @id @default(uuid())
-  connectionId String
-  content      String   // Stored as text / HTML
+  connectionId String?
+  userId       String?
+  title        String?
+  content      String // Stored as text / HTML
   lastEditedBy String?
   updatedAt    DateTime @updatedAt
 
-  connection   Connection @relation(fields: [connectionId], references: [id])
+  connection Connection? @relation(fields: [connectionId], references: [id])
+  user       User?       @relation("UserNotes", fields: [userId], references: [id])
 }
 
 model Timetable {
-  id           String   @id @default(uuid())
-  connectionId String
+  id           String    @id @default(uuid())
+  connectionId String?
+  userId       String?
   title        String
   deadline     DateTime?
-  status       String   // "todo", "in_progress", "done"
+  status       String // "todo", "in_progress", "done"
 
-  connection   Connection @relation(fields: [connectionId], references: [id])
+  connection Connection? @relation(fields: [connectionId], references: [id])
+  user       User?       @relation("UserTimetables", fields: [userId], references: [id])
+}
+
+model VaultItem {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  content   String // Encrypted content or file URL
+  type      String // "password", "file", "secret"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation("UserVaultItems", fields: [userId], references: [id])
 }

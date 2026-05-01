@@ -256,63 +256,62 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         toolTab === 'none' ? "w-full lg:w-3/4 mx-auto border-r border-aura-border" : "hidden md:flex md:w-1/2 border-r border-aura-border")}>
 
         {/* Header */}
-        <div className="h-16 sm:h-[72px] flex items-center justify-between px-3 sm:px-4 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0 overflow-visible gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
+        <div className="h-[60px] sm:h-[72px] flex items-center justify-between px-2 sm:px-4 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0 overflow-visible gap-1 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-4 min-w-0 flex-1">
              <button
               onClick={() => navigate('/dashboard')}
-              className="md:hidden p-2.5 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all"
+              className="md:hidden p-1.5 sm:p-2.5 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all shrink-0"
              >
-               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
              </button>
              <div className="relative shrink-0">
-                <div className={clsx("w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-inner", partner?.username === 'AuraBot' ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
+                <div className={clsx("w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-inner", partner?.username === 'AuraBot' ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
                   {partner.username[0].toUpperCase()}
                 </div>
-                {currentPartnerStatus !== 'offline' && <span className="absolute bottom-0 right-0 block w-3 h-3 bg-aura-teal rounded-full border-2 border-aura-panel shadow-sm"></span>}
+                {currentPartnerStatus !== 'offline' && <span className="absolute bottom-0 right-0 block w-2.5 h-2.5 sm:w-3 sm:h-3 bg-aura-teal rounded-full border-2 border-aura-panel shadow-sm"></span>}
              </div>
-             <div className="min-w-0 flex-1">
-               <h3 className="text-white font-bold flex items-center gap-2 text-[15px] sm:text-lg truncate">
+             <div className="min-w-0 flex-1 flex flex-col justify-center">
+               <h3 className="text-white font-bold flex items-center gap-1.5 text-[14px] sm:text-lg truncate leading-tight">
                  <span className="truncate">{partner.username}</span>
-                 {partner?.username === 'AuraBot' && <span className="hidden xs:inline-block text-[9px] sm:text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-widest font-black border border-pink-500/20">AI</span>}
+                 {partner?.username === 'AuraBot' && <span className="hidden sm:inline-block text-[9px] sm:text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-widest font-black border border-pink-500/20">AI</span>}
                </h3>
-               <p className="text-[10px] sm:text-xs text-aura-lavender/50 truncate font-medium tracking-wide">
+               <p className="text-[9px] sm:text-xs text-aura-lavender/50 truncate font-medium tracking-wide leading-tight">
                   {getStatusLabel(currentPartnerStatus)}
                </p>
              </div>
           </div>
 
-          {/* ── ActionMoji — fixed in header, never scrolls ──
-               The avatar component is 80x80px; we scale it down to 48x48.
-               overflow-visible on wrapper lets emoji props show outside bounds. */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={avatarMood}
-              initial={{ opacity: 0, scale: 0.7, y: -6 }}
-              animate={{ opacity: 1, scale: 1, y: 4 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              className="flex-shrink-0 flex items-center overflow-visible self-center"
-              title={getStatusLabel(avatarMood)}
-              style={{ width: 48 }}
-            >
-              {/* Scale wrapper: 80px avatar shrunk to ~48px visual */}
-              <div style={{ width: 80, height: 80, transform: 'scale(0.6)', transformOrigin: 'center center', overflow: 'visible' }}>
-                <ActionMojiAvatar state={avatarMood} username={partner.username} showStatusRing={false} />
-              </div>
-            </motion.div>
-          </AnimatePresence>
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            {/* ── ActionMoji ── */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={avatarMood}
+                initial={{ opacity: 0, scale: 0.7, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 4 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                className="flex-shrink-0 flex items-center justify-center overflow-visible self-center w-8 sm:w-12 h-8 sm:h-12"
+                title={getStatusLabel(avatarMood)}
+              >
+                {/* Scale wrapper: 80px avatar shrunk to fit */}
+                <div className="w-[80px] h-[80px] scale-[0.45] sm:scale-[0.6] origin-center">
+                  <ActionMojiAvatar state={avatarMood} username={partner.username} showStatusRing={false} />
+                </div>
+              </motion.div>
+            </AnimatePresence>
 
-          {/* Tool Toggles */}
-          <div className="flex items-center gap-1 sm:gap-2 bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50">
-            <button onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')} className={clsx("p-2 sm:p-2.5 rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SyncNotes">
-              <FileText size={18} />
-            </button>
-            <button onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')} className={clsx("p-2 sm:p-2.5 rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SmartVault">
-              <Paperclip size={18} />
-            </button>
-            <button onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')} className={clsx("p-2 sm:p-2.5 rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")} title="Shared Timetable">
-              <Calendar size={18} />
-            </button>
+            {/* Tool Toggles */}
+            <div className="flex items-center gap-0.5 sm:gap-2 bg-aura-navy/50 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-aura-border/50">
+              <button onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')} className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SyncNotes">
+                <FileText className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+              </button>
+              <button onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')} className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SmartVault">
+                <Paperclip className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+              </button>
+              <button onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')} className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")} title="Shared Timetable">
+                <Calendar className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+              </button>
+            </div>
           </div>
         </div>
 

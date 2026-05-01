@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, Palette, Shield } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
+import { supabase } from '../lib/supabaseClient';
 
 export default function Sidebar({ connections, onRefresh, className }: { connections: any[], onRefresh: () => void, className?: string }) {
   const { user, logout } = useAuthStore();
@@ -11,7 +12,13 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const [results, setResults] = useState<any[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { partnerStatus } = useSocket();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    logout();
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +102,27 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       )}
 
       <div className="flex-1 overflow-y-auto px-2 pb-4">
-        <p className="text-xs text-aura-lavender/40 uppercase tracking-widest px-2 mb-2 mt-4 font-semibold">Connections</p>
+        <div className="mb-4 mt-4 px-2">
+          <button 
+            onClick={() => navigate('/dashboard/personal')}
+            className={clsx(
+              "w-full flex items-center gap-3 p-3 rounded-xl transition-all border",
+              location.pathname === '/dashboard/personal' 
+                ? "bg-aura-primary/10 border-aura-primary/30 text-white" 
+                : "bg-aura-navy border-aura-border text-aura-lavender/70 hover:bg-aura-border hover:text-white"
+            )}
+          >
+            <div className="w-8 h-8 rounded-lg bg-aura-primary flex items-center justify-center text-white shrink-0">
+              <Shield size={16} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-semibold text-sm text-white">Personal Space</p>
+              <p className="text-[10px] uppercase tracking-widest text-aura-primary">Private Area</p>
+            </div>
+          </button>
+        </div>
+
+        <p className="text-xs text-aura-lavender/40 uppercase tracking-widest px-2 mb-2 font-semibold">Connections</p>
         <div className="space-y-1">
           {connections.map(conn => {
             const isUser1 = conn.user1Id === user?.id;
@@ -194,7 +221,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             </div>
 
             <div className="p-4 border-t border-aura-border bg-aura-navy/50">
-              <button onClick={logout} className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium rounded-xl transition-colors border border-red-500/20">
+              <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium rounded-xl transition-colors border border-red-500/20">
                 <LogOut size={18} /> Log Out
               </button>
             </div>

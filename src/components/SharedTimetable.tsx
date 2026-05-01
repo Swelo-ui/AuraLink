@@ -9,55 +9,91 @@ interface Task {
   status: 'todo' | 'done';
 }
 
-export default function SharedTimetable({ connectionId, partner }: { connectionId: string, partner: any }) {
+export default function SharedTimetable({ connectionId, partner }: { connectionId?: string, partner?: any }) {
   const { socket } = useSocket();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState('');
 
-  useEffect(() => {
-    const fetchTimetable = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/timetable/${connectionId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.length > 0) setTasks(data);
-        }
-      } catch (err) {
-        console.error('Failed to load timetable', err);
+  const fetchTimetable = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const url = connectionId ? `/api/timetable?connectionId=${connectionId}` : '/api/timetable';
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data)) setTasks(data);
       }
-    };
+    } catch (err) {
+      console.error('Failed to load timetable', err);
+    }
+  };
+
+  useEffect(() => {
     fetchTimetable();
   }, [connectionId]);
 
   useEffect(() => {
-    if (!socket) return;
-    const handleSync = (data: { tasks: Task[] }) => setTasks(data.tasks);
+    if (!socket || !connectionId) return;
+    const handleSync = (data: { connectionId: string, tasks: Task[] }) => {
+      if (data.connectionId === connectionId) {
+        fetchTimetable();
+      }
+    };
     socket.on('timetable_sync', handleSync);
     return () => { socket.off('timetable_sync', handleSync); };
-  }, [socket]);
+  }, [socket, connectionId]);
 
-  const syncTasks = (newTasks: Task[]) => {
-    setTasks(newTasks);
-    socket?.emit('timetable_update', { connectionId, tasks: newTasks });
-  };
-
-  const addTask = (e: React.FormEvent) => {
+  const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.trim()) return;
-    const t = [...tasks, { id: Date.now().toString(), title: newTask, status: 'todo' as const }];
-    syncTasks(t);
+    const token = localStorage.getItem('token');
+    
+    await fetch('/api/timetable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ connectionId: connectionId || undefined, title: newTask })
+    });
+    
     setNewTask('');
+    fetchTimetable();
+    
+    if (connectionId && socket) {
+      socket.emit('timetable_update', { connectionId });
+    }
   };
 
-  const toggleTask = (id: string) => {
-    syncTasks(tasks.map(t => t.id === id ? { ...t, status: t.status === 'todo' ? 'done' : 'todo' } : t));
+  const toggleTask = async (task: Task) => {
+    const token = localStorage.getItem('token');
+    const newStatus = task.status === 'todo' ? 'done' : 'todo';
+    
+    await fetch(`/api/timetable/${task.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ status: newStatus, title: task.title })
+    });
+    
+    fetchTimetable();
+    
+    if (connectionId && socket) {
+      socket.emit('timetable_update', { connectionId });
+    }
   };
 
-  const deleteTask = (id: string) => {
-    syncTasks(tasks.filter(t => t.id !== id));
+  const deleteTask = async (id: string) => {
+    const token = localStorage.getItem('token');
+    
+    await fetch(`/api/timetable/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    fetchTimetable();
+    
+    if (connectionId && socket) {
+      socket.emit('timetable_update', { connectionId });
+    }
   };
 
   return (
@@ -67,8 +103,8 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
              <Calendar size={24} className="sm:w-7 sm:h-7" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-white font-bold text-[15px] sm:text-xl truncate">Shared Timetable</h3>
-            <p className="text-aura-lavender/50 text-[10px] sm:text-sm truncate">Study sessions with {partner.username}</p>
+            <h3 className="text-white font-bold text-[15px] sm:text-xl truncate">{connectionId ? 'Shared Timetable' : 'My Timetable'}</h3>
+            <p className="text-aura-lavender/50 text-[10px] sm:text-sm truncate">{connectionId && partner ? `Study sessions with ${partner.username}` : 'Your personal study tasks'}</p>
           </div>
        </div>
 
@@ -104,7 +140,7 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-aura-border">
          {tasks.map(t => (
             <div key={t.id} className="flex items-center justify-between p-3.5 sm:p-4 bg-aura-panel/50 backdrop-blur-sm rounded-2xl border border-aura-border group hover:border-aura-pink/50 transition-all duration-300">
-               <div className="flex items-center gap-4 cursor-pointer flex-1 py-1" onClick={() => toggleTask(t.id)}>
+               <div className="flex items-center gap-4 cursor-pointer flex-1 py-1" onClick={() => toggleTask(t)}>
                  <div className={clsx("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 active:scale-75 shadow-sm", t.status === 'done' ? 'bg-aura-pink border-aura-pink text-white rotate-0' : 'border-aura-border text-transparent group-hover:border-aura-pink/50 -rotate-12')}>
                     <Check size={14} strokeWidth={4} />
                  </div>

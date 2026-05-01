@@ -1,16 +1,28 @@
-import { Download, File, Image as ImageIcon, FileText, Upload, Plus, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Download, File, Image as ImageIcon, FileText, Upload, Plus, X, Lock } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
 import { useSocket } from './SocketProvider';
 
-export default function SmartVault({ connectionId, messages, partner }: { connectionId: string, messages: any[], partner: any }) {
+export default function SmartVault({ connectionId, messages, partner, isPersonal = false }: { connectionId: string, messages: any[], partner: any, isPersonal?: boolean }) {
   const { socket } = useSocket();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<any>(null);
-  const files = messages.filter(m => m.type === 'file');
+  const [vaultItems, setVaultItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isPersonal) {
+      fetchPersonalVault();
+    }
+  }, [isPersonal]);
+
+  const fetchPersonalVault = async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch('/api/vault', { headers: { 'Authorization': `Bearer ${token}` }});
+    if (res.ok) setVaultItems(await res.json());
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !partner || !socket) return;
+    if (!file) return;
     
     const formData = new FormData();
     formData.append('file', file);
@@ -26,17 +38,32 @@ export default function SmartVault({ connectionId, messages, partner }: { connec
       });
       const data = await res.json();
       if(data.url) {
-        socket.emit('send_message', { 
-          receiverId: partner.id, 
-          content: data.name, 
-          type: 'file',
-          fileUrl: data.url 
-        });
+        if (isPersonal) {
+          // Add to personal vault
+          await fetch('/api/vault', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ name: data.name, content: data.url, type: 'file' })
+          });
+          fetchPersonalVault();
+        } else if (partner && socket) {
+          // Send as message in shared vault
+          socket.emit('send_message', { 
+            receiverId: partner.id, 
+            content: data.name, 
+            type: 'file',
+            fileUrl: data.url 
+          });
+        }
       }
     } catch (err) {
       console.error(err);
     }
   };
+
+  const displayFiles = isPersonal 
+    ? vaultItems.map(item => ({ id: item.id, content: item.name, fileUrl: item.content, type: 'file' }))
+    : messages.filter(m => m.type === 'file');
 
   const getFileIcon = (url: string) => {
     if (url.match(/\.(jpeg|jpg|gif|png)$/i)) return <ImageIcon size={24} className="text-pink-400" />;
@@ -79,8 +106,11 @@ export default function SmartVault({ connectionId, messages, partner }: { connec
     <div className="flex flex-col h-full bg-aura-navy overflow-hidden w-full relative">
       <div className="p-6 border-b border-aura-border bg-aura-panel/30 flex items-center justify-between">
         <div>
-          <h3 className="text-white font-semibold">Vault Files</h3>
-          <p className="text-xs text-aura-lavender/50">{files.length} shared items</p>
+          <h3 className="text-white font-semibold flex items-center gap-2">
+            {isPersonal ? <Lock size={18} className="text-aura-primary" /> : null}
+            {isPersonal ? 'My Personal Vault' : 'Shared Vault'}
+          </h3>
+          <p className="text-xs text-aura-lavender/50">{displayFiles.length} items</p>
         </div>
         <button 
           onClick={() => fileInputRef.current?.click()}
@@ -93,26 +123,26 @@ export default function SmartVault({ connectionId, messages, partner }: { connec
 
       <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-aura-border">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {files.length === 0 ? (
+          {displayFiles.length === 0 ? (
             <div className="col-span-full text-center py-20 text-aura-lavender/50">
                <div className="w-16 h-16 bg-aura-panel rounded-full flex items-center justify-center mx-auto mb-4 border border-aura-border shadow-inner">
                  <Upload className="opacity-50 text-aura-primary" size={32} />
                </div>
-               <p className="font-medium text-white">Your Vault is empty</p>
-               <p className="text-sm mt-1 max-w-[200px] mx-auto">Upload files to share them permanently with {partner.username}.</p>
+               <p className="font-medium text-white mb-1">Vault is empty</p>
+               <p className="text-sm max-w-xs mx-auto">Upload files to keep them secure {isPersonal ? 'for yourself' : 'and shared with your connection'}.</p>
             </div>
           ) : (
-            files.map((f, i) => {
+            displayFiles.map((f, i) => {
               const canPreview = isPreviewable(f);
               return (
-                <div key={i} className="bg-aura-panel/40 backdrop-blur-sm border border-aura-border rounded-2xl p-4 flex flex-col group hover:border-aura-primary/50 hover:bg-aura-panel/60 hover:shadow-xl hover:shadow-aura-primary/5 transition-all duration-300 relative overflow-hidden">
+                <div key={f.id || i} className="bg-aura-panel/40 backdrop-blur-sm border border-aura-border rounded-2xl p-4 flex flex-col group hover:border-aura-primary/50 hover:bg-aura-panel/60 hover:shadow-xl hover:shadow-aura-primary/5 transition-all duration-300 relative overflow-hidden">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 rounded-xl bg-aura-navy flex items-center justify-center shrink-0 border border-aura-border group-hover:border-aura-primary/30 transition-all duration-300 group-hover:scale-105">
                       {getFileIcon(f.fileUrl)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-white font-semibold truncate" title={f.content}>{f.content}</p>
-                      <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest font-medium mt-0.5">{new Date(f.timestamp).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest font-medium mt-0.5">{f.timestamp ? new Date(f.timestamp).toLocaleDateString() : 'Just now'}</p>
                     </div>
                   </div>
                   

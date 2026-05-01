@@ -4,32 +4,16 @@ dotenv.config();
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { createServer as createViteServer } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import multer from 'multer';
 import fs from 'fs';
-import {
-  attemptKey,
-  LoginRateLimiter,
-  normalizeUsername,
-  TOKEN_TTL,
-  validateCredentials
-} from './src/lib/authSecurity.ts';
+import { createClient } from '@supabase/supabase-js';
 
 const __dirname = process.cwd();
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'peersync-secret-key';
-const loginLimiter = new LoginRateLimiter();
-
-function getClientIp(req: any): string {
-  return req.headers['x-forwarded-for']?.split(',')?.[0]?.trim() || req.ip || 'unknown';
-}
+const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 
 let auraBotId = '';
 
@@ -62,14 +46,14 @@ async function startServer() {
 
   const storage = multer.diskStorage({
     destination: uploadDir,
-    filename: (req, file, cb) => {
+    filename: (_req, file, cb) => {
       cb(null, Date.now() + '-' + file.originalname);
     }
   });
   const upload = multer({ storage });
 
   app.disable('x-powered-by');
-  app.use((req, res, next) => {
+  app.use((_req, res, next) => {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -81,92 +65,70 @@ async function startServer() {
 
   // --- API Routes ---
   
-  app.get('/api/env-check', (req, res) => {
+  app.get('/api/env-check', (_req, res) => {
     res.json({ keySet: !!process.env.GEMINI_API_KEY, length: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 0 });
   });
 
-  // Auth
-  app.post('/api/auth/register', async (req, res) => {
-    try {
-      const username = normalizeUsername(req.body?.username);
-      const password = String(req.body?.password || '');
-      const validationError = validateCredentials(username, password);
-      if (validationError) {
-        return res.status(400).json({ error: validationError });
-      }
-
-      const existing = await prisma.user.findUnique({ where: { username } });
-      if (existing) return res.status(400).json({ error: 'Username taken' });
-
-      const passwordHash = await bcrypt.hash(password, 10);
-      const user = await prisma.user.create({
-        data: { username, passwordHash }
-      });
-
-      // Auto connect with AuraBot
-      if (auraBotId) {
-         await prisma.connection.create({
-           data: {
-             user1Id: user.id,
-             user2Id: auraBotId,
-             status: 'accepted'
-           }
-         });
-      }
-
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: TOKEN_TTL });
-      res.json({ token, user: { id: user.id, username: user.username } });
-    } catch (error) {
-      console.error('Register error:', error);
-      res.status(500).json({ error: 'Server error' });
-    }
-  });
-
-  app.post('/api/auth/login', async (req, res) => {
-    try {
-      const username = normalizeUsername(req.body?.username);
-      const password = String(req.body?.password || '');
-      const validationError = validateCredentials(username, password);
-      if (validationError) return res.status(400).json({ error: validationError });
-
-      const ip = getClientIp(req);
-      const key = attemptKey(ip, username);
-      const limited = loginLimiter.isLimited(key);
-      if (limited.limited) {
-        res.setHeader('Retry-After', String(limited.retryAfterSec || 60));
-        return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
-      }
-
-      const user = await prisma.user.findUnique({ where: { username } });
-      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-        loginLimiter.recordFailure(key);
-        console.warn(`Login failed for user="${username}" from ip="${ip}"`);
-        return res.status(401).json({ error: 'Invalid credentials' });
-      }
-
-      loginLimiter.clear(key);
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: TOKEN_TTL });
-      res.json({ token, user: { id: user.id, username: user.username } });
-    } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).json({ error: 'Server error' });
-    }
-  });
-
-  const authMiddleware = (req: any, res: any, next: any) => {
+  const authMiddleware = async (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Authorization token is required' });
     }
     try {
       const token = authHeader.split(' ')[1];
-      const payload = jwt.verify(token, JWT_SECRET) as any;
-      req.userId = payload.userId;
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (error || !data.user) throw new Error('Invalid token');
+      
+      req.userId = data.user.id;
       next();
     } catch (e) {
       res.status(401).json({ error: 'Invalid token' });
     }
   };
+
+  // Auth
+  app.post('/api/auth/sync', authMiddleware, async (req: any, res: any) => {
+    try {
+      const { username } = req.body;
+      const authId = req.userId;
+
+      const user = await prisma.user.upsert({
+        where: { username: username },
+        update: { id: authId }, // Ensure the ID matches Supabase authId
+        create: {
+          id: authId,
+          username: username,
+          passwordHash: 'supabase-auth', // Not used anymore
+        }
+      });
+
+      // Auto connect with AuraBot
+      if (auraBotId) {
+         const existingBotConn = await prisma.connection.findFirst({
+           where: {
+             OR: [
+               { user1Id: user.id, user2Id: auraBotId },
+               { user1Id: auraBotId, user2Id: user.id }
+             ]
+           }
+         });
+         if (!existingBotConn) {
+           await prisma.connection.create({
+             data: {
+               user1Id: user.id,
+               user2Id: auraBotId,
+               status: 'accepted'
+             }
+           });
+         }
+      }
+
+      res.json({ user: { id: user.id, username: user.username } });
+    } catch (error) {
+      console.error('Sync error:', error);
+      res.status(500).json({ error: 'Server error during sync' });
+    }
+  });
 
   // User search
   app.get('/api/users/search', authMiddleware, async (req: any, res) => {
@@ -279,29 +241,117 @@ async function startServer() {
     res.json(messages);
   });
 
-  // Notes
-  app.get('/api/notes/:connectionId', authMiddleware, async (req: any, res) => {
-    const { connectionId } = req.params;
-    const note = await prisma.note.findFirst({ where: { connectionId } });
+  // Notes (User specific & Connection specific)
+  app.get('/api/notes', authMiddleware, async (req: any, res) => {
+    const { connectionId } = req.query;
+    let note: any;
+    if (connectionId) {
+      note = await prisma.note.findFirst({ where: { connectionId: String(connectionId) } });
+    } else {
+      note = await prisma.note.findFirst({ where: { userId: req.userId } });
+    }
     res.json(note || { content: '<p>Start collaborating...</p>' });
   });
 
-  // Timetable
-  app.get('/api/timetable/:connectionId', authMiddleware, async (req: any, res) => {
-    const { connectionId } = req.params;
-    const tasks = await prisma.timetable.findMany({ where: { connectionId } });
+  app.post('/api/notes', authMiddleware, async (req: any, res) => {
+    const { connectionId, content, title } = req.body;
+    let note: any;
+    
+    if (connectionId) {
+      note = await prisma.note.findFirst({ where: { connectionId } });
+      if (note) {
+        note = await prisma.note.update({ where: { id: note.id }, data: { content, title, lastEditedBy: req.userId } });
+      } else {
+        note = await prisma.note.create({ data: { connectionId, content, title, lastEditedBy: req.userId } });
+      }
+    } else {
+      note = await prisma.note.findFirst({ where: { userId: req.userId } });
+      if (note) {
+        note = await prisma.note.update({ where: { id: note.id }, data: { content, title, lastEditedBy: req.userId } });
+      } else {
+        note = await prisma.note.create({ data: { userId: req.userId, content, title, lastEditedBy: req.userId } });
+      }
+    }
+    res.json(note);
+  });
+
+  // Timetable (User specific & Connection specific)
+  app.get('/api/timetable', authMiddleware, async (req: any, res) => {
+    const { connectionId } = req.query;
+    let tasks: any[];
+    if (connectionId) {
+      tasks = await prisma.timetable.findMany({ where: { connectionId: String(connectionId) } });
+    } else {
+      tasks = await prisma.timetable.findMany({ where: { userId: req.userId } });
+    }
     res.json(tasks);
+  });
+
+  app.post('/api/timetable', authMiddleware, async (req: any, res) => {
+    const { connectionId, title, deadline, status } = req.body;
+    const task = await prisma.timetable.create({
+      data: {
+        title,
+        deadline: deadline ? new Date(deadline) : null,
+        status: status || 'todo',
+        connectionId: connectionId || null,
+        userId: connectionId ? null : req.userId
+      }
+    });
+    res.json(task);
+  });
+
+  app.put('/api/timetable/:id', authMiddleware, async (req: any, res) => {
+    const { id } = req.params;
+    const { status, title, deadline } = req.body;
+    const task = await prisma.timetable.update({
+      where: { id },
+      data: { status, title, deadline: deadline ? new Date(deadline) : null }
+    });
+    res.json(task);
+  });
+  
+  app.delete('/api/timetable/:id', authMiddleware, async (req: any, res) => {
+    const { id } = req.params;
+    await prisma.timetable.delete({ where: { id } });
+    res.json({ success: true });
+  });
+
+  // Vault (User specific)
+  app.get('/api/vault', authMiddleware, async (req: any, res) => {
+    const items = await prisma.vaultItem.findMany({ where: { userId: req.userId } });
+    res.json(items);
+  });
+
+  app.post('/api/vault', authMiddleware, async (req: any, res) => {
+    const { name, content, type } = req.body;
+    const item = await prisma.vaultItem.create({
+      data: {
+        userId: req.userId,
+        name,
+        content,
+        type: type || 'secret'
+      }
+    });
+    res.json(item);
+  });
+  
+  app.delete('/api/vault/:id', authMiddleware, async (req: any, res) => {
+    const { id } = req.params;
+    await prisma.vaultItem.delete({ where: { id } });
+    res.json({ success: true });
   });
 
   // --- Real-Time Socket.io ---
   const activeUsers = new Map<string, string>(); // userId -> socketId
   
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next(new Error('Auth required'));
     try {
-      const payload = jwt.verify(token, JWT_SECRET) as any;
-      socket.data.userId = payload.userId;
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (error || !data.user) throw new Error('Invalid token');
+      socket.data.userId = data.user.id;
       next();
     } catch {
       next(new Error('Invalid token'));
@@ -486,7 +536,7 @@ async function startServer() {
   } else {
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
