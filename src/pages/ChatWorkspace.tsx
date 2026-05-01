@@ -9,7 +9,34 @@ import SmartVault from '../components/SmartVault';
 import SharedTimetable from '../components/SharedTimetable';
 import { motion, AnimatePresence } from 'motion/react';
 import ActionMojiAvatar from '../components/ActionMojiAvatar';
-import { GoogleGenAI } from '@google/genai';
+
+// Human-readable status labels
+const STATUS_LABELS: Record<string, string> = {
+  offline: '⚫ Offline',
+  idle: '💤 Idle',
+  online: '🟢 Online',
+  typing: '✏️ Typing...',
+  reading_chat: '👀 Reading chat',
+  browsing_files: '📂 Browsing files',
+  viewing_notes: '📝 Viewing notes',
+  timetable_open: '📅 Checking timetable',
+  thinking: '💭 Thinking...',
+  happy: '😄 Happy',
+  sad: '😢 Sad',
+  angry: '😡 Angry',
+  confused: '😕 Confused',
+  surprised: '😲 Surprised',
+  partying: '🎉 Partying!',
+  heart_eyes: '🥰 Loving it',
+  starry_eyes: '🤩 Amazed',
+  cool: '😎 Cool',
+  crying: '😭 Crying',
+  magic: '✨ Feeling magical',
+};
+
+function getStatusLabel(status: string) {
+  return STATUS_LABELS[status] || status.replace(/_/g, ' ');
+}
 
 export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const { id: connectionId } = useParams();
@@ -21,7 +48,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const [input, setInput] = useState('');
   const [toolTab, setToolTab] = useState<'notes' | 'vault' | 'timetable' | 'none'>('notes');
   const chatEndRef = useRef<HTMLDivElement>(null);
-  
+
   const conn = connections.find(c => c.id === connectionId);
   const partner = conn ? (conn.user1Id === user?.id ? conn.user2 : conn.user1) : null;
 
@@ -42,7 +69,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
   useEffect(() => {
     if (!socket || !partner) return;
-    
+
     // Join room for this connection
     socket.emit('join_rooms', [partner.id]);
 
@@ -51,155 +78,17 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
 
-    const handleBotGeneration = async (data: { content: string }) => {
-      try {
-        const history = messagesRef.current
-          .filter(m => m.type === 'text')
-          .slice(-20)
-          .map(m => ({
-            role: m.senderId === user?.id ? "user" : "assistant",
-            content: m.content || ""
-          }));
-
-        const systemPrompt = `You are AuraBot, a very close friend and supportive AI companion to ${user?.username || "the user"}. 
-Treat them like your best friend. You must remember and use personal information from the conversation history to make them feel heard and understood. Keep your responses natural, empathetic, short, and cute.`;
-
-        const messagesPayload = [
-          { role: "system", content: systemPrompt },
-          ...history
-        ];
-
-        const NVIDIA_API_KEY = (import.meta as any).env.VITE_NVIDIA_API_KEY || (window as any).process?.env?.NVIDIA_API_KEY || "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";
-        
-        setPartnerStatus(partner.id, "thinking");
-        
-        let textResponse;
-        
-        try {
-          const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${NVIDIA_API_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: "minimaxai/minimax-m2.7",
-              messages: messagesPayload,
-              temperature: 1,
-              top_p: 0.95,
-              max_tokens: 8192,
-              stream: false
-            })
-          });
-          
-          if (!res.ok) {
-             const errText = await res.text();
-             throw new Error(`NVIDIA API failed with ${res.status}: ${errText}`);
-          }
-          
-          const json = await res.json();
-          if (json.error) throw new Error(`NVIDIA API Error: ${json.error.message || "Unknown error"}`);
-          
-          textResponse = json.choices?.[0]?.message?.content;
-          if (!textResponse) throw new Error(`NVIDIA API returned empty response`);
-          
-        } catch (nvidiaErr) {
-          console.error("NVIDIA API failed:", nvidiaErr);
-          console.log("Attempting fallback to Llama model...");
-          
-          try {
-            const FALLBACK_API_KEY = (import.meta as any).env.VITE_NVIDIA_FALLBACK_API_KEY || (window as any).process?.env?.NVIDIA_FALLBACK_API_KEY || "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";
-            const fallbackRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${FALLBACK_API_KEY}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                model: "meta/llama-4-maverick-17b-128e-instruct",
-                messages: messagesPayload,
-                max_tokens: 512,
-                temperature: 1.00,
-                top_p: 1.00,
-                frequency_penalty: 0.00,
-                presence_penalty: 0.00,
-                stream: false
-              })
-            });
-            
-            if (!fallbackRes.ok) {
-               const errText = await fallbackRes.text();
-               throw new Error(`Fallback NVIDIA API failed with ${fallbackRes.status}: ${errText}`);
-            }
-            
-            const fallbackJson = await fallbackRes.json();
-            if (fallbackJson.error) throw new Error(`Fallback NVIDIA API Error: ${fallbackJson.error.message || "Unknown error"}`);
-            
-            textResponse = fallbackJson.choices?.[0]?.message?.content;
-            if (!textResponse) throw new Error(`Fallback NVIDIA API returned empty response`);
-            
-          } catch (fallbackErr) {
-             console.error("Fallback NVIDIA API failed as well:", fallbackErr);
-          }
-        }
-        
-        if (textResponse) {
-           socket.emit('save_bot_message', { content: textResponse });
-           
-           // Parse emotion from text
-           let nextState = 'happy';
-           const t = textResponse.toLowerCase();
-           if (t.includes('sad') || t.includes('sorry')) nextState = 'sad';
-           else if (t.includes('angry') || t.includes('mad')) nextState = 'angry';
-           else if (t.includes('confus') || t.includes('what')) nextState = 'confused';
-           else if (t.includes('wow') || t.includes('surpris')) nextState = 'surprised';
-           else if (t.includes('party') || t.includes('yay') || t.includes('congrat')) nextState = 'partying';
-           else if (t.includes('mind') || t.includes('blown')) nextState = 'mind_blown';
-           else if (t.includes('love') || t.includes('heart')) nextState = 'heart_eyes';
-           else if (t.includes('star') || t.includes('amazing')) nextState = 'starry_eyes';
-           else if (t.includes('cool') || t.includes('awesome')) nextState = 'cool';
-           else if (t.includes('cry') || t.includes('tear')) nextState = 'crying';
-           else if (t.includes('cold') || t.includes('freez')) nextState = 'freezing';
-           else if (t.includes('hot') || t.includes('sweat')) nextState = 'hot';
-           else if (t.includes('run') || t.includes('fast')) nextState = 'running';
-           else if (t.includes('gym') || t.includes('workout') || t.includes('lift')) nextState = 'gym';
-           else if (t.includes('music') || t.includes('song')) nextState = 'listening_music';
-           else if (t.includes('game') || t.includes('play')) nextState = 'playing_games';
-           else if (t.includes('read') || t.includes('book')) nextState = 'reading_book';
-           else if (t.includes('code') || t.includes('programm')) nextState = 'writing_code';
-           else if (t.includes('coffee') || t.includes('drink')) nextState = 'coffee_break';
-           else if (t.includes('magic') || t.includes('spell')) nextState = 'magic';
-           else if (t.includes('ghost') || t.includes('boo')) nextState = 'ghost';
-           else if (t.includes('ninja') || t.includes('stealth')) nextState = 'ninja';
-           else if (t.includes('alien') || t.includes('space')) nextState = 'alien';
-           else if (t.includes('robot') || t.includes('bot')) nextState = 'robot';
-           else if (t.includes('detective') || t.includes('investigat')) nextState = 'detective';
-           else if (t.includes('hero') || t.includes('super')) nextState = 'superhero';
-           
-           setPartnerStatus(partner.id, nextState);
-        } else {
-           socket.emit('save_bot_message', { content: "I'm having some trouble connecting to my AI core right now!" });
-           setPartnerStatus(partner.id, "sad");
-        }
-      } catch (err) {
-        console.error("AI Gen Error", err);
-        socket.emit('save_bot_message', { content: "I'm having some trouble connecting to my AI core right now!" });
-        setPartnerStatus(partner.id, "sad");
-      }
-    };
-
+    // AI generation is now fully server-side — just listen for messages and status updates
     socket.on('new_message', handleNewMessage);
     socket.on('message_sent', handleNewMessage);
-    socket.on('request_bot_generation', handleBotGeneration);
 
     return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('message_sent', handleNewMessage);
-      socket.off('request_bot_generation', handleBotGeneration);
     };
-  }, [socket, connectionId, partner?.id, partner?.username, user?.id]);
+  }, [socket, connectionId, partner?.id]);
 
-  // Status tracking
+  // Status tracking — broadcast OUR status to partner
   useEffect(() => {
     if (!socket || !partner) return;
 
@@ -218,7 +107,7 @@ Treat them like your best friend. You must remember and use personal information
       else state = 'reading_chat';
 
       updateStatus(state);
-      
+
       // Bot mimics interaction state dynamically
       if (partner.username === 'AuraBot') {
         let botState = state;
@@ -232,7 +121,7 @@ Treat them like your best friend. You must remember and use personal information
         if (partner.username === 'AuraBot') {
           setPartnerStatus(partner.id, 'idle');
         }
-      }, 60000); // idle after 1 min
+      }, 60000);
     };
 
     window.addEventListener('mousemove', handleInteraction);
@@ -256,26 +145,24 @@ Treat them like your best friend. You must remember and use personal information
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !partner || !socket) return;
-    
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
       const data = await res.json();
       if(data.url) {
-        socket.emit('send_message', { 
-          receiverId: partner.id, 
-          content: data.name, 
+        socket.emit('send_message', {
+          receiverId: partner.id,
+          content: data.name,
           type: 'file',
-          fileUrl: data.url 
+          fileUrl: data.url
         });
       }
     } catch (err) {
@@ -290,19 +177,14 @@ Treat them like your best friend. You must remember and use personal information
   return (
     <div className="flex w-full h-full bg-aura-navy relative overflow-hidden">
       {/* Chat Area */}
-      <div className={clsx("flex flex-col h-full transition-all duration-300 relative", 
+      <div className={clsx("flex flex-col h-full transition-all duration-300 relative",
         toolTab === 'none' ? "w-full lg:w-3/4 mx-auto border-r border-aura-border" : "hidden md:flex md:w-1/2 border-r border-aura-border")}>
-        
-        {/* Floating ActionMoji Panel */}
-        <div className="absolute top-4 right-4 z-20 pointer-events-none drop-shadow-xl">
-           <ActionMojiAvatar state={currentPartnerStatus} username={partner.username} />
-        </div>
 
         {/* Header */}
-        <div className="h-16 sm:h-20 flex items-center justify-between px-3 sm:px-6 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0">
+        <div className="h-16 sm:h-[72px] flex items-center justify-between px-3 sm:px-4 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0 overflow-visible gap-2">
           <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
-             <button 
-              onClick={() => navigate('/dashboard')} 
+             <button
+              onClick={() => navigate('/dashboard')}
               className="md:hidden p-2.5 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all"
              >
                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -318,12 +200,37 @@ Treat them like your best friend. You must remember and use personal information
                  <span className="truncate">{partner.username}</span>
                  {partner?.username === 'AuraBot' && <span className="hidden xs:inline-block text-[9px] sm:text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-widest font-black border border-pink-500/20">AI</span>}
                </h3>
-               <p className="text-[10px] sm:text-xs text-aura-lavender/50 capitalize truncate font-medium tracking-wide">
-                  {currentPartnerStatus.replace('_', ' ')}
+               <p className="text-[10px] sm:text-xs text-aura-lavender/50 truncate font-medium tracking-wide">
+                  {getStatusLabel(currentPartnerStatus)}
                </p>
              </div>
           </div>
-          
+
+          {/* ── ActionMoji — fixed in header, never scrolls ──
+               The avatar component is 80x80px; we scale it down to 48x48.
+               overflow-visible on wrapper lets emoji props show outside bounds. */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentPartnerStatus}
+              initial={{ opacity: 0, scale: 0.6, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+              className="flex-shrink-0 flex flex-col items-center overflow-visible"
+              title={getStatusLabel(currentPartnerStatus)}
+              style={{ width: 48 }}
+            >
+              {/* Scale wrapper: 80px avatar shrunk to 48px visual = scale 0.6 */}
+              <div style={{ width: 80, height: 80, transform: 'scale(0.6)', transformOrigin: 'top center', overflow: 'visible' }}>
+                <ActionMojiAvatar state={currentPartnerStatus} username={partner.username} />
+              </div>
+              {/* Status label — sits below avatar (shifted up because of transform gap) */}
+              <span className="text-[9px] font-bold text-aura-lavender/60 uppercase tracking-wide -mt-6 text-center max-w-[54px] leading-tight truncate">
+                {currentPartnerStatus.replace(/_/g, ' ')}
+              </span>
+            </motion.div>
+          </AnimatePresence>
+
           {/* Tool Toggles */}
           <div className="flex items-center gap-1 sm:gap-2 bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50">
             <button onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')} className={clsx("p-2 sm:p-2.5 rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SyncNotes">
@@ -339,7 +246,8 @@ Treat them like your best friend. You must remember and use personal information
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-aura-navy pt-20 sm:pt-24 scroll-smooth" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(30, 30, 50, 0.4) 0%, transparent 100%)' }}>
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-aura-navy scroll-smooth" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(30, 30, 50, 0.4) 0%, transparent 100%)' }}>
+
           {messages.map((m, i) => {
             const isMe = m.senderId === user?.id;
             return (
@@ -371,9 +279,9 @@ Treat them like your best friend. You must remember and use personal information
               <Paperclip size={20} />
               <input type="file" className="hidden" onChange={handleFileUpload} />
             </label>
-            <input 
-              type="text" 
-              placeholder="Message..." 
+            <input
+              type="text"
+              placeholder="Message..."
               value={input}
               onChange={e => setInput(e.target.value)}
               className="flex-1 bg-aura-navy border border-aura-border rounded-lg pl-4 pr-16 py-3 text-white focus:outline-none focus:border-aura-primary transition-colors shadow-inner"
@@ -388,7 +296,7 @@ Treat them like your best friend. You must remember and use personal information
       {/* Tools Area / Split View */}
       <AnimatePresence>
         {toolTab !== 'none' && (
-          <motion.div 
+          <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
@@ -406,8 +314,8 @@ Treat them like your best friend. You must remember and use personal information
                   {toolTab === 'timetable' && 'Shared Timetable'}
                 </span>
               </h2>
-              <button 
-                onClick={() => setToolTab('none')} 
+              <button
+                onClick={() => setToolTab('none')}
                 className="p-2.5 text-aura-lavender/50 hover:text-white transition-all bg-aura-navy hover:bg-aura-border rounded-xl active:scale-90 border border-aura-border/50"
               >
                 <X size={22} />

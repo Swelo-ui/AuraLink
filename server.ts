@@ -352,14 +352,64 @@ async function startServer() {
         }
         socket.emit('message_sent', msg); // ack
 
-        // Handle AI Bot Response Request
+        // Handle AI Bot Response -- fully server-side
         if (data.receiverId === auraBotId && data.type === 'text') {
            socket.emit('partner_status', { userId: auraBotId, state: 'reading_chat' });
-           
-           setTimeout(() => {
-             socket.emit('partner_status', { userId: auraBotId, state: 'typing' });
-             socket.emit('request_bot_generation', { content: data.content });
-           }, 1000);
+           (async () => {
+             try {
+               await new Promise(r => setTimeout(r, 800));
+               socket.emit('partner_status', { userId: auraBotId, state: 'typing' });
+               const recentMsgs = await prisma.message.findMany({ where: { OR: [{ senderId: userId, receiverId: auraBotId }, { senderId: auraBotId, receiverId: userId }] }, orderBy: { timestamp: 'desc' }, take: 20 });
+               const history = recentMsgs.reverse().filter((m: any) => m.type === 'text').map((m: any) => ({ role: m.senderId === userId ? 'user' : 'assistant', content: m.content || '' }));
+               const senderUser = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } });
+               const systemPrompt = `You are AuraBot, a very close friend and supportive AI companion to ${senderUser?.username || 'the user'}. Treat them like your best friend. Keep responses natural, empathetic, short and cute. Max 3 sentences.`;
+               const messagesPayload = [{ role: 'system', content: systemPrompt }, ...history];
+               let textResponse: string | null = null;
+               const nvKey = process.env.VITE_NVIDIA_API_KEY || '';
+               if (nvKey) {
+                 try {
+                   const nvRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', { method: 'POST', headers: { 'Authorization': `Bearer ${nvKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'meta/llama-4-maverick-17b-128e-instruct', messages: messagesPayload, max_tokens: 256, temperature: 0.9, stream: false }) });
+                   if (nvRes.ok) { const j = await nvRes.json(); textResponse = j.choices?.[0]?.message?.content || null; }
+                   else console.warn('NVIDIA primary failed:', nvRes.status);
+                 } catch (e) { console.warn('NVIDIA primary error:', e); }
+               }
+               if (!textResponse) {
+                 const nvFbKey = process.env.VITE_NVIDIA_FALLBACK_API_KEY || '';
+                 if (nvFbKey) {
+                   try {
+                     const fbRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', { method: 'POST', headers: { 'Authorization': `Bearer ${nvFbKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'meta/llama-3.3-70b-instruct', messages: messagesPayload, max_tokens: 256, temperature: 0.9, stream: false }) });
+                     if (fbRes.ok) { const j = await fbRes.json(); textResponse = j.choices?.[0]?.message?.content || null; }
+                     else console.warn('NVIDIA fallback failed:', fbRes.status);
+                   } catch (e) { console.warn('NVIDIA fallback error:', e); }
+                 }
+               }
+               if (!textResponse && process.env.GEMINI_API_KEY) {
+                 try {
+                   const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system_instruction: { parts: [{ text: systemPrompt }] }, contents: messagesPayload.filter((m: any) => m.role !== 'system').map((m: any) => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] })) }) });
+                   if (gRes.ok) { const j = await gRes.json(); textResponse = j.candidates?.[0]?.content?.parts?.[0]?.text || null; }
+                 } catch (e) { console.warn('Gemini fallback error:', e); }
+               }
+               const finalText = textResponse || 'Hmm, I am a little overwhelmed right now! Try again? 🌸';
+               let avatarState = 'happy';
+               const tl = finalText.toLowerCase();
+               if (tl.includes('sad') || tl.includes('sorry')) avatarState = 'sad';
+               else if (tl.includes('angry') || tl.includes('mad')) avatarState = 'angry';
+               else if (tl.includes('wow') || tl.includes('surpris')) avatarState = 'surprised';
+               else if (tl.includes('party') || tl.includes('yay') || tl.includes('congrat')) avatarState = 'partying';
+               else if (tl.includes('love') || tl.includes('heart')) avatarState = 'heart_eyes';
+               else if (tl.includes('amazing') || tl.includes('star')) avatarState = 'starry_eyes';
+               else if (tl.includes('cool') || tl.includes('awesome')) avatarState = 'cool';
+               const aiMsg = await prisma.message.create({ data: { senderId: auraBotId, receiverId: userId, content: finalText, type: 'text' } });
+               socket.emit('new_message', aiMsg);
+               socket.emit('partner_status', { userId: auraBotId, state: avatarState });
+               setTimeout(() => socket.emit('partner_status', { userId: auraBotId, state: 'idle' }), 4000);
+             } catch (aiErr) {
+               console.error('Server AI error:', aiErr);
+               const errMsg = await prisma.message.create({ data: { senderId: auraBotId, receiverId: userId, content: 'Oops something went wrong! 😅 Try again?', type: 'text' } });
+               socket.emit('new_message', errMsg);
+               socket.emit('partner_status', { userId: auraBotId, state: 'sad' });
+             }
+           })();
         }
       } catch (error) {
         console.error('Save msg error:', error);
