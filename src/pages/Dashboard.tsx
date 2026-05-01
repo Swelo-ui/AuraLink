@@ -17,7 +17,8 @@ export default function Dashboard() {
   const fetchConnections = async () => {
     if (!user?.id) return;
     
-    const { data, error } = await supabase
+    // 1. Fetch real connections
+    const { data: realConnections, error } = await supabase
       .from('connections')
       .select(`
         id, status, created_at,
@@ -27,9 +28,42 @@ export default function Dashboard() {
       `)
       .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);
       
-    if (!error && data) {
-      setConnections(data);
+    if (error) {
+      console.error('Error fetching connections:', error);
+      return;
     }
+
+    // 2. Fetch AuraBot user
+    const { data: botData } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .eq('username', 'AuraBot')
+      .single();
+
+    let finalConnections = realConnections || [];
+
+    // 3. If AuraBot exists and not already in connections, add a virtual connection
+    if (botData) {
+      const hasBotConnection = realConnections?.some(conn => 
+        (conn.user1_id === botData.id) || (conn.user2_id === botData.id)
+      );
+
+      if (!hasBotConnection) {
+        const virtualBotConnection = {
+          id: `bot-${botData.id}`,
+          status: 'accepted',
+          created_at: new Date().toISOString(),
+          user1_id: user.id,
+          user2_id: botData.id,
+          user1: { id: user.id, username: user.username, avatar_url: null },
+          user2: botData,
+          isVirtual: true
+        };
+        finalConnections = [virtualBotConnection, ...finalConnections];
+      }
+    }
+
+    setConnections(finalConnections);
   };
 
   useEffect(() => {

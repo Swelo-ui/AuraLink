@@ -18,10 +18,17 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
 
   useEffect(() => {
     const handler = (e: any) => {
+      console.log('PWA: beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler);
+    
+    // Check if app is already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      console.log('PWA: App is already in standalone mode');
+    }
+
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
