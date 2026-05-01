@@ -7,15 +7,29 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { createServer as createViteServer } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import fs from 'fs';
+import {
+  attemptKey,
+  LoginRateLimiter,
+  normalizeUsername,
+  TOKEN_TTL,
+  validateCredentials
+} from './src/lib/authSecurity.ts';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = process.cwd();
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'peersync-secret-key';
+const loginLimiter = new LoginRateLimiter();
+
+function getClientIp(req: any): string {
+  return req.headers['x-forwarded-for']?.split(',')?.[0]?.trim() || req.ip || 'unknown';
+}
 
 let auraBotId = '';
 
@@ -54,7 +68,15 @@ async function startServer() {
   });
   const upload = multer({ storage });
 
-  app.use(express.json());
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    next();
+  });
+  app.use(express.json({ limit: '1mb' }));
   app.use('/uploads', express.static(uploadDir));
 
   // --- API Routes ---
@@ -66,9 +88,13 @@ async function startServer() {
   // Auth
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const { username, password } = req.body;
-      if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
-      
+      const username = normalizeUsername(req.body?.username);
+      const password = String(req.body?.password || '');
+      const validationError = validateCredentials(username, password);
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
+      }
+
       const existing = await prisma.user.findUnique({ where: { username } });
       if (existing) return res.status(400).json({ error: 'Username taken' });
 
@@ -88,30 +114,50 @@ async function startServer() {
          });
       }
 
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET);
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: TOKEN_TTL });
       res.json({ token, user: { id: user.id, username: user.username } });
     } catch (error) {
+      console.error('Register error:', error);
       res.status(500).json({ error: 'Server error' });
     }
   });
 
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const username = normalizeUsername(req.body?.username);
+      const password = String(req.body?.password || '');
+      const validationError = validateCredentials(username, password);
+      if (validationError) return res.status(400).json({ error: validationError });
+
+      const ip = getClientIp(req);
+      const key = attemptKey(ip, username);
+      const limited = loginLimiter.isLimited(key);
+      if (limited.limited) {
+        res.setHeader('Retry-After', String(limited.retryAfterSec || 60));
+        return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+      }
+
       const user = await prisma.user.findUnique({ where: { username } });
       if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+        loginLimiter.recordFailure(key);
+        console.warn(`Login failed for user="${username}" from ip="${ip}"`);
         return res.status(401).json({ error: 'Invalid credentials' });
       }
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET);
+
+      loginLimiter.clear(key);
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: TOKEN_TTL });
       res.json({ token, user: { id: user.id, username: user.username } });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({ error: 'Server error' });
     }
   });
 
   const authMiddleware = (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization token is required' });
+    }
     try {
       const token = authHeader.split(' ')[1];
       const payload = jwt.verify(token, JWT_SECRET) as any;
@@ -375,7 +421,16 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa'
+      appType: 'spa',
+      // Keep dev server config inline to avoid tsx+vite config resolution issues on Windows.
+      resolve: {
+        alias: {
+          '@': path.resolve(process.cwd(), '.'),
+        },
+      },
+      define: {
+        'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || ''),
+      },
     });
     app.use(vite.middlewares);
   } else {
@@ -386,7 +441,7 @@ async function startServer() {
     });
   }
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT || 3000);
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT} (0.0.0.0)`);
   });

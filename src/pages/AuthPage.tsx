@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
-
+import { Sparkles } from 'lucide-react';
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
@@ -22,7 +22,7 @@ export default function AuthPage() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: username.trim(), password })
       });
       const data = await res.json();
       
@@ -38,33 +38,28 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+    <div className="min-h-screen w-full flex items-center justify-center p-4 md:p-6 relative overflow-hidden"
       style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(155,89,182,0.25) 0%, transparent 55%), radial-gradient(ellipse at 75% 80%, rgba(236,72,153,0.2) 0%, transparent 55%), #0D0D1A' }}
     >
       {/* Ambient blobs */}
       <div className="absolute top-[-80px] left-[-80px] w-96 h-96 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #9B59B6, transparent)' }} />
       <div className="absolute bottom-[-80px] right-[-60px] w-80 h-80 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #EC4899, transparent)' }} />
 
-      <div className="relative w-full max-w-sm">
+      <div className="relative w-full max-w-md">
         {/* Card */}
-        <div className="rounded-3xl p-8 border border-white/10 shadow-2xl backdrop-blur-sm"
+        <div className="rounded-3xl p-6 md:p-8 border border-white/10 shadow-2xl backdrop-blur-sm"
           style={{ background: 'rgba(26,26,46,0.85)' }}
         >
           {/* Icon + Logo stacked */}
-          <div className="flex flex-col items-center mb-6 gap-0">
-            {/* Kawaii icon */}
-            <img
-              src="/auralink-icon.jpeg"
-              alt="AuraLink Icon"
-              className="w-24 h-24 object-contain mix-blend-screen"
-            />
+          <div className="flex flex-col items-center mb-6 gap-3">
+            {/* Clean vector icon instead of jpeg with box artifacts */}
+            <div className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#9B59B6] to-[#EC4899] shadow-[0_0_40px_rgba(236,72,153,0.4)] transform rotate-3 hover:rotate-6 transition-transform">
+              <Sparkles className="w-10 h-10 text-white" />
+            </div>
             {/* Text logo */}
-            <img
-              src="/auralink-logo.jpeg"
-              alt="AuraLink – chat · connect · closer"
-              className="h-14 object-contain mix-blend-screen"
-              style={{ filter: 'drop-shadow(0 2px 12px rgba(155,89,182,0.4))' }}
-            />
+            <h1 className="text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-[#E9D5FF] to-white" style={{ filter: 'drop-shadow(0 2px 12px rgba(155,89,182,0.4))' }}>
+              AuraLink
+            </h1>
           </div>
 
           {/* Subtitle */}
@@ -93,6 +88,9 @@ export default function AuthPage() {
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 placeholder="your_username"
+                minLength={3}
+                maxLength={24}
+                autoComplete="username"
                 required
               />
             </div>
@@ -110,6 +108,9 @@ export default function AuthPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
+                minLength={8}
+                maxLength={128}
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
                 required
               />
             </div>
