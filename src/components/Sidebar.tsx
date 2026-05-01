@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, Palette, Shield } from 'lucide-react';
+import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, Palette, Shield, Download } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
@@ -14,6 +14,26 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const navigate = useNavigate();
   const location = useLocation();
   const { partnerStatus } = useSocket();
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -216,6 +236,12 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                     <div className="flex items-center gap-3 text-white"><Shield size={18} className="text-blue-400" /> Privacy</div>
                     <span className="text-xs text-aura-lavender/50">&gt;</span>
                   </button>
+                  {deferredPrompt && (
+                    <button onClick={handleInstallApp} className="w-full flex items-center justify-between p-3 bg-aura-primary/10 hover:bg-aura-primary/20 rounded-xl border border-aura-primary/30 transition-colors">
+                      <div className="flex items-center gap-3 text-white"><Download size={18} className="text-aura-primary" /> Install App</div>
+                      <span className="text-xs text-aura-primary font-medium">Install</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

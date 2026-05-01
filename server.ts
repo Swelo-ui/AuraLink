@@ -13,7 +13,10 @@ import { createClient } from '@supabase/supabase-js';
 const __dirname = process.cwd();
 
 const prisma = new PrismaClient();
-const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '');
+const supabaseAdmin = createClient(
+  process.env.VITE_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 let auraBotId = '';
 
@@ -39,18 +42,14 @@ async function startServer() {
     console.error("Error creating AuraBot:", err);
   }
 
-  const uploadDir = path.join(__dirname, 'uploads');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
+  // Ensure Supabase uploads bucket exists
+  try {
+    await supabaseAdmin.storage.createBucket('uploads', { public: true }).catch(() => {});
+  } catch (err) {
+    console.error("Could not ensure bucket:", err);
   }
 
-  const storage = multer.diskStorage({
-    destination: uploadDir,
-    filename: (_req, file, cb) => {
-      cb(null, Date.now() + '-' + file.originalname);
-    }
-  });
-  const upload = multer({ storage });
+  const upload = multer({ storage: multer.memoryStorage() });
 
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -60,8 +59,7 @@ async function startServer() {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     next();
   });
-  app.use(express.json({ limit: '1mb' }));
-  app.use('/uploads', express.static(uploadDir));
+  app.use(express.json({ limit: '5mb' }));
 
   // --- API Routes ---
   
@@ -214,10 +212,28 @@ async function startServer() {
   });
 
   // Upload
-  app.post('/api/upload', authMiddleware, upload.single('file'), (req: any, res) => {
+  app.post('/api/upload', authMiddleware, upload.single('file'), async (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const fileUrl = `/uploads/${req.file.filename}`;
-    res.json({ url: fileUrl, name: req.file.originalname, type: req.file.mimetype });
+    try {
+      const fileName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const { data, error } = await supabaseAdmin.storage
+        .from('uploads')
+        .upload(fileName, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      const { data: publicUrlData } = supabaseAdmin.storage.from('uploads').getPublicUrl(fileName);
+      
+      res.json({ url: publicUrlData.publicUrl, name: req.file.originalname, type: req.file.mimetype });
+    } catch (err) {
+      console.error('Upload error:', err);
+      res.status(500).json({ error: 'Failed to upload file to storage' });
+    }
   });
 
   // Messages
