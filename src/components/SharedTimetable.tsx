@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Check } from 'lucide-react';
 import { useSocket } from './SocketProvider';
+import clsx from 'clsx';
 
 interface Task {
   id: string;
@@ -10,11 +11,26 @@ interface Task {
 
 export default function SharedTimetable({ connectionId, partner }: { connectionId: string, partner: any }) {
   const { socket } = useSocket();
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', title: 'Study Math Chapter 4', status: 'todo' },
-    { id: '2', title: 'Review Physics Notes', status: 'done' },
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState('');
+
+  useEffect(() => {
+    const fetchTimetable = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/timetable/${connectionId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) setTasks(data);
+        }
+      } catch (err) {
+        console.error('Failed to load timetable', err);
+      }
+    };
+    fetchTimetable();
+  }, [connectionId]);
 
   useEffect(() => {
     if (!socket) return;
@@ -45,50 +61,68 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
   };
 
   return (
-    <div className="flex flex-col h-full bg-aura-navy overflow-hidden w-full p-6">
-       <div className="mb-6 flex items-center gap-3">
-          <div className="w-12 h-12 bg-aura-pink/20 text-aura-pink rounded-xl flex items-center justify-center">
-             <Calendar size={24} />
+    <div className="flex flex-col h-full bg-aura-navy overflow-hidden w-full p-4 sm:p-6">
+       <div className="mb-4 sm:mb-6 flex items-center gap-3 sm:gap-4 bg-aura-panel/30 p-3 sm:p-4 rounded-2xl border border-aura-border/50">
+          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-aura-pink/20 text-aura-pink rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-aura-pink/10">
+             <Calendar size={24} className="sm:w-7 sm:h-7" />
           </div>
-          <div>
-            <h3 className="text-white font-semibold text-lg">Shared Timetable</h3>
-            <p className="text-aura-lavender/50 text-sm">Sync your study sessions with {partner.username}</p>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-white font-bold text-[15px] sm:text-xl truncate">Shared Timetable</h3>
+            <p className="text-aura-lavender/50 text-[10px] sm:text-sm truncate">Study sessions with {partner.username}</p>
           </div>
        </div>
 
-       <form onSubmit={addTask} className="flex gap-2 mb-6">
+       {/* Progress Bar */}
+       {tasks.length > 0 && (
+         <div className="mb-4 sm:mb-6 px-1">
+           <div className="flex justify-between items-end text-[10px] sm:text-xs text-aura-lavender/60 mb-2 font-bold uppercase tracking-wider">
+             <span className="flex items-center gap-1.5"><Clock size={12} className="text-aura-pink" /> Progress</span>
+             <span className="text-aura-pink">{Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100)}%</span>
+           </div>
+           <div className="w-full bg-aura-panel rounded-full h-2 overflow-hidden border border-aura-border shadow-inner">
+             <div 
+               className="bg-aura-pink h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(236,72,153,0.3)]" 
+               style={{ width: `${(tasks.filter(t => t.status === 'done').length / tasks.length) * 100}%` }}
+             ></div>
+           </div>
+         </div>
+       )}
+
+       <form onSubmit={addTask} className="flex gap-2 mb-4 sm:mb-6">
          <input 
            type="text" 
-           placeholder="Add a new study session or task..." 
+           placeholder="New task..." 
            value={newTask}
            onChange={e => setNewTask(e.target.value)}
-           className="flex-1 bg-aura-panel border border-aura-border rounded-lg px-4 py-2 text-white focus:outline-none focus:border-aura-pink transition-colors"
+           className="flex-1 bg-aura-panel border border-aura-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-aura-pink transition-all placeholder:text-aura-lavender/30"
          />
-         <button type="submit" className="bg-aura-pink hover:opacity-80 text-white p-2 px-4 rounded-lg font-medium flex items-center gap-2 transition-opacity">
-           <Plus size={18} /> Add
+         <button type="submit" className="bg-aura-pink hover:opacity-90 text-white p-2.5 sm:px-5 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-90 shadow-lg shadow-aura-pink/20">
+           <Plus size={20} /> <span className="hidden xs:inline">Add</span>
          </button>
        </form>
 
-       <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+       <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-aura-border">
          {tasks.map(t => (
-            <div key={t.id} className="flex items-center justify-between p-4 bg-aura-panel rounded-xl border border-aura-border group hover:border-aura-pink transition-colors">
-               <div className="flex items-center gap-4 cursor-pointer" onClick={() => toggleTask(t.id)}>
-                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${t.status === 'done' ? 'bg-aura-pink border-aura-pink text-white' : 'border-aura-border text-transparent group-hover:border-aura-pink/50'}`}>
-                    ✓
+            <div key={t.id} className="flex items-center justify-between p-3.5 sm:p-4 bg-aura-panel/50 backdrop-blur-sm rounded-2xl border border-aura-border group hover:border-aura-pink/50 transition-all duration-300">
+               <div className="flex items-center gap-4 cursor-pointer flex-1 py-1" onClick={() => toggleTask(t.id)}>
+                 <div className={clsx("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 active:scale-75 shadow-sm", t.status === 'done' ? 'bg-aura-pink border-aura-pink text-white rotate-0' : 'border-aura-border text-transparent group-hover:border-aura-pink/50 -rotate-12')}>
+                    <Check size={14} strokeWidth={4} />
                  </div>
-                 <span className={`font-medium transition-colors ${t.status === 'done' ? 'text-aura-lavender/40 line-through' : 'text-white'}`}>
+                 <span className={clsx("font-semibold text-sm sm:text-base transition-all duration-300", t.status === 'done' ? 'text-aura-lavender/30 line-through' : 'text-white')}>
                     {t.title}
                  </span>
                </div>
-               <button onClick={() => deleteTask(t.id)} className="text-aura-lavender/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-2">
+               <button onClick={() => deleteTask(t.id)} className="text-aura-lavender/30 hover:text-red-400 p-2 sm:opacity-0 group-hover:opacity-100 transition-all active:scale-75">
                  <Trash2 size={18} />
                </button>
             </div>
          ))}
          {tasks.length === 0 && (
-            <div className="text-center text-aura-lavender/40 mt-10">
-               <Clock size={40} className="mx-auto mb-3 opacity-50" />
-               <p>No study tasks scheduled.</p>
+            <div className="text-center py-16 text-aura-lavender/30 flex flex-col items-center gap-4">
+               <div className="w-16 h-16 bg-aura-panel rounded-full flex items-center justify-center border border-aura-border shadow-inner">
+                 <Clock size={32} className="opacity-50" />
+               </div>
+               <p className="text-sm font-medium">No study tasks scheduled yet.</p>
             </div>
          )}
        </div>

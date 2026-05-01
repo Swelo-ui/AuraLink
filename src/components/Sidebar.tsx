@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Search, UserPlus, LogOut, Check, Clock } from 'lucide-react';
+import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, Palette, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
@@ -9,6 +9,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const { user, logout } = useAuthStore();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<any[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
   const navigate = useNavigate();
   const { partnerStatus } = useSocket();
 
@@ -43,10 +44,12 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
 
   return (
     <div className={clsx("w-full md:w-80 bg-aura-panel border-r border-aura-border flex-col h-full shrink-0 flex", className)}>
-      <div className="p-4 border-b border-aura-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/logo.svg" alt="AuraLink Logo" className="w-8 h-8" />
-          <h1 className="text-xl font-bold text-white tracking-tight">Auralink</h1>
+      <div className="p-4 border-b border-aura-border flex items-center justify-between" style={{ background: 'linear-gradient(135deg, rgba(155,89,182,0.12) 0%, rgba(236,72,153,0.08) 100%)' }}>
+        <div className="flex items-center gap-2.5">
+          {/* Kawaii icon */}
+          <img src="/auralink-icon.jpeg" alt="AuraLink" className="w-9 h-9 object-contain mix-blend-screen shrink-0" />
+          {/* Brand text logo */}
+          <img src="/auralink-logo.jpeg" alt="AuraLink" className="h-7 object-contain mix-blend-screen" style={{ filter: 'brightness(1.1) drop-shadow(0 1px 6px rgba(155,89,182,0.5))' }} />
         </div>
       </div>
       <div className="p-4 border-b border-aura-border flex items-center justify-between">
@@ -59,8 +62,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             <span className="text-xs text-aura-teal">Online</span>
           </div>
         </div>
-        <button onClick={logout} className="p-2 text-aura-lavender/50 hover:text-white transition-colors" title="Logout">
-          <LogOut size={18} />
+        <button onClick={() => setShowSettings(true)} className="p-2 text-aura-lavender/50 hover:text-white transition-colors" title="Settings">
+          <Settings size={18} />
         </button>
       </div>
 
@@ -142,6 +145,62 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
           })}
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-aura-panel w-full max-w-md rounded-2xl border border-aura-border shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-aura-border flex items-center justify-between bg-aura-navy/50">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2"><Settings size={20} className="text-aura-primary" /> Settings</h2>
+              <button onClick={() => setShowSettings(false)} className="p-1.5 text-aura-lavender/50 hover:text-white hover:bg-white/5 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto max-h-[60vh] space-y-6">
+              {/* Profile Section */}
+              <div>
+                <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Account</h3>
+                <div className="flex items-center gap-4 bg-aura-navy p-3 rounded-xl border border-aura-border">
+                  <div className="w-12 h-12 rounded-full bg-aura-primary flex items-center justify-center text-white font-bold text-xl">
+                    {user?.username[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{user?.username}</p>
+                    <p className="text-xs text-aura-lavender/50">Free Tier Member</p>
+                  </div>
+                  <button className="ml-auto text-xs bg-aura-border hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition-colors">Edit</button>
+                </div>
+              </div>
+
+              {/* Preferences */}
+              <div>
+                <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Preferences</h3>
+                <div className="space-y-2">
+                  <button className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors">
+                    <div className="flex items-center gap-3 text-white"><Palette size={18} className="text-pink-400" /> Theme</div>
+                    <span className="text-xs text-aura-lavender/50">Dark Mode</span>
+                  </button>
+                  <button className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors">
+                    <div className="flex items-center gap-3 text-white"><Bell size={18} className="text-aura-teal" /> Notifications</div>
+                    <span className="text-xs text-aura-lavender/50">Enabled</span>
+                  </button>
+                  <button className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors">
+                    <div className="flex items-center gap-3 text-white"><Shield size={18} className="text-blue-400" /> Privacy</div>
+                    <span className="text-xs text-aura-lavender/50">&gt;</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-aura-border bg-aura-navy/50">
+              <button onClick={logout} className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium rounded-xl transition-colors border border-red-500/20">
+                <LogOut size={18} /> Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

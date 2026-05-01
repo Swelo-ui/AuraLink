@@ -256,7 +256,7 @@ export default function ActionMojiAvatar({ state, username }: ActionMojiProps) {
       eyesAnim = { height: 6, width: 10, borderRadius: "2px" };
       mouthAnim = { width: 16, height: 6, borderRadius: "0 0 10px 10px" };
       bodyAnim = { y: [-2, 2, -2], transition: { repeat: Infinity, duration: 1 } };
-      propsJsx = <div className="absolute top-2 w-full h-6 bg-red-500 opacity-80 z-20" mask="url(#mask)" />;
+      propsJsx = <div className="absolute top-2 w-full h-6 bg-red-500 opacity-80 z-20" style={{ mask: "url(#mask)", WebkitMask: "url(#mask)" }} />;
       bgGradient = "from-blue-500 to-blue-700";
       break;
     case 'online':

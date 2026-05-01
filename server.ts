@@ -233,6 +233,20 @@ async function startServer() {
     res.json(messages);
   });
 
+  // Notes
+  app.get('/api/notes/:connectionId', authMiddleware, async (req: any, res) => {
+    const { connectionId } = req.params;
+    const note = await prisma.note.findFirst({ where: { connectionId } });
+    res.json(note || { content: '<p>Start collaborating...</p>' });
+  });
+
+  // Timetable
+  app.get('/api/timetable/:connectionId', authMiddleware, async (req: any, res) => {
+    const { connectionId } = req.params;
+    const tasks = await prisma.timetable.findMany({ where: { connectionId } });
+    res.json(tasks);
+  });
+
   // --- Real-Time Socket.io ---
   const activeUsers = new Map<string, string>(); // userId -> socketId
   
@@ -337,8 +351,18 @@ async function startServer() {
       });
     });
 
-    socket.on('timetable_update', (data: { connectionId: string, tasks: any[] }) => {
+    socket.on('timetable_update', async (data: { connectionId: string, tasks: any[] }) => {
        socket.to(`chat_${data.connectionId}`).emit('timetable_sync', { tasks: data.tasks });
+       try {
+         await prisma.timetable.deleteMany({ where: { connectionId: data.connectionId } });
+         for (const t of data.tasks) {
+           await prisma.timetable.create({ 
+             data: { connectionId: data.connectionId, id: t.id.toString(), title: t.title, status: t.status } 
+           });
+         }
+       } catch (err) {
+         console.error('Save timetable error:', err);
+       }
     });
 
     socket.on('disconnect', () => {

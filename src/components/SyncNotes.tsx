@@ -2,6 +2,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useState, useRef } from 'react';
 import { useSocket } from './SocketProvider';
+import clsx from 'clsx';
 
 export default function SyncNotes({ connectionId, partner }: { connectionId: string, partner: any }) {
   const { socket } = useSocket();
@@ -26,6 +27,30 @@ export default function SyncNotes({ connectionId, partner }: { connectionId: str
       setTimeout(() => setSyncedStatus('Synced'), 1000);
     }
   });
+
+  useEffect(() => {
+    const fetchNote = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/notes/${connectionId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (editor && data.content) {
+             isUpdatingRef.current = true;
+             editor.commands.setContent(data.content);
+             isUpdatingRef.current = false;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load note', err);
+      }
+    };
+    if (editor) {
+      fetchNote();
+    }
+  }, [connectionId, editor]);
 
   useEffect(() => {
     if (!socket || !editor) return;
@@ -57,16 +82,40 @@ export default function SyncNotes({ connectionId, partner }: { connectionId: str
 
   return (
     <div className="flex flex-col h-full bg-aura-navy overflow-hidden">
-      <div className="h-10 bg-aura-panel border-b border-aura-border flex items-center px-4 justify-between shrink-0">
-         <div className="flex gap-2">
-            <button onClick={() => editor?.chain().focus().toggleBold().run()} className="p-1 px-2 text-xs font-bold bg-aura-border hover:bg-aura-primary rounded text-white transition-colors">B</button>
-            <button onClick={() => editor?.chain().focus().toggleItalic().run()} className="p-1 px-2 text-xs italic bg-aura-border hover:bg-aura-primary rounded text-white transition-colors">I</button>
-            <button onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className="p-1 px-2 text-xs font-semibold bg-aura-border hover:bg-aura-primary rounded text-white transition-colors">H2</button>
+      <div className="h-12 bg-aura-panel border-b border-aura-border flex items-center px-2 sm:px-4 justify-between shrink-0 overflow-x-auto no-scrollbar">
+         <div className="flex gap-1.5 sm:gap-2">
+            <button onClick={() => editor?.chain().focus().toggleBold().run()} className={clsx("w-8 h-8 flex items-center justify-center rounded-lg transition-all", editor?.isActive('bold') ? "bg-aura-primary text-white" : "bg-aura-navy text-aura-lavender/50 hover:text-white border border-aura-border")}>
+              <span className="font-bold text-sm">B</span>
+            </button>
+            <button onClick={() => editor?.chain().focus().toggleItalic().run()} className={clsx("w-8 h-8 flex items-center justify-center rounded-lg transition-all", editor?.isActive('italic') ? "bg-aura-primary text-white" : "bg-aura-navy text-aura-lavender/50 hover:text-white border border-aura-border")}>
+              <span className="italic text-sm">I</span>
+            </button>
+            <button onClick={() => editor?.chain().focus().toggleBulletList().run()} className={clsx("w-8 h-8 flex items-center justify-center rounded-lg transition-all", editor?.isActive('bulletList') ? "bg-aura-primary text-white" : "bg-aura-navy text-aura-lavender/50 hover:text-white border border-aura-border")}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+            <div className="w-px h-6 bg-aura-border self-center mx-0.5 sm:mx-1 shrink-0"></div>
+            <button 
+              onClick={() => {
+                 if (confirm('Clear all notes?')) {
+                    editor?.commands.setContent('');
+                 }
+              }} 
+              className="px-3 h-8 text-[11px] font-bold text-red-400 bg-red-400/5 hover:bg-red-400/20 border border-red-400/20 rounded-lg transition-all"
+            >
+              CLEAR
+            </button>
          </div>
-         <span className="text-xs text-aura-lavender/40">{syncedStatus}</span>
+         <div className="hidden xs:flex items-center gap-3 ml-4 shrink-0">
+           <span className={clsx("text-[10px] font-bold uppercase tracking-wider transition-colors", syncedStatus.includes('Saving') ? "text-aura-teal animate-pulse" : "text-aura-lavender/40")}>
+             {syncedStatus}
+           </span>
+         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
         <EditorContent editor={editor} className="min-h-full" />
+      </div>
+      <div className="h-6 bg-aura-panel/50 border-t border-aura-border flex items-center justify-end px-4 shrink-0 text-[10px] text-aura-lavender/40 uppercase tracking-widest">
+         {editor ? editor.getText().split(/\s+/).filter(w => w.length > 0).length : 0} Words
       </div>
     </div>
   );

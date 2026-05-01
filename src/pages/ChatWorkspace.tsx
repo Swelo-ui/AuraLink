@@ -55,71 +55,91 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       try {
         const history = messagesRef.current
           .filter(m => m.type === 'text')
-          .slice(-15)
+          .slice(-20)
           .map(m => ({
             role: m.senderId === user?.id ? "user" : "assistant",
             content: m.content || ""
           }));
 
+        const systemPrompt = `You are AuraBot, a very close friend and supportive AI companion to ${user?.username || "the user"}. 
+Treat them like your best friend. You must remember and use personal information from the conversation history to make them feel heard and understood. Keep your responses natural, empathetic, short, and cute.`;
+
         const messagesPayload = [
-          { role: "system", content: "You are AuraBot, a friendly AI collaborator on the AuraLink app for students. Keep it short and cute like a nanobanana theme." },
+          { role: "system", content: systemPrompt },
           ...history
         ];
 
-        const models = [
-          "tencent/hy3-preview:free",
-          "minimax/minimax-m2.5:free",
-          "nvidia/nemotron-3-nano-30b-a3b:free",
-          "liquid/lfm-2.5-1.2b-thinking:free"
-        ];
-
-        const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || (window as any).process?.env?.OPENROUTER_API_KEY || "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";
+        const NVIDIA_API_KEY = (import.meta as any).env.VITE_NVIDIA_API_KEY || (window as any).process?.env?.NVIDIA_API_KEY || "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";
         
         setPartnerStatus(partner.id, "thinking");
-        const fetchPromises = models.map(async (model) => {
-          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": window.location.origin, // Site URL
-              "X-Title": "AuraLink" // Site Name
-            },
-            body: JSON.stringify({
-              model,
-              messages: messagesPayload
-            })
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const json = await res.json();
-          if (json.error) throw new Error(json.error.message || "API Error");
-          const text = json.choices?.[0]?.message?.content;
-          if (!text) throw new Error("Empty response");
-          return text;
-        });
-
+        
         let textResponse;
         
         try {
-          textResponse = await Promise.any(fetchPromises);
-        } catch (openRouterErr) {
-          console.warn("OpenRouter fetch failed (possibly due to API key error). Falling back to Google Gemini...", openRouterErr);
+          const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${NVIDIA_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "minimaxai/minimax-m2.7",
+              messages: messagesPayload,
+              temperature: 1,
+              top_p: 0.95,
+              max_tokens: 8192,
+              stream: false
+            })
+          });
+          
+          if (!res.ok) {
+             const errText = await res.text();
+             throw new Error(`NVIDIA API failed with ${res.status}: ${errText}`);
+          }
+          
+          const json = await res.json();
+          if (json.error) throw new Error(`NVIDIA API Error: ${json.error.message || "Unknown error"}`);
+          
+          textResponse = json.choices?.[0]?.message?.content;
+          if (!textResponse) throw new Error(`NVIDIA API returned empty response`);
+          
+        } catch (nvidiaErr) {
+          console.error("NVIDIA API failed:", nvidiaErr);
+          console.log("Attempting fallback to Llama model...");
           
           try {
-            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-            const historyText = messagesRef.current
-              .filter(m => m.type === 'text')
-              .slice(-15)
-              .map(m => `${m.senderId === user?.id ? "User" : "AuraBot"}: ${m.content}`)
-              .join('\n');
-            
-            const response = await ai.models.generateContent({
-               model: 'gemini-2.5-flash',
-               contents: `System: You are AuraBot, a friendly AI collaborator on the AuraLink app for students. Keep it short and cute like a nanobanana theme.\n\nRecent chat history:\n${historyText || "(no history)"}\n\nPlease respond to the User's latest message.`
+            const FALLBACK_API_KEY = (import.meta as any).env.VITE_NVIDIA_FALLBACK_API_KEY || (window as any).process?.env?.NVIDIA_FALLBACK_API_KEY || "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";
+            const fallbackRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${FALLBACK_API_KEY}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                model: "meta/llama-4-maverick-17b-128e-instruct",
+                messages: messagesPayload,
+                max_tokens: 512,
+                temperature: 1.00,
+                top_p: 1.00,
+                frequency_penalty: 0.00,
+                presence_penalty: 0.00,
+                stream: false
+              })
             });
-            textResponse = response.text;
-          } catch (geminiErr) {
-            console.error("Gemini Fallback Error", geminiErr);
+            
+            if (!fallbackRes.ok) {
+               const errText = await fallbackRes.text();
+               throw new Error(`Fallback NVIDIA API failed with ${fallbackRes.status}: ${errText}`);
+            }
+            
+            const fallbackJson = await fallbackRes.json();
+            if (fallbackJson.error) throw new Error(`Fallback NVIDIA API Error: ${fallbackJson.error.message || "Unknown error"}`);
+            
+            textResponse = fallbackJson.choices?.[0]?.message?.content;
+            if (!textResponse) throw new Error(`Fallback NVIDIA API returned empty response`);
+            
+          } catch (fallbackErr) {
+             console.error("Fallback NVIDIA API failed as well:", fallbackErr);
           }
         }
         
@@ -279,58 +299,65 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         </div>
 
         {/* Header */}
-        <div className="h-16 flex items-center justify-between px-2 sm:px-6 border-b border-aura-border bg-aura-panel shadow-sm z-10 shrink-0 pr-20 sm:pr-28">
-          <div className="flex items-center gap-2 sm:gap-3">
-             <button onClick={() => navigate('/dashboard')} className="md:hidden p-2 text-aura-lavender/50 hover:text-white transition-colors">
-               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        <div className="h-16 sm:h-20 flex items-center justify-between px-3 sm:px-6 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
+             <button 
+              onClick={() => navigate('/dashboard')} 
+              className="md:hidden p-2.5 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
              </button>
-             <div className="relative">
-                <div className={clsx("w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white font-medium text-sm sm:text-base", partner?.username === 'AuraBot' ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
+             <div className="relative shrink-0">
+                <div className={clsx("w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-inner", partner?.username === 'AuraBot' ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
                   {partner.username[0].toUpperCase()}
                 </div>
-                {/* Online indicator */}
-                {currentPartnerStatus !== 'offline' && <span className="absolute bottom-0 right-0 block w-2.5 h-2.5 bg-aura-teal rounded-full border-2 border-aura-panel"></span>}
+                {currentPartnerStatus !== 'offline' && <span className="absolute bottom-0 right-0 block w-3 h-3 bg-aura-teal rounded-full border-2 border-aura-panel shadow-sm"></span>}
              </div>
-             <div className="truncate max-w-[100px] sm:max-w-[200px]">
-               <h3 className="text-white font-medium flex items-center gap-2 text-sm sm:text-base truncate">
+             <div className="min-w-0 flex-1">
+               <h3 className="text-white font-bold flex items-center gap-2 text-[15px] sm:text-lg truncate">
                  <span className="truncate">{partner.username}</span>
-                 {partner?.username === 'AuraBot' && <span className="hidden sm:inline-block text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">AI Companion</span>}
+                 {partner?.username === 'AuraBot' && <span className="hidden xs:inline-block text-[9px] sm:text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-widest font-black border border-pink-500/20">AI</span>}
                </h3>
-               <p className="text-xs text-aura-lavender/50 capitalize truncate">
+               <p className="text-[10px] sm:text-xs text-aura-lavender/50 capitalize truncate font-medium tracking-wide">
                   {currentPartnerStatus.replace('_', ' ')}
                </p>
              </div>
           </div>
           
           {/* Tool Toggles */}
-          <div className="flex items-center gap-1 sm:gap-2 bg-aura-navy p-1 flex-wrap rounded-lg border border-aura-border mr-2">
-            <button onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')} className={clsx("p-1.5 sm:p-2 rounded-md transition-colors", toolTab === 'notes' ? "bg-aura-primary text-white" : "text-aura-lavender/50 hover:text-white")} title="SyncNotes">
-              <FileText size={16} className="sm:w-[18px] sm:h-[18px]" />
+          <div className="flex items-center gap-1 sm:gap-2 bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50">
+            <button onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')} className={clsx("p-2 sm:p-2.5 rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SyncNotes">
+              <FileText size={18} />
             </button>
-            <button onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')} className={clsx("p-1.5 sm:p-2 rounded-md transition-colors", toolTab === 'vault' ? "bg-aura-primary text-white" : "text-aura-lavender/50 hover:text-white")} title="SmartVault">
-              <Paperclip size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <button onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')} className={clsx("p-2 sm:p-2.5 rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SmartVault">
+              <Paperclip size={18} />
             </button>
-            <button onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')} className={clsx("p-1.5 sm:p-2 rounded-md transition-colors", toolTab === 'timetable' ? "bg-aura-pink text-white" : "text-aura-lavender/50 hover:text-white")} title="Shared Timetable">
-              <Calendar size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <button onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')} className={clsx("p-2 sm:p-2.5 rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")} title="Shared Timetable">
+              <Calendar size={18} />
             </button>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-aura-navy pt-24" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(30, 30, 50, 0.4) 0%, transparent 100%)' }}>
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-aura-navy pt-20 sm:pt-24 scroll-smooth" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(30, 30, 50, 0.4) 0%, transparent 100%)' }}>
           {messages.map((m, i) => {
             const isMe = m.senderId === user?.id;
             return (
-              <div key={i} className={clsx("flex flex-col max-w-[80%]", isMe ? "ml-auto items-end" : "mr-auto items-start")}>
-                <div className={clsx("px-4 py-2 rounded-2xl", isMe ? "bg-aura-primary text-white rounded-br-none" : "bg-aura-panel text-white rounded-bl-none border border-aura-border")}>
-                  {m.type === 'text' && <p className="text-[15px]">{m.content}</p>}
+              <div key={i} className={clsx("flex flex-col max-w-[85%] sm:max-w-[75%]", isMe ? "ml-auto items-end" : "mr-auto items-start animate-in slide-in-from-left-2 duration-300")}>
+                <div className={clsx("px-4 py-2.5 rounded-2xl shadow-sm", isMe ? "bg-aura-primary text-white rounded-br-none" : "bg-aura-panel text-white rounded-bl-none border border-aura-border")}>
+                  {m.type === 'text' && <p className="text-[14px] sm:text-[15px] leading-relaxed">{m.content}</p>}
                   {m.type === 'file' && (
-                    <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:underline">
-                      <Paperclip size={16} /> <span>{m.content}</span>
+                    <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity py-1">
+                      <div className="p-2 bg-white/10 rounded-lg">
+                        <Paperclip size={18} />
+                      </div>
+                      <span className="text-sm font-medium truncate max-w-[150px] sm:max-w-xs">{m.content}</span>
                     </a>
                   )}
                 </div>
-                <span className="text-[11px] text-aura-lavender/40 mt-1">{new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <span className="text-[10px] text-aura-lavender/40 mt-1.5 font-medium px-1 uppercase tracking-tighter">
+                  {new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </span>
               </div>
             )
           })}
@@ -359,25 +386,41 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       </div>
 
       {/* Tools Area / Split View */}
-      {toolTab !== 'none' && (
-        <div className="w-full md:w-1/2 flex flex-col h-full bg-aura-panel border-l border-aura-border absolute md:relative z-30 md:z-auto inset-0 md:inset-auto">
-          <div className="h-16 flex items-center justify-between px-6 border-b border-aura-border shrink-0 bg-aura-panel shadow-sm">
-            <h2 className="text-white font-medium flex items-center gap-2">
-              {toolTab === 'notes' && <><FileText size={18} className="text-aura-primary" /> SyncNotes</>}
-              {toolTab === 'vault' && <><Paperclip size={18} className="text-aura-primary" /> SmartVault</>}
-              {toolTab === 'timetable' && <><Calendar size={18} className="text-aura-pink" /> Shared Timetable</>}
-            </h2>
-            <button onClick={() => setToolTab('none')} className="p-2 -mr-2 text-aura-lavender/50 hover:text-white transition-colors bg-aura-navy hover:bg-aura-border rounded-lg">
-              <X size={20} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-hidden relative">
-            {toolTab === 'notes' && connectionId && <SyncNotes connectionId={connectionId} partner={partner} />}
-            {toolTab === 'vault' && connectionId && <SmartVault connectionId={connectionId} messages={messages} />}
-            {toolTab === 'timetable' && connectionId && <SharedTimetable connectionId={connectionId} partner={partner} />}
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {toolTab !== 'none' && (
+          <motion.div 
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="w-full md:w-1/2 flex flex-col h-full bg-aura-panel border-l border-aura-border absolute md:relative z-[30] inset-0 md:inset-auto shadow-2xl md:shadow-none"
+          >
+            <div className="h-16 sm:h-20 flex items-center justify-between px-4 sm:px-6 border-b border-aura-border shrink-0 bg-aura-panel/95 backdrop-blur-md z-10 shadow-sm">
+              <h2 className="text-white font-bold flex items-center gap-3 text-[15px] sm:text-lg">
+                {toolTab === 'notes' && <div className="p-2 bg-aura-primary/10 rounded-lg"><FileText size={20} className="text-aura-primary" /></div>}
+                {toolTab === 'vault' && <div className="p-2 bg-aura-primary/10 rounded-lg"><Paperclip size={20} className="text-aura-primary" /></div>}
+                {toolTab === 'timetable' && <div className="p-2 bg-aura-pink/10 rounded-lg"><Calendar size={20} className="text-aura-pink" /></div>}
+                <span>
+                  {toolTab === 'notes' && 'SyncNotes'}
+                  {toolTab === 'vault' && 'SmartVault'}
+                  {toolTab === 'timetable' && 'Shared Timetable'}
+                </span>
+              </h2>
+              <button 
+                onClick={() => setToolTab('none')} 
+                className="p-2.5 text-aura-lavender/50 hover:text-white transition-all bg-aura-navy hover:bg-aura-border rounded-xl active:scale-90 border border-aura-border/50"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden relative bg-aura-navy/20">
+              {toolTab === 'notes' && connectionId && <SyncNotes connectionId={connectionId} partner={partner} />}
+              {toolTab === 'vault' && connectionId && <SmartVault connectionId={connectionId} messages={messages} partner={partner} />}
+              {toolTab === 'timetable' && connectionId && <SharedTimetable connectionId={connectionId} partner={partner} />}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
