@@ -15,31 +15,56 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const location = useLocation();
   const { partnerStatus } = useSocket();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [installHint, setInstallHint] = useState('');
 
   useEffect(() => {
     const handler = (e: any) => {
       console.log('PWA: beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e);
+      setInstallHint('Install is ready on this device.');
+    };
+    const onInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+      setInstallHint('App installed successfully.');
     };
     window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', onInstalled);
     
     // Check if app is already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
       console.log('PWA: App is already in standalone mode');
+      setIsInstalled(true);
+      setInstallHint('Already installed.');
+    } else {
+      setInstallHint('If prompt is not ready, use Chrome menu: Add to Home screen.');
     }
 
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
   }, []);
 
   const handleInstallApp = async () => {
+    if (isInstalled) {
+      setInstallHint('App is already installed on this device.');
+      return;
+    }
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setDeferredPrompt(null);
+        setInstallHint('Installing...');
+      } else {
+        setInstallHint('Install cancelled. You can try again.');
       }
+      return;
     }
+    setInstallHint('Install prompt not ready yet. In Android Chrome, tap menu (3 dots) -> Add to Home screen.');
   };
 
   const handleLogout = async () => {
@@ -257,26 +282,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                     <div className="flex items-center gap-3 text-white"><Shield size={18} className="text-blue-400" /> Privacy</div>
                     <span className="text-xs text-aura-lavender/50">&gt;</span>
                   </button>
-                  <button 
-                    onClick={handleInstallApp} 
-                    disabled={!deferredPrompt}
-                    className={clsx(
-                      "w-full flex items-center justify-between p-3 rounded-xl border transition-all",
-                      deferredPrompt 
-                        ? "bg-aura-primary/20 border-aura-primary/40 hover:bg-aura-primary/30 active:scale-[0.98]" 
-                        : "bg-aura-navy border-aura-border opacity-40 cursor-not-allowed"
-                    )}
-                  >
-                    <div className="flex items-center gap-3 text-white">
-                      <Download size={18} className={deferredPrompt ? "text-aura-primary" : "text-aura-lavender/50"} /> 
-                      Install App
-                    </div>
-                    {deferredPrompt ? (
-                      <span className="text-[10px] bg-aura-primary text-white px-2 py-0.5 rounded-full font-bold animate-pulse">READY</span>
-                    ) : (
-                      <span className="text-[10px] text-aura-lavender/40">Checking...</span>
-                    )}
-                  </button>
+
                 </div>
               </div>
             </div>

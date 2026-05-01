@@ -10,6 +10,8 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<any>(null);
   const [vaultItems, setVaultItems] = useState<any[]>([]);
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (isPersonal) {
@@ -28,25 +30,26 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
     if (!file || !user?.id) return;
     
     try {
+      setUploading(true);
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      const safeName = file.name.replace(/[^\w.\-]/g, '_');
+      const fileName = `${Date.now()}-${safeName}`;
+      const filePath = `vault/${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
-
       if (isPersonal) {
-        // Add to personal vault
+        // Store storage path (not public URL) for private/internal access.
         await supabase.from('vault_items').insert([{
           user_id: user.id,
           name: file.name,
-          content: publicUrl,
+          content: filePath,
           type: 'file'
         }]);
         fetchPersonalVault();
       } else if (partner) {
+        const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
         // Send as message in shared vault
         await supabase.from('messages').insert([{
           sender_id: user.id,
@@ -58,12 +61,48 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
       }
     } catch (err) {
       console.error(err);
+      alert('File upload failed. Please try again (or check storage bucket/policies).');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
+  const isHttpUrl = (value: string) => value.startsWith('http://') || value.startsWith('https://');
+
   const displayFiles = isPersonal 
-    ? vaultItems.map(item => ({ id: item.id, content: item.name, fileUrl: item.content, type: 'file' }))
+    ? vaultItems.map(item => ({
+        id: item.id,
+        content: item.name,
+        fileUrl: isHttpUrl(item.content || '') ? item.content : '',
+        storagePath: isHttpUrl(item.content || '') ? '' : (item.content || ''),
+        type: 'file',
+        timestamp: item.created_at
+      }))
     : messages.filter(m => m.type === 'file');
+
+  useEffect(() => {
+    const resolvePersonalUrls = async () => {
+      if (!isPersonal) return;
+      const updates: Record<string, string> = {};
+
+      for (const f of displayFiles) {
+        if (f.fileUrl) {
+          updates[f.id] = f.fileUrl;
+          continue;
+        }
+        if (f.storagePath) {
+          const { data, error } = await supabase.storage.from('uploads').createSignedUrl(f.storagePath, 3600);
+          if (!error && data?.signedUrl) {
+            updates[f.id] = data.signedUrl;
+          }
+        }
+      }
+
+      setResolvedUrls(prev => ({ ...prev, ...updates }));
+    };
+    resolvePersonalUrls();
+  }, [isPersonal, vaultItems.length]);
 
   const getFileIcon = (url: string) => {
     if (url.match(/\.(jpeg|jpg|gif|png)$/i)) return <ImageIcon size={24} className="text-pink-400" />;
@@ -74,7 +113,14 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
 
   const renderPreviewContent = () => {
     if (!previewFile) return null;
-    const url = previewFile.fileUrl;
+    const url = previewFile.fileUrl || resolvedUrls[previewFile.id] || '';
+    if (!url) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 text-center bg-aura-navy rounded-2xl border border-aura-border">
+          <p className="text-aura-lavender/60 text-sm">Preparing secure preview URL...</p>
+        </div>
+      );
+    }
     if (url.match(/\.(jpeg|jpg|gif|png)$/i)) {
       return <img src={url} alt="Preview" className="max-w-full max-h-[70vh] rounded-lg shadow-xl" />;
     }
@@ -95,8 +141,8 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
     );
   };
 
-  const isPreviewable = (file: any) => {
-    const url = (file.fileUrl || '').toLowerCase();
+  const isPreviewable = (file: any, resolvedUrl?: string) => {
+    const url = (resolvedUrl || file.fileUrl || '').toLowerCase();
     const name = (file.content || '').toLowerCase();
     const extensions = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp'];
     return extensions.some(ext => url.endsWith(ext) || name.endsWith(ext));
@@ -114,9 +160,10 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
         </div>
         <button 
           onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
           className="bg-aura-primary hover:opacity-90 text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-aura-primary/20"
         >
-          <Plus size={18} /> Upload
+          <Plus size={18} /> {uploading ? 'Uploading...' : 'Upload'}
         </button>
         <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" />
       </div>
@@ -133,12 +180,13 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
             </div>
           ) : (
             displayFiles.map((f, i) => {
-              const canPreview = isPreviewable(f);
+              const resolvedUrl = resolvedUrls[f.id] || f.fileUrl || '';
+              const canPreview = isPreviewable(f, resolvedUrl);
               return (
                 <div key={f.id || i} className="bg-aura-panel/40 backdrop-blur-sm border border-aura-border rounded-2xl p-4 flex flex-col group hover:border-aura-primary/50 hover:bg-aura-panel/60 hover:shadow-xl hover:shadow-aura-primary/5 transition-all duration-300 relative overflow-hidden">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 rounded-xl bg-aura-navy flex items-center justify-center shrink-0 border border-aura-border group-hover:border-aura-primary/30 transition-all duration-300 group-hover:scale-105">
-                      {getFileIcon(f.fileUrl)}
+                      {getFileIcon(resolvedUrl || f.content || '')}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-white font-semibold truncate" title={f.content}>{f.content}</p>
@@ -147,23 +195,14 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
                   </div>
                   
                   <div className="flex items-center gap-2 mt-auto">
-                     {canPreview ? (
-                       <button 
-                        onClick={() => setPreviewFile(f)}
-                        className="flex-1 py-2.5 bg-aura-navy hover:bg-aura-border text-aura-lavender hover:text-white text-xs font-bold rounded-xl text-center transition-all duration-200 border border-aura-border active:scale-95"
-                       >
-                         Preview
-                       </button>
-                     ) : (
-                       <a 
-                        href={f.fileUrl} 
-                        download 
-                        className="flex-1 py-2.5 bg-aura-navy hover:bg-aura-border text-aura-lavender hover:text-white text-xs font-bold rounded-xl text-center transition-all duration-200 border border-aura-border active:scale-95 flex items-center justify-center gap-2"
-                       >
-                         Download
-                       </a>
-                     )}
-                     <a href={f.fileUrl} download className="p-2.5 bg-aura-primary/10 hover:bg-aura-primary text-aura-primary hover:text-white rounded-xl transition-all duration-200 border border-aura-primary/20 active:scale-90">
+                     <button 
+                      onClick={() => setPreviewFile({ ...f, fileUrl: resolvedUrl })}
+                      disabled={!resolvedUrl}
+                      className="flex-1 py-2.5 bg-aura-navy hover:bg-aura-border text-aura-lavender hover:text-white text-xs font-bold rounded-xl text-center transition-all duration-200 border border-aura-border active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                     >
+                       {canPreview ? 'Preview' : 'Open'}
+                     </button>
+                     <a href={resolvedUrl || '#'} download className="p-2.5 bg-aura-primary/10 hover:bg-aura-primary text-aura-primary hover:text-white rounded-xl transition-all duration-200 border border-aura-primary/20 active:scale-90">
                        <Download size={18} />
                      </a>
                   </div>

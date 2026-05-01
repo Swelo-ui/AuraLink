@@ -69,7 +69,7 @@ export default function Dashboard() {
 
   return (
     <SocketProvider>
-      <div className="flex h-screen bg-aura-navy border-t border-aura-border">
+      <div className="flex w-full bg-aura-navy border-t border-aura-border overflow-hidden" style={{ height: 'var(--app-height, 100dvh)' }}>
         <Sidebar connections={connections} onRefresh={fetchConnections} className={isChat ? "hidden md:flex" : "flex"} />
         <main className={clsx("flex-1 overflow-hidden bg-[#151525]", isChat || location.pathname === '/dashboard/personal' ? "flex" : "hidden md:flex")}>
           <Routes>

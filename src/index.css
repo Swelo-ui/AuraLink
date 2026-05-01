@@ -17,11 +17,19 @@
   --color-aura-lavender: #E9D5FF;
 }
 
+body, html, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 body {
   background-color: var(--color-aura-navy);
   color: white;
-  overflow-x: hidden;
   touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
 /* Custom Scrollbar */
