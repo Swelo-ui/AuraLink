@@ -570,9 +570,16 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             </label>
             <input
               type="text"
+              name="chat_message_input"
               placeholder="Message..."
               value={input}
               onChange={e => setInput(e.target.value)}
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-form-type="other"
+              role="presentation"
               className="flex-1 min-w-0 bg-aura-navy border border-aura-border rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-aura-primary transition-colors text-[15px]"
             />
             <button
