@@ -10,6 +10,7 @@ import SharedTimetable from '../components/SharedTimetable';
 import { motion, AnimatePresence } from 'motion/react';
 import ActionMojiAvatar from '../components/ActionMojiAvatar';
 import { supabase } from '../lib/supabaseClient';
+import { getAuraBotResponse } from '../lib/aurabot';
 
 // Human-readable status labels
 const STATUS_LABELS: Record<string, string> = {
@@ -86,6 +87,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const partner = conn
     ? ((conn.user1Id ?? conn.user1_id) === user?.id ? conn.user2 : conn.user1)
     : null;
+  const isVirtualBot = Boolean(conn?.isVirtual) && partner?.username === 'AuraBot';
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -97,7 +99,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   }, [messages, user?.id]);
 
   useEffect(() => {
-    if (!connectionId || !user?.id || !partner?.id) return;
+    if (!connectionId || !user?.id || !partner?.id || isVirtualBot) return;
     const fetchMessages = async () => {
       const { data, error } = await supabase
         .from('messages')
@@ -119,10 +121,10 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
     fetchMessages();
-  }, [connectionId, user?.id, partner?.id]);
+  }, [connectionId, user?.id, partner?.id, isVirtualBot]);
 
   useEffect(() => {
-    if (!connectionId || !user?.id || !partner?.id) return;
+    if (!connectionId || !user?.id || !partner?.id || isVirtualBot) return;
 
     // Realtime for messages
     const msgSub = supabase.channel(`messages:${connectionId}`)
@@ -153,7 +155,34 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     return () => {
       supabase.removeChannel(msgSub);
     };
-  }, [connectionId, user?.id, partner?.id]);
+  }, [connectionId, user?.id, partner?.id, isVirtualBot]);
+
+  // Virtual AuraBot bootstrap: keep bot "alive" with initial message + online status.
+  useEffect(() => {
+    if (!isVirtualBot || !partner?.id) return;
+    setPartnerStatus(partner.id, 'online');
+    setMessages((prev) => {
+      if (prev.length > 0) return prev;
+      return [
+        {
+          id: `bot-welcome-${Date.now()}`,
+          senderId: partner.id,
+          receiverId: user?.id,
+          content: 'Hi! Main AuraBot hoon 🤖 Tum jo bhi build karna chaho, chalo saath karte hain.',
+          type: 'text',
+          fileUrl: null,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+    });
+  }, [isVirtualBot, partner?.id, setPartnerStatus, user?.id]);
+
+  // Show typing mood in ActionMoji while user types to AuraBot.
+  useEffect(() => {
+    if (!isVirtualBot || !partner?.id) return;
+    const mood = input.trim().length > 0 ? deriveMoodFromString(input) : null;
+    setPartnerStatus(partner.id, mood ? `typing_${mood}` : 'online');
+  }, [input, isVirtualBot, partner?.id, setPartnerStatus]);
 
   // Status tracking — broadcast OUR status to partner
   useEffect(() => {
@@ -203,6 +232,71 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     
     const msgContent = input;
     setInput('');
+
+    if (isVirtualBot) {
+      const now = new Date().toISOString();
+      const userMsg = {
+        id: `local-user-${Date.now()}`,
+        senderId: user.id,
+        receiverId: partner.id,
+        content: msgContent,
+        type: 'text',
+        fileUrl: null,
+        timestamp: now,
+      };
+      setMessages(prev => {
+        const next = [...prev, userMsg];
+        messagesRef.current = next;
+        return next;
+      });
+      setPartnerStatus(partner.id, 'thinking');
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+      try {
+        const llm = await getAuraBotResponse({
+          userId: user.id,
+          username: user.username,
+          userMessage: msgContent,
+          messages: messagesRef.current,
+        });
+
+        setPartnerStatus(partner.id, `typing_${llm.mood}`);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        const botMsg = {
+          id: `local-bot-${Date.now()}`,
+          senderId: partner.id,
+          receiverId: user.id,
+          content: llm.text,
+          type: 'text',
+          fileUrl: null,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => {
+          const next = [...prev, botMsg];
+          messagesRef.current = next;
+          return next;
+        });
+        setPartnerStatus(partner.id, llm.mood || 'happy');
+      } catch (err: any) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `local-bot-error-${Date.now()}`,
+            senderId: partner.id,
+            receiverId: user.id,
+            content: `AuraBot response error: ${err?.message || 'Unknown error'}`,
+            type: 'text',
+            fileUrl: null,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        setPartnerStatus(partner.id, 'confused');
+      }
+      setTimeout(() => setPartnerStatus(partner.id, 'online'), 1800);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      return;
+    }
     
     const { data } = await supabase.from('messages').insert([{
       sender_id: user.id,
@@ -228,6 +322,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id || !partner) return;
+    if (isVirtualBot) return;
 
     try {
       const fileExt = file.name.split('.').pop();
@@ -266,7 +361,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
   if (!partner) return null;
 
-  const currentPartnerStatus = partnerStatus[partner.id] || 'offline';
+  const currentPartnerStatus = partnerStatus[partner.id] || (partner.username === 'AuraBot' ? 'online' : 'offline');
 
   // Extract actual mood if status is typing_mood
   const isPartnerTyping = currentPartnerStatus.startsWith('typing');
@@ -347,13 +442,28 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
             {/* Tool Toggles */}
             <div className="flex items-center gap-0.5 sm:gap-2 bg-aura-navy/50 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-aura-border/50">
-              <button onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')} className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SyncNotes">
+              <button
+                onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')}
+                disabled={isVirtualBot}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white", isVirtualBot && "opacity-40 cursor-not-allowed")}
+                title={isVirtualBot ? 'Tools unavailable in virtual bot chat' : 'SyncNotes'}
+              >
                 <FileText className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
-              <button onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')} className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")} title="SmartVault">
+              <button
+                onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')}
+                disabled={isVirtualBot}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white", isVirtualBot && "opacity-40 cursor-not-allowed")}
+                title={isVirtualBot ? 'Tools unavailable in virtual bot chat' : 'SmartVault'}
+              >
                 <Paperclip className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
-              <button onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')} className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")} title="Shared Timetable">
+              <button
+                onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')}
+                disabled={isVirtualBot}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white", isVirtualBot && "opacity-40 cursor-not-allowed")}
+                title={isVirtualBot ? 'Tools unavailable in virtual bot chat' : 'Shared Timetable'}
+              >
                 <Calendar className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
             </div>
@@ -437,9 +547,17 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               </button>
             </div>
             <div className="flex-1 overflow-hidden relative bg-aura-navy/20">
-              {toolTab === 'notes' && connectionId && <SyncNotes connectionId={connectionId} partner={partner} />}
-              {toolTab === 'vault' && connectionId && <SmartVault connectionId={connectionId} messages={messages} partner={partner} />}
-              {toolTab === 'timetable' && connectionId && <SharedTimetable connectionId={connectionId} partner={partner} />}
+              {isVirtualBot ? (
+                <div className="h-full flex items-center justify-center text-aura-lavender/60 text-sm px-6 text-center">
+                  AuraBot virtual chat me tools disabled hain. Real user connection open karoge to Notes, Vault aur Timetable use kar paoge.
+                </div>
+              ) : (
+                <>
+                  {toolTab === 'notes' && connectionId && <SyncNotes connectionId={connectionId} partner={partner} />}
+                  {toolTab === 'vault' && connectionId && <SmartVault connectionId={connectionId} messages={messages} partner={partner} />}
+                  {toolTab === 'timetable' && connectionId && <SharedTimetable connectionId={connectionId} partner={partner} />}
+                </>
+              )}
             </div>
           </motion.div>
         )}

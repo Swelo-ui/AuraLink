@@ -161,8 +161,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             if (!partner) return null;
             const isPending = conn.status === 'pending';
             const canAccept = isPending && !isUser1;
-            const status = partnerStatus[partner.id] || 'offline';
             const isAuraBot = partner.username === 'AuraBot';
+            const status = partnerStatus[partner.id] || (isAuraBot ? 'online' : 'offline');
             
             return (
               <div 
