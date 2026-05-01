@@ -1,5 +1,6 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { Link } from '@tiptap/extension-link';
 import { useEffect, useState, useRef } from 'react';
 import { useSocket } from './SocketProvider';
 import clsx from 'clsx';
@@ -13,8 +14,26 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
 
   const { user } = useAuthStore();
 
+  const addLink = () => {
+    const url = prompt('Enter URL:');
+    if (!url) return;
+    const href = url.startsWith('http') ? url : `https://${url}`;
+    editor?.chain().focus().extendMarkRange('link').setLink({ href, target: '_blank' }).run();
+  };
+
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: true,
+        autolink: true,
+        HTMLAttributes: {
+          class: 'text-aura-primary underline underline-offset-2 hover:opacity-80 cursor-pointer',
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        },
+      }),
+    ],
     content: '<p>Start writing your notes...</p>',
     editorProps: {
       attributes: {
@@ -127,6 +146,9 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
             </button>
             <button onClick={() => editor?.chain().focus().toggleBulletList().run()} className={clsx("w-8 h-8 flex items-center justify-center rounded-lg transition-all", editor?.isActive('bulletList') ? "bg-aura-primary text-white" : "bg-aura-navy text-aura-lavender/50 hover:text-white border border-aura-border")}>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+            <button onClick={addLink} className="w-8 h-8 flex items-center justify-center rounded-lg transition-all text-aura-lavender/50 hover:text-white border border-aura-border bg-aura-navy" title="Add Link">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             </button>
             <div className="w-px h-6 bg-aura-border self-center mx-0.5 sm:mx-1 shrink-0"></div>
             <button 

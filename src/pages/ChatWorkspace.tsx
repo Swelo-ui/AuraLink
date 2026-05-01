@@ -562,10 +562,10 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         </div>
 
         {/* Input */}
-        <div className="p-4 bg-aura-panel border-t border-aura-border shrink-0">
-          <form onSubmit={sendMessage} className="flex items-center gap-2 relative">
-            <label className="p-2 text-aura-lavender/50 hover:text-white cursor-pointer transition-colors bg-aura-navy rounded-lg hover:bg-aura-border">
-              <Paperclip size={20} />
+        <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
+          <form onSubmit={sendMessage} className="flex items-center gap-2">
+            <label className="p-2.5 text-aura-lavender/50 hover:text-white cursor-pointer transition-colors bg-aura-navy rounded-xl hover:bg-aura-border shrink-0 border border-aura-border/50">
+              <Paperclip size={19} />
               <input type="file" className="hidden" onChange={handleFileUpload} />
             </label>
             <input
@@ -573,21 +573,23 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               placeholder="Message..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              className="flex-1 bg-aura-navy border border-aura-border rounded-lg pl-4 pr-24 py-3 text-white focus:outline-none focus:border-aura-primary transition-colors shadow-inner"
+              className="flex-1 min-w-0 bg-aura-navy border border-aura-border rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-aura-primary transition-colors text-[15px]"
             />
-            <div className="absolute right-2 top-1.5 flex items-center gap-1">
-              <button 
-                type="button" 
-                onClick={toggleListening}
-                className={`p-2 rounded-md transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-aura-lavender/50 hover:text-white hover:bg-white/5'}`}
-                title="Voice Typing"
-              >
-                {isListening ? <Mic size={18} /> : <MicOff size={18} />}
-              </button>
-              <button type="submit" disabled={!input.trim()} className="p-2 bg-aura-primary text-white rounded-md disabled:opacity-50 disabled:bg-aura-border disabled:cursor-not-allowed hover:bg-aura-primary-hover transition-colors">
-                <Send size={18} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`p-2.5 rounded-xl shrink-0 border transition-colors ${isListening ? 'bg-red-500 border-red-400 text-white animate-pulse' : 'bg-aura-navy border-aura-border text-aura-lavender/50 hover:text-white'}`}
+              title="Voice Typing"
+            >
+              {isListening ? <Mic size={19} /> : <MicOff size={19} />}
+            </button>
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              className="p-2.5 bg-aura-primary text-white rounded-xl shrink-0 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-90 transition-all"
+            >
+              <Send size={19} />
+            </button>
           </form>
         </div>
       </div>
