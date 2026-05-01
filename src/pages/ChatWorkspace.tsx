@@ -563,7 +563,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
         {/* Input */}
         <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
-          <form onSubmit={sendMessage} className="flex items-center gap-2">
+          <form onSubmit={sendMessage} autoComplete="off" className="flex items-center gap-2">
             <label className="p-2.5 text-aura-lavender/50 hover:text-white cursor-pointer transition-colors bg-aura-navy rounded-xl hover:bg-aura-border shrink-0 border border-aura-border/50">
               <Paperclip size={19} />
               <input type="file" className="hidden" onChange={handleFileUpload} />
