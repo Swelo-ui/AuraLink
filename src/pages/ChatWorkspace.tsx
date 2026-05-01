@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../components/SocketProvider';
 import { useAuthStore } from '../store/authStore';
-import { Send, FileText, Paperclip, Calendar, X } from 'lucide-react';
+import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff } from 'lucide-react';
 import clsx from 'clsx';
 import SyncNotes from '../components/SyncNotes';
 import SmartVault from '../components/SmartVault';
@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import ActionMojiAvatar from '../components/ActionMojiAvatar';
 import { supabase } from '../lib/supabaseClient';
 import { getAuraBotResponse } from '../lib/aurabot';
+import { playPopSound, playReceiveSound } from '../lib/audio';
 
 // Human-readable status labels
 const STATUS_LABELS: Record<string, string> = {
@@ -82,6 +83,50 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const [toolTab, setToolTab] = useState<'notes' | 'vault' | 'timetable' | 'none'>('notes');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [sentimentState, setSentimentState] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = 'en-US';
+
+        recognitionRef.current.onresult = (event: any) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            }
+          }
+          if (finalTranscript) {
+            setInput(prev => prev + (prev ? ' ' : '') + finalTranscript.trim());
+          }
+        };
+
+        recognitionRef.current.onend = () => {
+          setIsListening(false);
+        };
+      }
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
 
   const conn = connections.find(c => c.id === connectionId);
   const partner = conn
@@ -268,6 +313,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         messagesRef.current = next;
         return next;
       });
+      playPopSound();
       setPartnerStatus(partner.id, 'thinking');
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
@@ -291,6 +337,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           fileUrl: null,
           timestamp: new Date().toISOString(),
         };
+        playReceiveSound();
         setMessages(prev => {
           const next = [...prev, botMsg];
           messagesRef.current = next;
@@ -325,6 +372,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     }]).select().single();
     
     if (data) {
+      playPopSound();
       setMessages(prev => [...prev, {
         id: data.id,
         senderId: data.sender_id,
@@ -525,11 +573,21 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               placeholder="Message..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              className="flex-1 bg-aura-navy border border-aura-border rounded-lg pl-4 pr-16 py-3 text-white focus:outline-none focus:border-aura-primary transition-colors shadow-inner"
+              className="flex-1 bg-aura-navy border border-aura-border rounded-lg pl-4 pr-24 py-3 text-white focus:outline-none focus:border-aura-primary transition-colors shadow-inner"
             />
-            <button type="submit" disabled={!input.trim()} className="absolute right-2 top-1.5 p-2 bg-aura-primary text-white rounded-md disabled:opacity-50 disabled:bg-aura-border disabled:cursor-not-allowed hover:bg-aura-primary-hover transition-colors">
-              <Send size={18} />
-            </button>
+            <div className="absolute right-2 top-1.5 flex items-center gap-1">
+              <button 
+                type="button" 
+                onClick={toggleListening}
+                className={`p-2 rounded-md transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-aura-lavender/50 hover:text-white hover:bg-white/5'}`}
+                title="Voice Typing"
+              >
+                {isListening ? <Mic size={18} /> : <MicOff size={18} />}
+              </button>
+              <button type="submit" disabled={!input.trim()} className="p-2 bg-aura-primary text-white rounded-md disabled:opacity-50 disabled:bg-aura-border disabled:cursor-not-allowed hover:bg-aura-primary-hover transition-colors">
+                <Send size={18} />
+              </button>
+            </div>
           </form>
         </div>
       </div>
