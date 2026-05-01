@@ -22,7 +22,6 @@ type AuraResult = {
 
 const PRIMARY_MODEL = 'mistralai/devstral-2-123b-instruct-2512';
 const FALLBACK_MODEL = 'minimaxai/minimax-m2.7';
-const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
 const MOODS = ['happy', 'sad', 'angry', 'confused', 'surprised', 'thinking', 'heart_eyes', 'magic', 'cool'] as const;
 
@@ -84,37 +83,22 @@ async function fetchMemoryContext(userId: string) {
   };
 }
 
-async function callNvidiaChat(params: {
-  apiKey: string;
-  model: string;
-  systemPrompt: string;
-  userPrompt: string;
-}) {
-  const resp = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: params.model,
-      messages: [
-        { role: 'system', content: params.systemPrompt },
-        { role: 'user', content: params.userPrompt },
-      ],
-      temperature: params.model === PRIMARY_MODEL ? 0.15 : 0.7,
-      top_p: 0.95,
-      max_tokens: 1200,
-      stream: false,
-    }),
+async function callAuraBotLLM(systemPrompt: string, userPrompt: string): Promise<{ content: string; model: string }> {
+  const { data, error } = await supabase.functions.invoke('aurabot-llm', {
+    body: { systemPrompt, userPrompt },
   });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`NVIDIA API failed (${resp.status}): ${text.slice(0, 300)}`);
+  if (error) {
+    throw new Error(error.message || 'Supabase Edge Function invoke failed');
   }
-  const json = await resp.json();
-  return String(json?.choices?.[0]?.message?.content || '').trim();
+  if (!data?.content) {
+    throw new Error(data?.error || 'AuraBot function returned empty content');
+  }
+
+  return {
+    content: String(data.content),
+    model: String(data.model || FALLBACK_MODEL),
+  };
 }
 
 async function executeActions(userId: string, actions: AuraAction[]) {
@@ -197,16 +181,6 @@ export async function getAuraBotResponse(params: {
   userMessage: string;
   messages: ChatMsg[];
 }) : Promise<AuraResult> {
-  const primaryKey = import.meta.env.VITE_NVIDIA_API_KEY_PRIMARY || '';
-  const secondaryKey = import.meta.env.VITE_NVIDIA_API_KEY_SECONDARY || '';
-
-  if (!primaryKey && !secondaryKey) {
-    return {
-      text: 'NVIDIA API key missing hai. `.env` me `VITE_NVIDIA_API_KEY_PRIMARY` / `VITE_NVIDIA_API_KEY_SECONDARY` set karo.',
-      mood: 'confused',
-    };
-  }
-
   const memory = await fetchMemoryContext(params.userId);
   const recent = params.messages.slice(-20).map((m) => ({
     role: m.senderId === params.userId ? 'user' : 'assistant',
@@ -253,25 +227,9 @@ ${JSON.stringify(memory.vault, null, 2)}
 If user asks file analysis and only filenames are available, be explicit about limits and still provide useful suggestions.
 `;
 
-  let raw = '';
-  let usedModel = PRIMARY_MODEL;
-
-  try {
-    raw = await callNvidiaChat({
-      apiKey: primaryKey || secondaryKey,
-      model: PRIMARY_MODEL,
-      systemPrompt,
-      userPrompt,
-    });
-  } catch {
-    usedModel = FALLBACK_MODEL;
-    raw = await callNvidiaChat({
-      apiKey: secondaryKey || primaryKey,
-      model: FALLBACK_MODEL,
-      systemPrompt,
-      userPrompt,
-    });
-  }
+  const llm = await callAuraBotLLM(systemPrompt, userPrompt);
+  const raw = llm.content;
+  const usedModel = llm.model;
 
   const actions = extractActions(raw);
   if (actions.length > 0) {
@@ -285,7 +243,7 @@ If user asks file analysis and only filenames are available, be explicit about l
   })();
 
   return {
-    text: `${text}\n\n(model: ${usedModel.split('/').pop()})`,
+    text: `${text}\n\n(model: ${(usedModel || PRIMARY_MODEL).split('/').pop()})`,
     mood: declaredMood || inferMoodFromText(text),
   };
 }
