@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, Trash2, Check } from 'lucide-react';
 import { useSocket } from './SocketProvider';
 import clsx from 'clsx';
-import { API_URL } from '../lib/utils';
+import { supabase } from '../lib/supabaseClient';
+import { useAuthStore } from '../store/authStore';
 
 interface Task {
   id: string;
@@ -12,20 +13,21 @@ interface Task {
 
 export default function SharedTimetable({ connectionId, partner }: { connectionId?: string, partner?: any }) {
   const { socket } = useSocket();
+  const { user } = useAuthStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState('');
 
   const fetchTimetable = async () => {
+    if (!user?.id) return;
     try {
-      const token = localStorage.getItem('token');
-      const url = connectionId ? `${API_URL}/api/timetable?connectionId=${connectionId}` : `${API_URL}/api/timetable`;
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data)) setTasks(data);
+      let query = supabase.from('timetables').select('*');
+      if (connectionId) {
+        query = query.eq('connection_id', connectionId);
+      } else {
+        query = query.is('connection_id', null).eq('user_id', user.id);
       }
+      const { data } = await query;
+      if (data) setTasks(data as any[]);
     } catch (err) {
       console.error('Failed to load timetable', err);
     }
@@ -33,67 +35,53 @@ export default function SharedTimetable({ connectionId, partner }: { connectionI
 
   useEffect(() => {
     fetchTimetable();
-  }, [connectionId]);
+  }, [connectionId, user?.id]);
 
   useEffect(() => {
     if (!socket || !connectionId) return;
-    const handleSync = (data: { connectionId: string, tasks: Task[] }) => {
-      if (data.connectionId === connectionId) {
-        fetchTimetable();
-      }
-    };
-    socket.on('timetable_sync', handleSync);
-    return () => { socket.off('timetable_sync', handleSync); };
+    socket.on('broadcast', { event: `timetable_sync:${connectionId}` }, () => {
+      fetchTimetable();
+    });
+    return () => {};
   }, [socket, connectionId]);
 
   const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTask.trim()) return;
-    const token = localStorage.getItem('token');
+    if (!newTask.trim() || !user?.id) return;
     
-    await fetch(`${API_URL}/api/timetable`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ connectionId: connectionId || undefined, title: newTask })
-    });
+    await supabase.from('timetables').insert([{
+      connection_id: connectionId || null,
+      user_id: user.id,
+      title: newTask,
+      status: 'todo'
+    }]);
     
     setNewTask('');
     fetchTimetable();
     
     if (connectionId && socket) {
-      socket.emit('timetable_update', { connectionId });
+      socket.send({ type: 'broadcast', event: `timetable_sync:${connectionId}` });
     }
   };
 
   const toggleTask = async (task: Task) => {
-    const token = localStorage.getItem('token');
     const newStatus = task.status === 'todo' ? 'done' : 'todo';
-    
-    await fetch(`${API_URL}/api/timetable/${task.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ status: newStatus, title: task.title })
-    });
+    await supabase.from('timetables').update({ status: newStatus }).eq('id', task.id);
     
     fetchTimetable();
     
     if (connectionId && socket) {
-      socket.emit('timetable_update', { connectionId });
+      socket.send({ type: 'broadcast', event: `timetable_sync:${connectionId}` });
     }
   };
 
   const deleteTask = async (id: string) => {
-    const token = localStorage.getItem('token');
-    
-    await fetch(`${API_URL}/api/timetable/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    await supabase.from('timetables').delete().eq('id', id);
     
     fetchTimetable();
     
     if (connectionId && socket) {
-      socket.emit('timetable_update', { connectionId });
+      socket.send({ type: 'broadcast', event: `timetable_sync:${connectionId}` });
     }
   };
 

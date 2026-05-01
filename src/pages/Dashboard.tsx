@@ -5,26 +5,45 @@ import ChatWorkspace from './ChatWorkspace';
 import PersonalWorkspace from './PersonalWorkspace';
 import { SocketProvider } from '../components/SocketProvider';
 import clsx from 'clsx';
-import { API_URL } from '../lib/utils';
+import { supabase } from '../lib/supabaseClient';
+import { useAuthStore } from '../store/authStore';
 
 export default function Dashboard() {
   const [connections, setConnections] = useState<any[]>([]);
   const location = useLocation();
   const isChat = location.pathname.startsWith('/dashboard/c/');
+  const { user } = useAuthStore();
 
   const fetchConnections = async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API_URL}/api/connections`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      setConnections(await res.json());
+    if (!user?.id) return;
+    
+    const { data, error } = await supabase
+      .from('connections')
+      .select(`
+        id, status, created_at,
+        user1_id, user2_id,
+        user1:users!connections_user1_id_fkey(id, username, avatar_url),
+        user2:users!connections_user2_id_fkey(id, username, avatar_url)
+      `)
+      .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);
+      
+    if (!error && data) {
+      setConnections(data);
     }
   };
 
   useEffect(() => {
     fetchConnections();
-  }, []);
+    
+    if (user?.id) {
+      const sub = supabase.channel('public:connections')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'connections' }, () => {
+          fetchConnections();
+        })
+        .subscribe();
+      return () => { supabase.removeChannel(sub); };
+    }
+  }, [user?.id]);
 
   return (
     <SocketProvider>

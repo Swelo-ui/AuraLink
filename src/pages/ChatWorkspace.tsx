@@ -9,7 +9,7 @@ import SmartVault from '../components/SmartVault';
 import SharedTimetable from '../components/SharedTimetable';
 import { motion, AnimatePresence } from 'motion/react';
 import ActionMojiAvatar from '../components/ActionMojiAvatar';
-import { API_URL } from '../lib/utils';
+import { supabase } from '../lib/supabaseClient';
 
 // Human-readable status labels
 const STATUS_LABELS: Record<string, string> = {
@@ -95,49 +95,73 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   }, [messages, user?.id]);
 
   useEffect(() => {
-    if (!connectionId) return;
+    if (!connectionId || !user?.id || !partner?.id) return;
     const fetchMessages = async () => {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/api/messages/${connectionId}`, { headers: { 'Authorization': `Bearer ${token}` }});
-      if(res.ok) setMessages(await res.json());
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partner.id}),and(sender_id.eq.${partner.id},receiver_id.eq.${user.id})`)
+        .order('timestamp', { ascending: true });
+
+      if (data) {
+        setMessages(data.map(m => ({
+          id: m.id,
+          senderId: m.sender_id,
+          receiverId: m.receiver_id,
+          content: m.content,
+          type: m.type,
+          fileUrl: m.file_url,
+          timestamp: m.timestamp
+        })));
+      }
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
     fetchMessages();
-  }, [connectionId]);
+  }, [connectionId, user?.id, partner?.id]);
 
   useEffect(() => {
-    if (!socket || !partner) return;
+    if (!connectionId || !user?.id || !partner?.id) return;
 
-    // Join room for this connection
-    socket.emit('join_rooms', [partner.id]);
-
-    // Ensure AuraBot is never 'offline' initially
-    if (partner.username === 'AuraBot' && !partnerStatus[partner.id]) {
-      setPartnerStatus(partner.id, 'online');
-    }
-
-    const handleNewMessage = (msg: any) => {
-      setMessages(prev => [...prev, msg]);
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    };
-
-    // AI generation is now fully server-side — just listen for messages and status updates
-    socket.on('new_message', handleNewMessage);
-    socket.on('message_sent', handleNewMessage);
+    // Realtime for messages
+    const msgSub = supabase.channel(`messages:${connectionId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const m = payload.new as any;
+        if (
+          (m.sender_id === user.id && m.receiver_id === partner.id) ||
+          (m.sender_id === partner.id && m.receiver_id === user.id)
+        ) {
+          setMessages(prev => {
+             // Avoid duplicates if we already added it locally
+             if (prev.some(p => p.id === m.id)) return prev;
+             return [...prev, {
+                id: m.id,
+                senderId: m.sender_id,
+                receiverId: m.receiver_id,
+                content: m.content,
+                type: m.type,
+                fileUrl: m.file_url,
+                timestamp: m.timestamp
+             }];
+          });
+          setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+      })
+      .subscribe();
 
     return () => {
-      socket.off('new_message', handleNewMessage);
-      socket.off('message_sent', handleNewMessage);
+      supabase.removeChannel(msgSub);
     };
-  }, [socket, connectionId, partner?.id]);
+  }, [connectionId, user?.id, partner?.id]);
 
   // Status tracking — broadcast OUR status to partner
   useEffect(() => {
     if (!socket || !partner) return;
 
     let timeout: NodeJS.Timeout;
-    const updateStatus = (state: string) => {
-      socket.emit('set_status', { targetUserId: partner.id, state });
+    const updateStatus = async (state: string) => {
+      try {
+        await socket.track({ status: state });
+      } catch (e) {}
     };
 
     const handleInteraction = () => {
@@ -155,22 +179,8 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
       updateStatus(state);
 
-      // Bot mimics interaction state dynamically
-      if (partner.username === 'AuraBot') {
-        let botState = state;
-        if (state.startsWith('typing')) {
-          botState = 'online'; // The bot stays online and reacts visually via realTimeMood, it doesn't type
-        } else if (state === 'reading_chat' && messagesRef.current.length > 0) {
-          botState = 'idle';
-        }
-        setPartnerStatus(partner.id, botState);
-      }
-
       timeout = setTimeout(() => {
         updateStatus('idle');
-        if (partner.username === 'AuraBot') {
-          setPartnerStatus(partner.id, 'idle');
-        }
       }, 60000);
     };
 
@@ -183,37 +193,69 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       window.removeEventListener('keydown', handleInteraction);
       clearTimeout(timeout);
     };
-  }, [socket, partner?.id, partner?.username, input, toolTab, setPartnerStatus]);
+  }, [socket, partner?.id, partner?.username, input, toolTab]);
 
-  const sendMessage = (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !socket || !partner) return;
-    socket.emit('send_message', { receiverId: partner.id, content: input, type: 'text' });
+    if (!input.trim() || !user?.id || !partner) return;
+    
+    const msgContent = input;
     setInput('');
+    
+    const { data } = await supabase.from('messages').insert([{
+      sender_id: user.id,
+      receiver_id: partner.id,
+      content: msgContent,
+      type: 'text'
+    }]).select().single();
+    
+    if (data) {
+      setMessages(prev => [...prev, {
+        id: data.id,
+        senderId: data.sender_id,
+        receiverId: data.receiver_id,
+        content: data.content,
+        type: data.type,
+        fileUrl: data.file_url,
+        timestamp: data.timestamp
+      }]);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !partner || !socket) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
+    if (!file || !user?.id || !partner) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-      const data = await res.json();
-      if(data.url) {
-        socket.emit('send_message', {
-          receiverId: partner.id,
-          content: data.name,
-          type: 'file',
-          fileUrl: data.url
-        });
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
+
+      const { data } = await supabase.from('messages').insert([{
+        sender_id: user.id,
+        receiver_id: partner.id,
+        content: file.name,
+        type: 'file',
+        file_url: publicUrl
+      }]).select().single();
+
+      if (data) {
+        setMessages(prev => [...prev, {
+          id: data.id,
+          senderId: data.sender_id,
+          receiverId: data.receiver_id,
+          content: data.content,
+          type: data.type,
+          fileUrl: data.file_url,
+          timestamp: data.timestamp
+        }]);
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       }
     } catch (err) {
       console.error(err);

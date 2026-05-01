@@ -1,10 +1,12 @@
 import { Download, File, Image as ImageIcon, FileText, Upload, Plus, X, Lock } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
 import { useSocket } from './SocketProvider';
-import { API_URL } from '../lib/utils';
+import { supabase } from '../lib/supabaseClient';
+import { useAuthStore } from '../store/authStore';
 
 export default function SmartVault({ connectionId, messages, partner, isPersonal = false }: { connectionId: string, messages: any[], partner: any, isPersonal?: boolean }) {
   const { socket } = useSocket();
+  const { user } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<any>(null);
   const [vaultItems, setVaultItems] = useState<any[]>([]);
@@ -13,49 +15,46 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
     if (isPersonal) {
       fetchPersonalVault();
     }
-  }, [isPersonal]);
+  }, [isPersonal, user?.id]);
 
   const fetchPersonalVault = async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API_URL}/api/vault`, { headers: { 'Authorization': `Bearer ${token}` }});
-    if (res.ok) setVaultItems(await res.json());
+    if (!user?.id) return;
+    const { data } = await supabase.from('vault_items').select('*').eq('user_id', user.id);
+    if (data) setVaultItems(data);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const formData = new FormData();
-    formData.append('file', file);
+    if (!file || !user?.id) return;
     
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-      const data = await res.json();
-      if(data.url) {
-        if (isPersonal) {
-          // Add to personal vault
-          await fetch(`${API_URL}/api/vault`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ name: data.name, content: data.url, type: 'file' })
-          });
-          fetchPersonalVault();
-        } else if (partner && socket) {
-          // Send as message in shared vault
-          socket.emit('send_message', { 
-            receiverId: partner.id, 
-            content: data.name, 
-            type: 'file',
-            fileUrl: data.url 
-          });
-        }
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
+
+      if (isPersonal) {
+        // Add to personal vault
+        await supabase.from('vault_items').insert([{
+          user_id: user.id,
+          name: file.name,
+          content: publicUrl,
+          type: 'file'
+        }]);
+        fetchPersonalVault();
+      } else if (partner) {
+        // Send as message in shared vault
+        await supabase.from('messages').insert([{
+          sender_id: user.id,
+          receiver_id: partner.id,
+          content: file.name,
+          type: 'file',
+          file_url: publicUrl
+        }]);
       }
     } catch (err) {
       console.error(err);

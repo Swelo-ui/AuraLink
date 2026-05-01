@@ -3,12 +3,15 @@ import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useState, useRef } from 'react';
 import { useSocket } from './SocketProvider';
 import clsx from 'clsx';
-import { API_URL } from '../lib/utils';
+import { supabase } from '../lib/supabaseClient';
+import { useAuthStore } from '../store/authStore';
 
 export default function SyncNotes({ connectionId, partner }: { connectionId?: string, partner?: any }) {
   const { socket } = useSocket();
   const [syncedStatus, setSyncedStatus] = useState('Synced');
   const isUpdatingRef = useRef(false);
+
+  const { user } = useAuthStore();
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -19,19 +22,36 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
       }
     },
     onUpdate: async ({ editor }) => {
-      if (isUpdatingRef.current) return;
+      if (isUpdatingRef.current || !user?.id) return;
       
       setSyncedStatus('Saving...');
       const html = editor.getHTML();
-      if (connectionId && socket) {
-        socket.emit('note_update', { connectionId, content: html });
+
+      if (connectionId) {
+        // Send via Realtime
+        if (socket) {
+          socket.send({
+            type: 'broadcast',
+            event: `note_update:${connectionId}`,
+            payload: { content: html, by: user.id }
+          });
+        }
+        
+        // Save to DB
+        const { data: existing } = await supabase.from('notes').select('id').eq('connection_id', connectionId).single();
+        if (existing) {
+          await supabase.from('notes').update({ content: html, last_edited_by: user.id }).eq('id', existing.id);
+        } else {
+          await supabase.from('notes').insert([{ connection_id: connectionId, content: html, last_edited_by: user.id }]);
+        }
       } else {
-        const token = localStorage.getItem('token');
-        await fetch(`${API_URL}/api/notes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ connectionId: connectionId || undefined, content: html })
-        });
+        // Personal note
+        const { data: existing } = await supabase.from('notes').select('id').is('connection_id', null).eq('user_id', user.id).single();
+        if (existing) {
+          await supabase.from('notes').update({ content: html, last_edited_by: user.id }).eq('id', existing.id);
+        } else {
+          await supabase.from('notes').insert([{ user_id: user.id, content: html, last_edited_by: user.id }]);
+        }
       }
       
       setTimeout(() => setSyncedStatus('Synced'), 1000);
@@ -41,18 +61,18 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
   useEffect(() => {
     const fetchNote = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const url = connectionId ? `${API_URL}/api/notes?connectionId=${connectionId}` : `${API_URL}/api/notes`;
-        const res = await fetch(url, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (editor && data.content) {
-             isUpdatingRef.current = true;
-             editor.commands.setContent(data.content);
-             isUpdatingRef.current = false;
-          }
+        if (!user?.id) return;
+        let query = supabase.from('notes').select('content');
+        if (connectionId) {
+          query = query.eq('connection_id', connectionId);
+        } else {
+          query = query.is('connection_id', null).eq('user_id', user.id);
+        }
+        const { data } = await query.single();
+        if (data && editor && data.content) {
+          isUpdatingRef.current = true;
+          editor.commands.setContent(data.content);
+          isUpdatingRef.current = false;
         }
       } catch (err) {
         console.error('Failed to load note', err);
@@ -61,20 +81,20 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
     if (editor) {
       fetchNote();
     }
-  }, [connectionId, editor]);
+  }, [connectionId, editor, user?.id]);
 
   useEffect(() => {
     if (!socket || !editor || !connectionId) return;
 
-    const handleNoteUpdate = (data: { content: string, by: string }) => {
+    const handleNoteUpdate = ({ payload }: any) => {
       // Prevent echoing back
-      if (partner && data.by !== partner.id) return;
+      if (partner && payload.by !== partner.id) return;
       
       isUpdatingRef.current = true;
       const { from, to } = editor.state.selection;
       
       // Basic last-write-wins replacement (in production use Yjs for true CRDT)
-      editor.commands.setContent(data.content, { emitUpdate: false });
+      editor.commands.setContent(payload.content, { emitUpdate: false });
       
       // Attempt to restore cursor roughly
       try {
@@ -89,9 +109,9 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
       }
     };
 
-    socket.on('note_updated', handleNoteUpdate);
+    socket.on('broadcast', { event: `note_update:${connectionId}` }, handleNoteUpdate);
     return () => {
-      socket.off('note_updated', handleNoteUpdate);
+      // Cannot cleanly off a specific broadcast event in supabase-js easily, but channel unmounts handle it
     };
   }, [socket, editor, partner, connectionId]);
 

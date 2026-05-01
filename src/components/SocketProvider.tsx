@@ -1,10 +1,9 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../store/authStore';
-import { API_URL } from '../lib/utils';
+import { supabase } from '../lib/supabaseClient';
 
 interface SocketContextType {
-  socket: Socket | null;
+  socket: any | null; // using any for the Supabase Realtime channel
   partnerStatus: { [userId: string]: string };
   setPartnerStatus: (userId: string, status: string) => void;
 }
@@ -14,9 +13,9 @@ const SocketContext = createContext<SocketContextType>({ socket: null, partnerSt
 export const useSocket = () => useContext(SocketContext);
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket, setSocket] = useState<any | null>(null);
   const [partnerStatus, setPartnerStatusMap] = useState<{ [userId: string]: string }>({});
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
 
   const setPartnerStatus = useCallback((userId: string, status: string) => {
     setPartnerStatusMap(prev => {
@@ -26,29 +25,42 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !user?.id) return;
 
-    // Use API_URL as the host if specified, otherwise it defaults to current origin
-    const newSocket = io(API_URL || undefined, { auth: { token } });
-    
-    newSocket.on('connect', () => {
-      console.log('Socket connected');
+    // We use a single shared presence channel for status
+    const channel = supabase.channel('online-users', {
+      config: {
+        presence: {
+          key: user.id,
+        },
+      },
     });
 
-    newSocket.on('user_status', (data) => {
-      setPartnerStatus(data.userId, data.status);
+    channel.on('presence', { event: 'sync' }, () => {
+      const newState = channel.presenceState();
+      const newStatusMap: any = {};
+      for (const [key, stateArray] of Object.entries(newState)) {
+        if (stateArray.length > 0) {
+          const latest: any = stateArray[0];
+          newStatusMap[key] = latest.status || 'online';
+        }
+      }
+      setPartnerStatusMap(prev => ({ ...prev, ...newStatusMap }));
     });
 
-    newSocket.on('partner_status', (data) => {
-      setPartnerStatus(data.userId, data.state);
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ status: 'online' });
+      }
     });
 
-    setSocket(newSocket);
+    // Provide the channel as the "socket" so other components can emit/on
+    setSocket(channel);
 
     return () => {
-      newSocket.close();
+      supabase.removeChannel(channel);
     };
-  }, [token]);
+  }, [token, user?.id]);
 
   return (
     <SocketContext.Provider value={{ socket, partnerStatus, setPartnerStatus }}>

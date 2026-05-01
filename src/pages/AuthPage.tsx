@@ -3,7 +3,6 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { API_URL } from '../lib/utils';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -33,21 +32,18 @@ export default function AuthPage() {
         if (signInError) throw signInError;
         if (!data.session) throw new Error('No session returned');
 
-        // We also need to get/sync the user in our Prisma database
-        // Let's call a custom endpoint to sync the user, or just use the session directly
-        const res = await fetch(`${API_URL}/api/auth/sync`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${data.session.access_token}`
-          },
-          body: JSON.stringify({ username: username.trim(), authId: data.user.id })
-        });
-        
-        const syncData = await res.json();
-        if (!res.ok) throw new Error(syncData.error || 'Failed to sync user data');
+        // Check if user exists in public.users, if not create
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
 
-        setAuth(data.session.access_token, syncData.user);
+        if (!existingUser) {
+           await supabase.from('users').insert([{ id: data.user.id, username: username.trim() }]);
+        }
+
+        setAuth(data.session.access_token, { id: data.user.id, username: username.trim() });
         navigate('/dashboard');
       } else {
         // Supabase Signup
@@ -62,20 +58,10 @@ export default function AuthPage() {
         if (signUpError) throw signUpError;
         if (!data.session) throw new Error('Signup successful, but please sign in.');
 
-        // Sync the new user with Prisma
-        const res = await fetch(`${API_URL}/api/auth/sync`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${data.session.access_token}`
-          },
-          body: JSON.stringify({ username: username.trim(), authId: data.user.id })
-        });
-        
-        const syncData = await res.json();
-        if (!res.ok) throw new Error(syncData.error || 'Failed to sync user data');
+        // Add to public.users
+        await supabase.from('users').upsert([{ id: data.user.id, username: username.trim() }]);
 
-        setAuth(data.session.access_token, syncData.user);
+        setAuth(data.session.access_token, { id: data.user.id, username: username.trim() });
         navigate('/dashboard');
       }
     } catch (err: any) {

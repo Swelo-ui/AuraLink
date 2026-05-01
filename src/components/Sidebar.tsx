@@ -5,7 +5,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
 import { supabase } from '../lib/supabaseClient';
-import { API_URL } from '../lib/utils';
 
 export default function Sidebar({ connections, onRefresh, className }: { connections: any[], onRefresh: () => void, className?: string }) {
   const { user, logout } = useAuthStore();
@@ -44,30 +43,32 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!search) return setResults([]);
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API_URL}/api/users/search?q=${search}`, { headers: { 'Authorization': `Bearer ${token}` }});
-    setResults(await res.json());
+    
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .ilike('username', `%${search}%`)
+      .neq('id', user?.id);
+      
+    if (data) setResults(data);
   };
 
   const addFriend = async (targetUserId: string) => {
-    const token = localStorage.getItem('token');
-    await fetch(`${API_URL}/api/connections`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ targetUserId })
-    });
+    if (!user?.id) return;
+    
+    await supabase.from('connections').insert([
+      { user1_id: user.id, user2_id: targetUserId, status: 'pending' }
+    ]);
+    
     setSearch('');
     setResults([]);
-    onRefresh();
   };
 
   const acceptFriend = async (id: string) => {
-    const token = localStorage.getItem('token');
-    await fetch(`${API_URL}/api/connections/${id}/accept`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    onRefresh();
+    await supabase
+      .from('connections')
+      .update({ status: 'accepted' })
+      .eq('id', id);
   };
 
   return (
