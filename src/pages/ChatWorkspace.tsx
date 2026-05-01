@@ -80,7 +80,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const [messages, setMessages] = useState<any[]>([]);
   const messagesRef = useRef(messages);
   const [input, setInput] = useState('');
-  const [toolTab, setToolTab] = useState<'notes' | 'vault' | 'timetable' | 'none'>('notes');
+  const [toolTab, setToolTab] = useState<'notes' | 'vault' | 'timetable' | 'none'>('none');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [sentimentState, setSentimentState] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
