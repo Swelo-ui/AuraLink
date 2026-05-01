@@ -52,6 +52,53 @@ function extractActions(raw: string): AuraAction[] {
   }
 }
 
+function sanitizeAction(action: AuraAction): AuraAction | null {
+  const banned = new Set(['ok add', 'add', 'task', 'todo', 'note', 'vault']);
+  const normalize = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
+
+  if (action.type === 'add_timetable_task' || action.type === 'toggle_timetable_task' || action.type === 'delete_timetable_task') {
+    const title = normalize(action.title || '');
+    if (!title || title.length < 3 || banned.has(title)) return null;
+  }
+  if ((action.type === 'append_note' || action.type === 'replace_note') && (!action.text || action.text.trim().length < 3)) {
+    return null;
+  }
+  if (action.type === 'add_vault_item_text') {
+    const name = normalize(action.name || '');
+    const content = (action.content || '').trim();
+    if (!name || !content || banned.has(name)) return null;
+  }
+  return action;
+}
+
+function getAllowedActionTypes(userMessage: string): Set<AuraAction['type']> {
+  const msg = userMessage.toLowerCase();
+  const allowed = new Set<AuraAction['type']>();
+
+  const taskIntent =
+    /(add|create|make|plan|schedule|set)\b.*\b(task|todo|timetable|plan)\b/.test(msg) ||
+    /\b(mark|complete|done|delete|remove)\b.*\b(task|todo|timetable)\b/.test(msg);
+  const noteIntent =
+    /\b(add|append|write|save|replace|update|summarize)\b.*\b(note|notes)\b/.test(msg);
+  const vaultIntent =
+    /\b(save|store|add|remember)\b.*\b(vault|secret|password|credential)\b/.test(msg);
+
+  if (taskIntent) {
+    allowed.add('add_timetable_task');
+    allowed.add('toggle_timetable_task');
+    allowed.add('delete_timetable_task');
+  }
+  if (noteIntent) {
+    allowed.add('append_note');
+    allowed.add('replace_note');
+  }
+  if (vaultIntent) {
+    allowed.add('add_vault_item_text');
+  }
+
+  return allowed;
+}
+
 async function fetchMemoryContext(userId: string) {
   const [notesRes, tasksRes, vaultRes] = await Promise.all([
     supabase
@@ -216,13 +263,13 @@ Recent chat memory:
 ${JSON.stringify(recent, null, 2)}
 
 User personal note (latest):
-${memory.note || '(empty)'}
+${(memory.note || '(empty)').slice(0, 1000)}
 
 User timetable tasks:
-${JSON.stringify(memory.tasks, null, 2)}
+${JSON.stringify((memory.tasks || []).slice(0, 12), null, 2)}
 
 User vault items metadata:
-${JSON.stringify(memory.vault, null, 2)}
+${JSON.stringify((memory.vault || []).slice(0, 12), null, 2)}
 
 If user asks file analysis and only filenames are available, be explicit about limits and still provide useful suggestions.
 `;
@@ -231,7 +278,12 @@ If user asks file analysis and only filenames are available, be explicit about l
   const raw = llm.content;
   const usedModel = llm.model;
 
-  const actions = extractActions(raw);
+  const allowedActionTypes = getAllowedActionTypes(params.userMessage);
+  const actions = extractActions(raw)
+    .map(sanitizeAction)
+    .filter((a): a is AuraAction => Boolean(a))
+    .filter((a) => allowedActionTypes.has(a.type));
+
   if (actions.length > 0) {
     await executeActions(params.userId, actions);
   }
@@ -243,7 +295,7 @@ If user asks file analysis and only filenames are available, be explicit about l
   })();
 
   return {
-    text: `${text}\n\n(model: ${(usedModel || PRIMARY_MODEL).split('/').pop()})`,
+    text,
     mood: declaredMood || inferMoodFromText(text),
   };
 }

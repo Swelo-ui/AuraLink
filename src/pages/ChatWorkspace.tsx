@@ -88,6 +88,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     ? ((conn.user1Id ?? conn.user1_id) === user?.id ? conn.user2 : conn.user1)
     : null;
   const isVirtualBot = Boolean(conn?.isVirtual) && partner?.username === 'AuraBot';
+  const virtualChatKey = user?.id ? `aurabot_chat_${user.id}` : null;
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -163,6 +164,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     setPartnerStatus(partner.id, 'online');
     setMessages((prev) => {
       if (prev.length > 0) return prev;
+
+      if (virtualChatKey) {
+        const saved = localStorage.getItem(virtualChatKey);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              return parsed;
+            }
+          } catch {}
+        }
+      }
+
       return [
         {
           id: `bot-welcome-${Date.now()}`,
@@ -175,7 +189,12 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         },
       ];
     });
-  }, [isVirtualBot, partner?.id, setPartnerStatus, user?.id]);
+  }, [isVirtualBot, partner?.id, setPartnerStatus, user?.id, virtualChatKey]);
+
+  useEffect(() => {
+    if (!isVirtualBot || !virtualChatKey) return;
+    localStorage.setItem(virtualChatKey, JSON.stringify(messages));
+  }, [messages, isVirtualBot, virtualChatKey]);
 
   // Show typing mood in ActionMoji while user types to AuraBot.
   useEffect(() => {
@@ -444,25 +463,22 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             <div className="flex items-center gap-0.5 sm:gap-2 bg-aura-navy/50 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-aura-border/50">
               <button
                 onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')}
-                disabled={isVirtualBot}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white", isVirtualBot && "opacity-40 cursor-not-allowed")}
-                title={isVirtualBot ? 'Tools unavailable in virtual bot chat' : 'SyncNotes'}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
+                title="SyncNotes"
               >
                 <FileText className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
               <button
                 onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')}
-                disabled={isVirtualBot}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white", isVirtualBot && "opacity-40 cursor-not-allowed")}
-                title={isVirtualBot ? 'Tools unavailable in virtual bot chat' : 'SmartVault'}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
+                title="SmartVault"
               >
                 <Paperclip className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
               <button
                 onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')}
-                disabled={isVirtualBot}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white", isVirtualBot && "opacity-40 cursor-not-allowed")}
-                title={isVirtualBot ? 'Tools unavailable in virtual bot chat' : 'Shared Timetable'}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")}
+                title="Shared Timetable"
               >
                 <Calendar className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
@@ -547,16 +563,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               </button>
             </div>
             <div className="flex-1 overflow-hidden relative bg-aura-navy/20">
-              {isVirtualBot ? (
-                <div className="h-full flex items-center justify-center text-aura-lavender/60 text-sm px-6 text-center">
-                  AuraBot virtual chat me tools disabled hain. Real user connection open karoge to Notes, Vault aur Timetable use kar paoge.
-                </div>
-              ) : (
-                <>
-                  {toolTab === 'notes' && connectionId && <SyncNotes connectionId={connectionId} partner={partner} />}
-                  {toolTab === 'vault' && connectionId && <SmartVault connectionId={connectionId} messages={messages} partner={partner} />}
-                  {toolTab === 'timetable' && connectionId && <SharedTimetable connectionId={connectionId} partner={partner} />}
-                </>
+              {toolTab === 'notes' && (
+                <SyncNotes connectionId={isVirtualBot ? undefined : connectionId} partner={isVirtualBot ? undefined : partner} />
+              )}
+              {toolTab === 'vault' && (
+                <SmartVault
+                  connectionId={isVirtualBot ? '' : (connectionId || '')}
+                  messages={messages}
+                  partner={isVirtualBot ? null : partner}
+                  isPersonal={isVirtualBot}
+                />
+              )}
+              {toolTab === 'timetable' && (
+                <SharedTimetable connectionId={isVirtualBot ? undefined : connectionId} partner={isVirtualBot ? undefined : partner} />
               )}
             </div>
           </motion.div>
