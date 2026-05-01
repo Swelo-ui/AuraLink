@@ -2,6 +2,7 @@ export const TOKEN_TTL = '12h';
 export const MAX_LOGIN_ATTEMPTS = 5;
 export const LOGIN_WINDOW_MS = 10 * 60 * 1000;
 export const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,24}$/;
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const PASSWORD_MIN_LENGTH = 8;
 
 export type AttemptBucket = {
@@ -22,10 +23,15 @@ export function normalizeUsername(input: unknown): string {
 }
 
 export function validateCredentials(username: string, password: string): string | null {
-  if (!username || !password) return 'Username and password are required';
-  if (!USERNAME_REGEX.test(username)) {
-    return 'Username must be 3-24 chars and only contain letters, numbers, and underscore';
+  if (!username || !password) return 'Username/Email and password are required';
+  
+  const isEmail = EMAIL_REGEX.test(username);
+  const isUsername = USERNAME_REGEX.test(username);
+
+  if (!isEmail && !isUsername) {
+    return 'Invalid username or email format';
   }
+  
   if (password.length < PASSWORD_MIN_LENGTH) {
     return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
   }

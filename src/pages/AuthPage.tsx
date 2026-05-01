@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { validateCredentials } from '../lib/authSecurity';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,51 +18,76 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    const validationError = validateCredentials(username, password);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setLoading(true);
     
     try {
-      const dummyEmail = `${username.trim().toLowerCase()}@auralink.app`;
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username.trim());
+      const authEmail = isEmail ? username.trim().toLowerCase() : `${username.trim().toLowerCase()}@auralink.app`;
+      const displayUsername = isEmail ? username.trim().split('@')[0] : username.trim();
 
       if (isLogin) {
         // Supabase Login
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email: dummyEmail,
+          email: authEmail,
           password: password,
         });
 
         if (signInError) throw signInError;
         if (!data.session) throw new Error('No session returned');
 
-        // Check if user exists in public.users, if not create
+        // Get user profile from public.users
         const { data: existingUser } = await supabase
           .from('users')
           .select('*')
           .eq('id', data.user.id)
           .single();
 
+        const userToSet = existingUser || { id: data.user.id, username: displayUsername };
+        
+        // If profile doesn't exist, create it (backwards compatibility or first login after email signup)
         if (!existingUser) {
-           await supabase.from('users').insert([{ id: data.user.id, username: username.trim() }]);
+           await supabase.from('users').insert([{ id: data.user.id, username: displayUsername }]);
         }
 
-        setAuth(data.session.access_token, { id: data.user.id, username: username.trim() });
+        setAuth(data.session.access_token, userToSet);
         navigate('/dashboard');
       } else {
         // Supabase Signup
         const { data, error: signUpError } = await supabase.auth.signUp({
-          email: dummyEmail,
+          email: authEmail,
           password: password,
           options: {
-            data: { username: username.trim() }
+            data: { username: displayUsername }
           }
         });
 
         if (signUpError) throw signUpError;
-        if (!data.session) throw new Error('Signup successful, but please sign in.');
+        
+        // Handle auto-confirm vs email confirmation
+        if (!data.session) {
+          setError('Signup successful! Please check your email to confirm your account.');
+          setLoading(false);
+          return;
+        }
 
         // Add to public.users
-        await supabase.from('users').upsert([{ id: data.user.id, username: username.trim() }]);
+        const { error: profileError } = await supabase.from('users').upsert([
+          { id: data.user.id, username: displayUsername }
+        ]);
 
-        setAuth(data.session.access_token, { id: data.user.id, username: username.trim() });
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+          // Don't throw here, as the user is already signed up in Auth
+        }
+
+        setAuth(data.session.access_token, { id: data.user.id, username: displayUsername });
         navigate('/dashboard');
       }
     } catch (err: any) {
@@ -110,7 +136,7 @@ export default function AuthPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(233,213,255,0.5)' }}>
-                Username
+                Username or Email
               </label>
               <input
                 type="text"
@@ -121,9 +147,9 @@ export default function AuthPage() {
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(155,89,182,0.3)')}
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="your_username"
+                placeholder="username or email@example.com"
                 minLength={3}
-                maxLength={24}
+                maxLength={50}
                 autoComplete="username"
                 required
               />
