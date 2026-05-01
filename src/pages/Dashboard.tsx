@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import ChatWorkspace from './ChatWorkspace';
-import PersonalWorkspace from './PersonalWorkspace';
+import PersonalWorkspace from './PersonalWorkspace.tsx';
 import { SocketProvider } from '../components/SocketProvider';
 import clsx from 'clsx';
 import { supabase } from '../lib/supabaseClient';

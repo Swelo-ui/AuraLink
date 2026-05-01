@@ -65,8 +65,8 @@ export default function PersonalWorkspace() {
 
         {/* Content Area */}
         <div className="flex-1 bg-aura-navy">
-          {activeTab === 'notes' && <SyncNotes connectionId="" />}
-          {activeTab === 'timetable' && <SharedTimetable connectionId="" />}
+          {activeTab === 'notes' && <SyncNotes connectionId={undefined} />}
+          {activeTab === 'timetable' && <SharedTimetable connectionId={undefined} />}
           {activeTab === 'vault' && <SmartVault connectionId="" messages={[]} partner={null} isPersonal={true} />}
         </div>
       </div>
