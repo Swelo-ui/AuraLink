@@ -39,6 +39,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       if (outcome === 'accepted') {
         setDeferredPrompt(null);
       }
+    } else {
+      alert('PWA installation is only available on supported browsers and when served over HTTPS. If you are on Chrome, look for the install icon in the address bar.');
     }
   };
 
@@ -233,24 +235,39 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
               <div>
                 <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Preferences</h3>
                 <div className="space-y-2">
-                  <button className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors">
+                  <button 
+                    onClick={() => alert('Theme customization coming soon! ✨')}
+                    className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
+                  >
                     <div className="flex items-center gap-3 text-white"><Palette size={18} className="text-pink-400" /> Theme</div>
                     <span className="text-xs text-aura-lavender/50">Dark Mode</span>
                   </button>
-                  <button className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors">
+                  <button 
+                    onClick={() => alert('Notification settings coming soon! 🔔')}
+                    className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
+                  >
                     <div className="flex items-center gap-3 text-white"><Bell size={18} className="text-aura-teal" /> Notifications</div>
                     <span className="text-xs text-aura-lavender/50">Enabled</span>
                   </button>
-                  <button className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors">
+                  <button 
+                    onClick={() => alert('Privacy settings coming soon! 🛡️')}
+                    className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
+                  >
                     <div className="flex items-center gap-3 text-white"><Shield size={18} className="text-blue-400" /> Privacy</div>
                     <span className="text-xs text-aura-lavender/50">&gt;</span>
                   </button>
-                  {deferredPrompt && (
-                    <button onClick={handleInstallApp} className="w-full flex items-center justify-between p-3 bg-aura-primary/10 hover:bg-aura-primary/20 rounded-xl border border-aura-primary/30 transition-colors">
-                      <div className="flex items-center gap-3 text-white"><Download size={18} className="text-aura-primary" /> Install App</div>
-                      <span className="text-xs text-aura-primary font-medium">Install</span>
-                    </button>
-                  )}
+                  <button 
+                    onClick={handleInstallApp} 
+                    className={clsx(
+                      "w-full flex items-center justify-between p-3 rounded-xl border transition-colors",
+                      deferredPrompt ? "bg-aura-primary/20 border-aura-primary/40" : "bg-aura-navy border-aura-border opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 text-white"><Download size={18} className={deferredPrompt ? "text-aura-primary" : "text-aura-lavender/50"} /> Install App</div>
+                    <span className={clsx("text-xs font-medium", deferredPrompt ? "text-aura-primary" : "text-aura-lavender/50")}>
+                      {deferredPrompt ? 'Available' : 'Not Ready'}
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>

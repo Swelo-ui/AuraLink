@@ -84,7 +84,19 @@ export default function AuthPage() {
 
         if (profileError) {
           console.error('Error creating profile:', profileError);
-          // Don't throw here, as the user is already signed up in Auth
+        }
+
+        // Auto-connect with AuraBot
+        const { data: botData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', 'AuraBot')
+          .single();
+        
+        if (botData) {
+          await supabase.from('connections').insert([
+            { user1_id: data.user.id, user2_id: botData.id, status: 'accepted' }
+          ]);
         }
 
         setAuth(data.session.access_token, { id: data.user.id, username: displayUsername });
