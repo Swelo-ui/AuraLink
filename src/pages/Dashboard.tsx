@@ -16,8 +16,7 @@ export default function Dashboard() {
 
   const fetchConnections = async () => {
     if (!user?.id) return;
-    
-    // 1. Fetch real connections
+
     const { data: realConnections, error } = await supabase
       .from('connections')
       .select(`
@@ -27,14 +26,13 @@ export default function Dashboard() {
         user2:users!connections_user2_id_fkey(id, username, avatar_url)
       `)
       .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);
-      
+
     if (error) {
       console.error('Error fetching connections:', error);
       return;
     }
 
-    // 2. Add AuraBot as a permanent virtual connection
-    const aurabotId = '00000000-0000-0000-0000-000000000000'; // Fixed ID for virtual bot
+    const aurabotId = '00000000-0000-0000-0000-000000000000';
     const aurabot = {
       id: `bot-${aurabotId}`,
       status: 'accepted',
@@ -46,19 +44,19 @@ export default function Dashboard() {
       isVirtual: true
     };
 
-    // Filter out any real bot connections to avoid duplicates
-    const filteredReal = realConnections?.filter(conn => 
-      conn.user1?.username !== 'AuraBot' && conn.user2?.username !== 'AuraBot'
-    ) || [];
+    const filteredReal = (realConnections || []).filter((conn: any) =>
+      (conn.user1 as any)?.username !== 'AuraBot' && (conn.user2 as any)?.username !== 'AuraBot'
+    );
 
     setConnections([aurabot, ...filteredReal]);
   };
 
   useEffect(() => {
     fetchConnections();
-    
+
     if (user?.id) {
-      const sub = supabase.channel('public:connections')
+      const sub = supabase
+        .channel('public:connections')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'connections' }, () => {
           fetchConnections();
         })
@@ -69,9 +67,10 @@ export default function Dashboard() {
 
   return (
     <SocketProvider>
-      <div className="fixed top-0 left-0 w-full flex bg-aura-navy border-t border-aura-border overflow-hidden" style={{ height: 'var(--app-height, 100dvh)' }}>
+      {/* height: 100% inherits the browser-resized viewport when keyboard opens */}
+      <div className="flex w-full bg-aura-navy overflow-hidden" style={{ height: '100%' }}>
         <Sidebar connections={connections} onRefresh={fetchConnections} className={isChat ? "hidden md:flex" : "flex"} />
-        <main className={clsx("flex-1 overflow-hidden bg-[#151525]", isChat || location.pathname === '/dashboard/personal' ? "flex" : "hidden md:flex")}>
+        <main className={clsx("flex-1 min-h-0 overflow-hidden bg-[#151525]", isChat || location.pathname === '/dashboard/personal' ? "flex" : "hidden md:flex")}>
           <Routes>
             <Route path="/" element={<div className="flex-1 flex items-center justify-center text-aura-lavender/50 text-center px-4">Select a connection or your personal workspace to start</div>} />
             <Route path="/c/:id" element={<ChatWorkspace connections={connections} />} />
