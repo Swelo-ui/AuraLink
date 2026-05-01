@@ -154,8 +154,11 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
         <p className="text-xs text-aura-lavender/40 uppercase tracking-widest px-2 mb-2 font-semibold">Connections</p>
         <div className="space-y-1">
           {connections.map(conn => {
-            const isUser1 = conn.user1Id === user?.id;
+            const user1Id = conn.user1Id ?? conn.user1_id;
+            const user2Id = conn.user2Id ?? conn.user2_id;
+            const isUser1 = user1Id === user?.id;
             const partner = isUser1 ? conn.user2 : conn.user1;
+            if (!partner) return null;
             const isPending = conn.status === 'pending';
             const canAccept = isPending && !isUser1;
             const status = partnerStatus[partner.id] || 'offline';

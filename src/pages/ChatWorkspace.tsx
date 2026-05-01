@@ -83,7 +83,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const [sentimentState, setSentimentState] = useState<string | null>(null);
 
   const conn = connections.find(c => c.id === connectionId);
-  const partner = conn ? (conn.user1Id === user?.id ? conn.user2 : conn.user1) : null;
+  const partner = conn
+    ? ((conn.user1Id ?? conn.user1_id) === user?.id ? conn.user2 : conn.user1)
+    : null;
 
   useEffect(() => {
     messagesRef.current = messages;
