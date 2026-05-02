@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../components/SocketProvider';
 import { useAuthStore } from '../store/authStore';
-import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff } from 'lucide-react';
+import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff, Settings as SettingsIcon, Volume2, VolumeX, EyeOff } from 'lucide-react';
 import clsx from 'clsx';
 import SyncNotes from '../components/SyncNotes';
 import SmartVault from '../components/SmartVault';
@@ -100,6 +100,22 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
+  const [showSettings, setShowSettings] = useState(false);
+  const [chatSettings, setChatSettings] = useState(() => {
+    const saved = localStorage.getItem(`chat_settings_${connectionId}`);
+    return saved ? JSON.parse(saved) : { vanishMode: false, sendSound: true, receiveSound: true };
+  });
+
+  const chatSettingsRef = useRef(chatSettings);
+  chatSettingsRef.current = chatSettings;
+
+  useEffect(() => {
+    if (connectionId) {
+      localStorage.setItem(`chat_settings_${connectionId}`, JSON.stringify(chatSettings));
+    }
+  }, [chatSettings, connectionId]);
+
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -150,6 +166,22 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const virtualChatKey = user?.id ? `aurabot_chat_${user.id}` : null;
 
   useEffect(() => {
+    return () => {
+      if (chatSettingsRef.current.vanishMode && user?.id && partner?.id) {
+        if (isVirtualBot && virtualChatKey) {
+          localStorage.removeItem(virtualChatKey);
+        } else {
+          // Delete messages we received so they disappear for the partner
+          supabase.from('messages').delete()
+            .eq('receiver_id', user.id)
+            .eq('sender_id', partner.id)
+            .then();
+        }
+      }
+    };
+  }, [user?.id, partner?.id, isVirtualBot, virtualChatKey]);
+
+  useEffect(() => {
     messagesRef.current = messages;
     // Re-derive mood when messages change
     if (user?.id) {
@@ -195,8 +227,10 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           (m.sender_id === partner.id && m.receiver_id === user.id)
         ) {
           setMessages(prev => {
-             // Avoid duplicates if we already added it locally
              if (prev.some(p => p.id === m.id)) return prev;
+             if (m.sender_id === partner.id && chatSettingsRef.current.receiveSound) {
+               playReceiveSound();
+             }
              return [...prev, {
                 id: m.id,
                 senderId: m.sender_id,
@@ -334,7 +368,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         messagesRef.current = next;
         return next;
       });
-      playPopSound();
+      if (chatSettings.sendSound) playPopSound();
       setPartnerStatus(partner.id, 'thinking');
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
@@ -359,7 +393,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           fileUrl: null,
           timestamp: new Date().toISOString(),
         };
-        playReceiveSound();
+        if (chatSettings.receiveSound) playReceiveSound();
         setMessages(prev => {
           const next = [...prev, botMsg];
           messagesRef.current = next;
@@ -402,7 +436,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     }]).select().single();
     
     if (data) {
-      playPopSound();
+      if (chatSettings.sendSound) playPopSound();
       setMessages(prev => [...prev, {
         id: data.id,
         senderId: data.sender_id,
@@ -570,6 +604,13 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               >
                 <Calendar className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 text-aura-lavender/50 hover:text-white"
+                title="Chat Settings"
+              >
+                <SettingsIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+              </button>
             </div>
           </div>
         </div>
@@ -593,13 +634,75 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                   )}
                 </div>
                 <span className="text-[10px] text-aura-lavender/40 mt-1.5 font-medium px-1 uppercase tracking-tighter">
-                  {new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  {(() => {
+                    const d = new Date(m.timestamp);
+                    const isToday = new Date().toDateString() === d.toDateString();
+                    const time = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const day = d.toLocaleDateString([], { weekday: 'short' });
+                    return `${time} • ${isToday ? 'Today' : day}`;
+                  })()}
                 </span>
               </div>
             )
           })}
           <div ref={chatEndRef} />
         </div>
+
+        {/* Chat Settings Modal */}
+        {showSettings && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-aura-panel w-full max-w-sm rounded-2xl border border-aura-border shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-aura-border flex items-center justify-between bg-aura-navy/50">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <SettingsIcon size={20} className="text-aura-primary" /> Chat Settings
+                </h2>
+                <button onClick={() => setShowSettings(false)} className="p-1.5 text-aura-lavender/50 hover:text-white hover:bg-white/5 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Vanish Mode */}
+                <div className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
+                  <div className="flex items-center gap-3 text-white">
+                    <EyeOff size={18} className="text-pink-400" />
+                    <div>
+                      <p className="text-sm font-medium">Vanish Mode</p>
+                      <p className="text-[10px] text-aura-lavender/50">Delete chats after viewing when you leave</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={chatSettings.vanishMode} onChange={e => setChatSettings({...chatSettings, vanishMode: e.target.checked})} />
+                    <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-primary"></div>
+                  </label>
+                </div>
+
+                {/* Send Sound */}
+                <div className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
+                  <div className="flex items-center gap-3 text-white">
+                    <Volume2 size={18} className="text-aura-teal" />
+                    <p className="text-sm font-medium">Send Sound</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={chatSettings.sendSound} onChange={e => setChatSettings({...chatSettings, sendSound: e.target.checked})} />
+                    <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-teal"></div>
+                  </label>
+                </div>
+
+                {/* Receive Sound */}
+                <div className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
+                  <div className="flex items-center gap-3 text-white">
+                    <VolumeX size={18} className="text-blue-400" />
+                    <p className="text-sm font-medium">Receive Sound</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={chatSettings.receiveSound} onChange={e => setChatSettings({...chatSettings, receiveSound: e.target.checked})} />
+                    <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-400"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Input */}
         <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
