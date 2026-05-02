@@ -4,8 +4,9 @@
 // Keeping API key server-side so it is never exposed to the client.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || process.env.NVIDIA_API_KEY_PRIMARY;
-const NVIDIA_BASE    = 'https://integrate.api.nvidia.com/v1';
+const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+const PRIMARY_MODEL = 'moonshotai/kimi-k2.6';
+const VISION_MODEL = 'meta/llama-3.2-11b-vision-instruct';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,41 @@ interface RequestBody {
   partnerId: string;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function callNvidia(apiKey: string, model: string, messages: any[]) {
+  const isKimi = model.includes('kimi');
+  const payload: any = {
+    model,
+    messages,
+    temperature: 1.0,
+    top_p: 1.0,
+    max_tokens: 16384,
+    stream: false,
+  };
+
+  if (isKimi) {
+    payload.chat_template_kwargs = { thinking: true };
+  }
+
+  const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    return { error: true, status: response.status, message: errText };
+  }
+
+  const json = await response.json();
+  return { error: false, content: json };
+}
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req: any, res: any) {
@@ -41,8 +77,24 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  if (!NVIDIA_API_KEY) {
-    return res.status(500).json({ error: 'NVIDIA_API_KEY not configured in environment' });
+  // Get all potential keys
+  const keyNames = [
+    'NVIDIA_API_KEY',
+    'NVIDIA_API_KEY_PRIMARY',
+    'NVIDIA_API_KEY_SECONDARY',
+    'NVIDIA_API_KEY_BACKUP',
+    'NVIDIA_API_KEY_AUX',
+    'NVIDIA_API_KEY_1',
+    'NVIDIA_API_KEY_2',
+    'NVIDIA_API_KEY_3'
+  ];
+
+  const availableKeys = keyNames
+    .map(name => process.env[name])
+    .filter(key => !!key) as string[];
+
+  if (availableKeys.length === 0) {
+    return res.status(500).json({ error: 'No NVIDIA API keys configured in environment' });
   }
 
   try {
@@ -51,56 +103,50 @@ export default async function handler(req: any, res: any) {
       Array.isArray(m.content) && m.content.some(part => (part as any).type === 'image_url')
     );
 
-    // 2. Select model based on content (Vision vs Text)
-    // Using the 11B Vision model specified in user snippet for multimodal tasks
+    // 2. Select model based on content
     const selectedModel = hasImage 
-      ? 'meta/llama-3.2-11b-vision-instruct' 
-      : 'meta/llama-3.1-70b-instruct';
+      ? VISION_MODEL 
+      : PRIMARY_MODEL;
 
-    // 3. Format messages for NVIDIA (OpenAI compatible)
+    // 3. Format messages
     const formattedMessages = messages.map(m => ({
       role: m.role === 'assistant' ? 'assistant' : m.role,
       content: m.content
     }));
 
-    // 4. Inject system prompt at the start
     if (systemPrompt) {
       formattedMessages.unshift({ role: 'system', content: systemPrompt } as any);
     }
 
-    // 5. Call NVIDIA API
-    const nvidiaRes = await fetch(`${NVIDIA_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${NVIDIA_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: formattedMessages,
-        temperature: 0.7,
-        top_p: 0.9,
-        max_tokens: 1024,
-        stream: false,
-      }),
+    let lastError = '';
+    
+    // 4. Try keys until success
+    for (const apiKey of availableKeys) {
+      try {
+        const result = await callNvidia(apiKey, selectedModel, formattedMessages);
+        
+        if (!result.error) {
+          const data = result.content;
+          const text = data.choices?.[0]?.message?.content || '';
+
+          if (!text) {
+            return res.status(200).json({ text: "Mujhe samajh nahi aaya, dobara try karo." });
+          }
+
+          return res.status(200).json({ text });
+        }
+        
+        lastError = `Key failed (${result.status}): ${result.message.slice(0, 100)}`;
+        console.warn(`[NVIDIA API] Key failed, trying next...`, lastError);
+      } catch (err: any) {
+        lastError = err.message;
+        console.error(`[NVIDIA API] Exception:`, lastError);
+      }
+    }
+
+    return res.status(500).json({
+      error: `All ${availableKeys.length} keys failed. Last error: ${lastError}`,
     });
-
-    if (!nvidiaRes.ok) {
-      const errBody = await nvidiaRes.json().catch(() => ({}));
-      console.error('[NVIDIA API Error]', errBody);
-      return res.status(nvidiaRes.status).json({
-        error: errBody?.error?.message || 'NVIDIA API error',
-      });
-    }
-
-    const data = await nvidiaRes.json();
-    const text = data.choices?.[0]?.message?.content || '';
-
-    if (!text) {
-      return res.status(200).json({ text: "Mujhe samajh nahi aaya, dobara try karo." });
-    }
-
-    return res.status(200).json({ text });
 
   } catch (err: any) {
     console.error('[Chat API Error]', err.message);

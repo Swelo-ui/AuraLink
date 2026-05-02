@@ -428,9 +428,9 @@ export async function getAuraBotResponse(
   userId: string,
   partnerId: string,
   userMessage: string,
-  model: string = MODELS.FLASH,
   imageBase64?: string,    // optional: base64 image for analysis
-  fileUrl?: string         // optional: PDF or link to analyse
+  fileUrl?: string,        // optional: PDF or link to analyse
+  model: string = MODELS.FLASH
 ): Promise<BotResponse> {
   const MAX_RETRIES = 1;
   let attempt = 0;
@@ -458,7 +458,8 @@ export async function getAuraBotResponse(
             ...history, 
             { role: 'user', content: messageContent }
           ],
-          hasImage: !!imageBase64
+          hasImage: !!imageBase64,
+          model: model === MODELS.PRO ? 'meta/llama-3.1-405b-instruct' : 'meta/llama-3.1-70b-instruct'
         }
       });
 
