@@ -1,177 +1,278 @@
-import { Download, File, Image as ImageIcon, FileText, Upload, Plus, X, Lock, Trash2, ExternalLink, Presentation } from 'lucide-react';
-import { useRef, useState, useEffect } from 'react';
+import {
+  Download, File, Image as ImageIcon, FileText, Upload,
+  Plus, X, Lock, Trash2, Presentation, Loader2, AlertCircle,
+} from 'lucide-react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useSocket } from './SocketProvider';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 
-const BUCKET = 'uploads';
+// ─── Telegram Config (env vars — never shown in UI) ───────────────────────────
+// Add to your .env:
+//   VITE_TG_BOT_TOKEN=<your_bot_token>
+//   VITE_TG_CHAT_ID=<your_private_channel_id>   e.g. -1001234567890
+const TG_BOT  = import.meta.env.VITE_TG_BOT_TOKEN  as string;
+const TG_CHAT = import.meta.env.VITE_TG_CHAT_ID     as string;
+const TG_API  = `https://api.telegram.org/bot${TG_BOT}`;
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface VaultFile {
+  id: string;
+  content: string;           // display name
+  fileUrl?: string;
+  storagePath?: string;
+  telegram_file_id?: string;
+  telegram_msg_id?: number;
+  type: string;
+  timestamp?: string;
+  file_url?: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function getFileType(name: string) {
   const ext = name.split('.').pop()?.toLowerCase() || '';
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
-  if (ext === 'pdf') return 'pdf';
-  if (['doc', 'docx'].includes(ext)) return 'doc';
-  if (['ppt', 'pptx'].includes(ext)) return 'ppt';
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'sheet';
-  if (['mp4', 'webm', 'mov'].includes(ext)) return 'video';
+  if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return 'image';
+  if (ext === 'pdf')                                          return 'pdf';
+  if (['doc','docx'].includes(ext))                          return 'doc';
+  if (['ppt','pptx'].includes(ext))                          return 'ppt';
+  if (['xls','xlsx','csv'].includes(ext))                    return 'sheet';
+  if (['mp4','webm','mov'].includes(ext))                    return 'video';
   return 'other';
 }
 
 function FileIcon({ name, size = 24 }: { name: string; size?: number }) {
   const type = getFileType(name);
-  if (type === 'image') return <ImageIcon size={size} className="text-pink-400" />;
-  if (type === 'pdf') return <FileText size={size} className="text-red-400" />;
-  if (type === 'doc') return <FileText size={size} className="text-blue-400" />;
-  if (type === 'ppt') return <Presentation size={size} className="text-orange-400" />;
-  if (type === 'sheet') return <FileText size={size} className="text-green-400" />;
-  if (type === 'video') return <File size={size} className="text-purple-400" />;
+  if (type === 'image')  return <ImageIcon      size={size} className="text-pink-400" />;
+  if (type === 'pdf')    return <FileText        size={size} className="text-red-400" />;
+  if (type === 'doc')    return <FileText        size={size} className="text-blue-400" />;
+  if (type === 'ppt')    return <Presentation   size={size} className="text-orange-400" />;
+  if (type === 'sheet')  return <FileText        size={size} className="text-green-400" />;
+  if (type === 'video')  return <File            size={size} className="text-purple-400" />;
   return <File size={size} className="text-aura-lavender/60" />;
 }
 
-export default function SmartVault({ connectionId, messages, partner, isPersonal = false }: {
+function formatBytes(bytes: number) {
+  if (!bytes) return '';
+  if (bytes < 1024)        return `${bytes} B`;
+  if (bytes < 1024 ** 2)   return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 2)   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+}
+
+// ─── Telegram API helpers ─────────────────────────────────────────────────────
+async function tgUploadFile(file: File): Promise<{ file_id: string; message_id: number }> {
+  const form = new FormData();
+  form.append('chat_id', TG_CHAT);
+  // Always use sendDocument — it preserves original filename and handles all types
+  form.append('document', file, file.name);
+  // Optional caption so you can identify files in the channel
+  form.append('caption', `🗄 ${file.name}`);
+
+  const res  = await fetch(`${TG_API}/sendDocument`, { method: 'POST', body: form });
+  const json = await res.json();
+  if (!json.ok) throw new Error(`Telegram upload failed: ${json.description}`);
+
+  const result = json.result;
+  const doc = result.document ?? result.video ?? result.audio ?? (result.photo ? result.photo[result.photo.length - 1] : null);
+  
+  if (!doc) throw new Error('Could not retrieve file_id from Telegram response');
+  
+  return { file_id: doc.file_id, message_id: result.message_id };
+}
+
+async function tgGetFileUrl(file_id: string): Promise<string> {
+  const res  = await fetch(`${TG_API}/getFile?file_id=${encodeURIComponent(file_id)}`);
+  const json = await res.json();
+  if (!json.ok) throw new Error(`Telegram getFile failed: ${json.description}`);
+  // Construct the download URL — this is the internal Telegram CDN URL
+  return `https://api.telegram.org/file/bot${TG_BOT}/${json.result.file_path}`;
+}
+
+async function tgDeleteMessage(message_id: number): Promise<void> {
+  await fetch(`${TG_API}/deleteMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: TG_CHAT, message_id }),
+  });
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export default function SmartVault({
+  connectionId,
+  messages,
+  partner,
+  isPersonal = false,
+}: {
   connectionId: string;
-  messages: any[];
+  messages: VaultFile[];
   partner: any;
   isPersonal?: boolean;
 }) {
-  const { socket } = useSocket();
-  const { user } = useAuthStore();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [previewFile, setPreviewFile] = useState<any>(null);
-  const [vaultItems, setVaultItems] = useState<any[]>([]);
-  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  const { socket }     = useSocket();
+  const { user }       = useAuthStore();
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+
+  const [previewFile,   setPreviewFile]   = useState<VaultFile | null>(null);
+  const [vaultItems,    setVaultItems]    = useState<VaultFile[]>([]);
+  const [resolvedUrls,  setResolvedUrls]  = useState<Record<string, string>>({});
+  const [uploading,     setUploading]     = useState(false);
+  const [uploadProgress,setUploadProgress]= useState(0);
+  const [uploadError,   setUploadError]   = useState('');
+  const [deletingId,    setDeletingId]    = useState<string | null>(null);
+
+  // ── Build display list ────────────────────────────────────────────────────
+  const displayFiles: VaultFile[] = isPersonal
+    ? vaultItems.map(item => ({
+        id:                item.id,
+        content:           (item as any).name ?? item.content,
+        fileUrl:           '',
+        telegram_file_id:  (item as any).telegram_file_id,
+        telegram_msg_id:   (item as any).telegram_msg_id,
+        file_size:         (item as any).file_size,
+        type:              'file',
+        timestamp:         (item as any).created_at,
+      } as any))
+    : messages.filter(m => m.type === 'file');
+
+  // ── Fetch personal vault from Supabase (only metadata) ────────────────────
+  const fetchPersonalVault = useCallback(async () => {
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from('vault_items')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (data) setVaultItems(data);
+  }, [user?.id]);
 
   useEffect(() => {
     if (isPersonal) fetchPersonalVault();
-  }, [isPersonal, user?.id]);
+  }, [isPersonal, fetchPersonalVault]);
 
-  const fetchPersonalVault = async () => {
-    if (!user?.id) return;
-    const { data } = await supabase.from('vault_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    if (data) setVaultItems(data);
-  };
+  // ── Resolve Telegram download URLs for displayed files ───────────────────
+  useEffect(() => {
+    const resolveUrls = async () => {
+      const updates: Record<string, string> = {};
+      for (const f of displayFiles) {
+        if (resolvedUrls[f.id]) continue;
+        try {
+          if (f.telegram_file_id) {
+            const url = await tgGetFileUrl(f.telegram_file_id);
+            updates[f.id] = url;
+          } else if (f.file_url || f.fileUrl) {
+            updates[f.id] = f.file_url || f.fileUrl || '';
+          }
+        } catch (err) { 
+          console.error(`Failed to resolve URL for ${f.id}:`, err);
+        }
+      }
+      if (Object.keys(updates).length > 0)
+        setResolvedUrls(prev => ({ ...prev, ...updates }));
+    };
+    resolveUrls();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultItems.length, messages.length]);
 
+  // ── Upload handler ────────────────────────────────────────────────────────
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id) return;
     setUploadError('');
     setUploading(true);
+    setUploadProgress(10);
 
     try {
-      const ext = file.name.split('.').pop();
-      const safeName = file.name.replace(/[^\w.\-]/g, '_');
-      const fileName = `${Date.now()}-${safeName}`;
-      const filePath = `vault/${user.id}/${fileName}`;
+      // 1️⃣  Upload to Telegram
+      setUploadProgress(30);
+      const { file_id, message_id } = await tgUploadFile(file);
+      setUploadProgress(80);
 
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(filePath, file, {
-        upsert: false,
-        contentType: file.type || 'application/octet-stream',
-      });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        setUploadError(`Upload failed: ${uploadError.message}. Check Supabase Storage bucket "${BUCKET}" exists with public read policy.`);
-        return;
-      }
-
-      const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
-
+      // 2️⃣  Store only metadata in Supabase (no binary data — no 50 MB limit!)
       if (isPersonal) {
         const { error: dbError } = await supabase.from('vault_items').insert([{
-          user_id: user.id,
-          name: file.name,
-          content: filePath,
-          type: 'file',
+          user_id:            user.id,
+          name:               file.name,
+          content:            file.name,       // kept for backward compat
+          type:               'file',
+          telegram_file_id:   file_id,
+          telegram_msg_id:    message_id,
+          file_size:          file.size,
         }]);
-        if (dbError) console.error('DB insert error:', dbError);
-        fetchPersonalVault();
+        if (dbError) throw new Error(`Metadata save failed: ${dbError.message}`);
+        await fetchPersonalVault();
+
       } else if (partner) {
+        // For shared vault / chat — get URL immediately and store in messages table
+        const fileUrl = await tgGetFileUrl(file_id);
         await supabase.from('messages').insert([{
-          sender_id: user.id,
-          receiver_id: partner.id,
-          content: file.name,
-          type: 'file',
-          file_url: publicUrl,
+          sender_id:          user.id,
+          receiver_id:        partner.id,
+          content:            file.name,
+          type:               'file',
+          file_url:           fileUrl,
+          telegram_file_id:   file_id,
+          telegram_msg_id:    message_id,
         }]);
       }
+
+      setUploadProgress(100);
     } catch (err: any) {
       console.error(err);
-      setUploadError(`Unexpected error: ${err.message}`);
+      setUploadError(err.message || 'Upload failed. Check your Telegram Bot config.');
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleDelete = async (item: any) => {
+  // ── Delete handler ────────────────────────────────────────────────────────
+  const handleDelete = async (item: VaultFile) => {
     if (!confirm(`Delete "${item.content}"?`)) return;
-    // Delete from storage
-    if (item.storagePath) {
-      await supabase.storage.from(BUCKET).remove([item.storagePath]);
+    setDeletingId(item.id);
+    try {
+      // 1️⃣  Remove message from Telegram channel (optional — file stays on TG CDN)
+      if (item.telegram_msg_id) await tgDeleteMessage(item.telegram_msg_id);
+      // 2️⃣  Remove metadata row from Supabase
+      if (item.id) await supabase.from('vault_items').delete().eq('id', item.id);
+      setResolvedUrls(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+      await fetchPersonalVault();
+    } catch (err: any) {
+      console.error('Delete failed:', err);
+    } finally {
+      setDeletingId(null);
     }
-    // Delete from DB
-    if (item.id) {
-      await supabase.from('vault_items').delete().eq('id', item.id);
-    }
-    fetchPersonalVault();
   };
 
-  const displayFiles = isPersonal
-    ? vaultItems.map(item => ({
-        id: item.id,
-        content: item.name,
-        fileUrl: '',
-        storagePath: item.content || '',
-        type: 'file',
-        timestamp: item.created_at,
-      }))
-    : messages.filter(m => m.type === 'file');
+  const getUrl = (f: VaultFile) =>
+    resolvedUrls[f.id] || f.fileUrl || f.file_url || '';
 
-  useEffect(() => {
-    const resolveUrls = async () => {
-      if (!isPersonal) return;
-      const updates: Record<string, string> = {};
-      for (const f of displayFiles) {
-        if (resolvedUrls[f.id]) continue;
-        if (f.storagePath) {
-          const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(f.storagePath, 7200);
-          if (!error && data?.signedUrl) updates[f.id] = data.signedUrl;
-        } else if (f.fileUrl) {
-          updates[f.id] = f.fileUrl;
-        }
-      }
-      if (Object.keys(updates).length > 0) {
-        setResolvedUrls(prev => ({ ...prev, ...updates }));
-      }
-    };
-    resolveUrls();
-  }, [isPersonal, vaultItems.length]);
-
-  const getUrl = (f: any) => resolvedUrls[f.id] || f.fileUrl || f.file_url || '';
-
+  // ── Preview renderer ──────────────────────────────────────────────────────
   const renderPreview = () => {
     if (!previewFile) return null;
-    const url = getUrl(previewFile);
-    const type = getFileType(previewFile.content || '');
+    const url  = getUrl(previewFile);
+    const type = getFileType(previewFile.content ?? '');
 
     if (!url) return (
-      <div className="flex items-center justify-center p-12 text-aura-lavender/50 text-sm">
-        Loading preview...
+      <div className="flex flex-col items-center gap-3 p-12 text-aura-lavender/50 text-sm">
+        <Loader2 size={32} className="animate-spin text-aura-primary" />
+        <p>Loading preview…</p>
       </div>
     );
 
     if (type === 'image') return (
-      <img src={url} alt="Preview" className="max-w-full max-h-[70vh] rounded-xl shadow-2xl object-contain" />
+      <img
+        src={url}
+        alt={previewFile.content}
+        className="max-w-full max-h-[70vh] rounded-xl shadow-2xl object-contain"
+      />
     );
 
     if (type === 'video') return (
       <video src={url} controls className="max-w-full max-h-[70vh] rounded-xl shadow-xl" />
     );
 
-    // For PDF/doc/ppt/xls — use Google Docs Viewer (works reliably on mobile and without downloading)
-    if (['pdf', 'doc', 'ppt', 'sheet'].includes(type)) {
+    if (['pdf','doc','ppt','sheet'].includes(type)) {
       const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
       return (
         <iframe
@@ -184,7 +285,7 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
 
     return (
       <div className="flex flex-col items-center justify-center p-10 text-center gap-4">
-        <FileIcon name={previewFile.content} size={48} />
+        <FileIcon name={previewFile.content ?? ''} size={48} />
         <p className="text-white font-semibold">{previewFile.content}</p>
         <p className="text-aura-lavender/50 text-sm">Preview not available for this file type.</p>
         <a
@@ -198,9 +299,11 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
     );
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-aura-navy overflow-hidden w-full">
-      {/* Header */}
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="p-4 border-b border-aura-border bg-aura-panel/30 flex items-center justify-between shrink-0">
         <div>
           <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
@@ -209,29 +312,49 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
           </h3>
           <p className="text-xs text-aura-lavender/50">{displayFiles.length} items</p>
         </div>
+
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
           className="bg-aura-primary hover:opacity-90 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-aura-primary/20 disabled:opacity-60"
         >
-          <Plus size={16} /> {uploading ? 'Uploading...' : 'Upload'}
+          {uploading
+            ? <><Loader2 size={15} className="animate-spin" /> Uploading…</>
+            : <><Plus size={16} /> Upload</>}
         </button>
+
+        {/* accept="*" lets users upload ANY file type with any size */}
         <input
           ref={fileInputRef}
           type="file"
           onChange={handleUpload}
           className="hidden"
-          accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.mp4,.webm,.txt,.zip"
+          accept="*"
         />
       </div>
 
-      {uploadError && (
-        <div className="mx-4 mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs leading-relaxed">
-          ⚠️ {uploadError}
+      {/* ── Upload progress bar ──────────────────────────────────────────── */}
+      {uploading && uploadProgress > 0 && (
+        <div className="h-1 bg-aura-border shrink-0">
+          <div
+            className="h-full bg-aura-primary transition-all duration-300"
+            style={{ width: `${uploadProgress}%` }}
+          />
         </div>
       )}
 
-      {/* File Grid */}
+      {/* ── Error banner ────────────────────────────────────────────────── */}
+      {uploadError && (
+        <div className="mx-4 mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs leading-relaxed flex items-start gap-2">
+          <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          <span>{uploadError}</span>
+          <button onClick={() => setUploadError('')} className="ml-auto shrink-0 opacity-60 hover:opacity-100">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* ── File Grid ───────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4">
         {displayFiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-aura-lavender/50 gap-3">
@@ -239,22 +362,30 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
               <Upload size={28} className="text-aura-primary opacity-60" />
             </div>
             <p className="font-semibold text-white">Vault is empty</p>
-            <p className="text-sm max-w-xs">Upload images, PDFs, docs, PPTs, videos and more</p>
+            <p className="text-sm max-w-xs">Upload any file — images, PDFs, videos, ZIPs, and more. No size limits.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {displayFiles.map((f, i) => {
-              const url = getUrl(f);
-              const type = getFileType(f.content || '');
+              const url  = getUrl(f);
+              const type = getFileType(f.content ?? '');
+              const isDeleting = deletingId === f.id;
+
               return (
-                <div key={f.id || i} className="bg-aura-panel/50 border border-aura-border rounded-2xl p-3.5 flex flex-col gap-3 hover:border-aura-primary/40 transition-all group">
+                <div
+                  key={f.id || i}
+                  className="bg-aura-panel/50 border border-aura-border rounded-2xl p-3.5 flex flex-col gap-3 hover:border-aura-primary/40 transition-all group"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-aura-navy flex items-center justify-center shrink-0 border border-aura-border group-hover:border-aura-primary/30 transition-all">
-                      <FileIcon name={f.content} size={22} />
+                      <FileIcon name={f.content ?? ''} size={22} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-white font-semibold truncate" title={f.content}>{f.content}</p>
+                      <p className="text-sm text-white font-semibold truncate" title={f.content}>
+                        {f.content}
+                      </p>
                       <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest mt-0.5">
+                        {(f as any).file_size ? formatBytes((f as any).file_size) + ' · ' : ''}
                         {f.timestamp ? new Date(f.timestamp).toLocaleDateString() : 'Just now'}
                       </p>
                     </div>
@@ -265,8 +396,9 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
                       onClick={() => setPreviewFile(f)}
                       className="flex-1 py-2 bg-aura-navy hover:bg-aura-border text-aura-lavender hover:text-white text-xs font-bold rounded-xl border border-aura-border active:scale-95 transition-all"
                     >
-                      {['image', 'pdf', 'doc', 'ppt', 'sheet', 'video'].includes(type) ? 'Preview' : 'Open'}
+                      {['image','pdf','doc','ppt','sheet','video'].includes(type) ? 'Preview' : 'Open'}
                     </button>
+
                     {url && (
                       <a
                         href={url}
@@ -277,13 +409,17 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
                         <Download size={16} />
                       </a>
                     )}
+
                     {isPersonal && (
                       <button
                         onClick={() => handleDelete(f)}
-                        className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 active:scale-90 transition-all"
+                        disabled={isDeleting}
+                        className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 active:scale-90 transition-all disabled:opacity-50"
                         title="Delete"
                       >
-                        <Trash2 size={16} />
+                        {isDeleting
+                          ? <Loader2 size={16} className="animate-spin" />
+                          : <Trash2   size={16} />}
                       </button>
                     )}
                   </div>
@@ -294,7 +430,7 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
         )}
       </div>
 
-      {/* Preview Modal */}
+      {/* ── Preview Modal ────────────────────────────────────────────────── */}
       {previewFile && (
         <div className="fixed inset-0 z-[1000] flex flex-col bg-black/95 backdrop-blur-md animate-in fade-in duration-200">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
@@ -305,6 +441,7 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
                   href={getUrl(previewFile)}
                   download={previewFile.content}
                   className="p-2 text-white/70 hover:text-white bg-white/5 hover:bg-white/15 rounded-full transition-all"
+                  title="Download"
                 >
                   <Download size={20} />
                 </a>
