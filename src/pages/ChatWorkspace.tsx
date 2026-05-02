@@ -579,7 +579,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                     state={avatarMood} 
                     username={partner.username} 
                     showStatusRing={false}
-                    showStatus={true}
+                    showStatus={false}
                   />
                 </div>
               </motion.div>
