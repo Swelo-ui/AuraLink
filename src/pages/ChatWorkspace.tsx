@@ -241,12 +241,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     localStorage.setItem(virtualChatKey, JSON.stringify(messages));
   }, [messages, isVirtualBot, virtualChatKey]);
 
-  // Show typing mood in ActionMoji while user types to AuraBot.
+  // AuraBot: reflect toolTab activity states (browsing_files, viewing_notes, timetable_open)
   useEffect(() => {
     if (!isVirtualBot || !partner?.id) return;
-    const mood = input.trim().length > 0 ? deriveMoodFromString(input) : null;
-    setPartnerStatus(partner.id, mood ? `typing_${mood}` : 'online');
-  }, [input, isVirtualBot, partner?.id, setPartnerStatus]);
+    // Only update to activity state if bot is not in a special transient state
+    const current = partnerStatus[partner.id] || 'online';
+    const transientStates = new Set(['thinking', 'typing', 'happy', 'sad', 'angry', 'confused',
+      'surprised', 'heart_eyes', 'magic', 'cool', 'starry_eyes', 'partying', 'crying']);
+    if (transientStates.has(current)) return; // don't override bot's active response mood
+    if (toolTab === 'vault') setPartnerStatus(partner.id, 'browsing_files');
+    else if (toolTab === 'notes') setPartnerStatus(partner.id, 'viewing_notes');
+    else if (toolTab === 'timetable') setPartnerStatus(partner.id, 'timetable_open');
+    else if (input.trim().length === 0) setPartnerStatus(partner.id, 'online');
+  }, [toolTab, isVirtualBot, partner?.id, setPartnerStatus, partnerStatus, input]);
 
   // Status tracking — broadcast OUR status to partner
   useEffect(() => {
@@ -325,8 +332,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           messages: messagesRef.current,
         });
 
+        // Step 1: show typing indicator with mood
         setPartnerStatus(partner.id, `typing_${llm.mood}`);
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
         const botMsg = {
           id: `local-bot-${Date.now()}`,
@@ -343,7 +351,15 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           messagesRef.current = next;
           return next;
         });
+        // Step 2: show final emotion for 4s, then return to activity/online
         setPartnerStatus(partner.id, llm.mood || 'happy');
+        setTimeout(() => {
+          const tab = toolTab;
+          if (tab === 'vault') setPartnerStatus(partner.id, 'browsing_files');
+          else if (tab === 'notes') setPartnerStatus(partner.id, 'viewing_notes');
+          else if (tab === 'timetable') setPartnerStatus(partner.id, 'timetable_open');
+          else setPartnerStatus(partner.id, 'online');
+        }, 4000);
       } catch (err: any) {
         setMessages(prev => [
           ...prev,
@@ -358,8 +374,8 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           },
         ]);
         setPartnerStatus(partner.id, 'confused');
+        setTimeout(() => setPartnerStatus(partner.id, 'online'), 3000);
       }
-      setTimeout(() => setPartnerStatus(partner.id, 'online'), 1800);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       return;
     }
@@ -430,30 +446,40 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
   const currentPartnerStatus = partnerStatus[partner.id] || (partner.username === 'AuraBot' ? 'online' : 'offline');
 
-  // Extract actual mood if status is typing_mood
+  // ── Avatar Mood Resolution (priority ladder) ──
+  // 1. Bot transient states (thinking, typing_X, happy, etc.) — highest priority
+  // 2. Activity states (browsing_files, viewing_notes, timetable_open) — what they are doing
+  // 3. Sentiment from recent messages — emotional memory
+  // 4. online / reading_chat / idle / offline — baseline
+
   const isPartnerTyping = currentPartnerStatus.startsWith('typing');
-  const partnerTypingMood = currentPartnerStatus.startsWith('typing_') ? currentPartnerStatus.replace('typing_', '') : null;
+  const partnerTypingMood = currentPartnerStatus.startsWith('typing_')
+    ? currentPartnerStatus.replace('typing_', '')
+    : null;
 
-  // Real-time typing mood takes priority locally ONLY for AuraBot (bot has no client)
-  let realTimeMood = null;
-  if (partner.username === 'AuraBot' && input.trim().length > 0) {
-    realTimeMood = deriveMoodFromString(input);
-  }
-
-  // Activity states that should ALWAYS override historical emotions
   const activityStates = new Set(['browsing_files', 'viewing_notes', 'timetable_open', 'offline', 'idle']);
-  
-  let avatarMood = currentPartnerStatus;
-  
-  if (realTimeMood) {
-    avatarMood = realTimeMood; // Local bot reaction
+  const botTransientStates = new Set(['thinking', 'happy', 'sad', 'angry', 'confused', 'surprised',
+    'heart_eyes', 'magic', 'cool', 'starry_eyes', 'partying', 'crying']);
+
+  let avatarMood: string;
+
+  if (botTransientStates.has(currentPartnerStatus)) {
+    // Bot is showing emotion/action — show it directly
+    avatarMood = currentPartnerStatus;
   } else if (partnerTypingMood) {
-    avatarMood = partnerTypingMood; // Partner is typing an emotion
+    // Partner typing with detected emotion
+    avatarMood = partnerTypingMood;
   } else if (isPartnerTyping) {
-    avatarMood = 'typing'; // Partner is just typing
-  } else if (!activityStates.has(currentPartnerStatus) && sentimentState) {
-    // If not doing a specific activity (meaning they are online/reading_chat), show their historical emotional state
+    // Partner just typing (no detected mood)
+    avatarMood = 'typing';
+  } else if (activityStates.has(currentPartnerStatus)) {
+    // Partner doing an activity — show task emoji
+    avatarMood = currentPartnerStatus;
+  } else if (sentimentState && (currentPartnerStatus === 'online' || currentPartnerStatus === 'reading_chat')) {
+    // Partner online, show emotional memory from recent messages
     avatarMood = sentimentState;
+  } else {
+    avatarMood = currentPartnerStatus; // online / reading_chat / offline
   }
 
   return (

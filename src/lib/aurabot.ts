@@ -22,20 +22,25 @@ type AuraResult = {
 
 const PRIMARY_MODEL = 'mistralai/devstral-2-123b-instruct-2512';
 const FALLBACK_MODEL = 'minimaxai/minimax-m2.7';
-
-const MOODS = ['happy', 'sad', 'angry', 'confused', 'surprised', 'thinking', 'heart_eyes', 'magic', 'cool'] as const;
-
+const MOODS = ['happy', 'sad', 'angry', 'confused', 'surprised', 'thinking', 'heart_eyes', 'magic', 'cool', 'partying', 'crying', 'starry_eyes', 'writing_code', 'reading_book', 'listening_music', 'playing_games', 'searching', 'uploading', 'celebrating'] as const;
 function cleanAssistantText(text: string): string {
   return text.replace(/```json[\s\S]*?```/gi, '').trim();
 }
 
 function inferMoodFromText(text: string): string {
   const lower = text.toLowerCase();
+  if (lower.includes('search') || lower.includes('find') || lower.includes('look for')) return 'searching';
+  if (lower.includes('code') || lower.includes('debug') || lower.includes('function')) return 'writing_code';
+  if (lower.includes('upload') || lower.includes('file') || lower.includes('save')) return 'uploading';
+  if (lower.includes('read') || lower.includes('study') || lower.includes('learn')) return 'reading_book';
+  if (lower.includes('congratulations') || lower.includes('yay') || lower.includes('celebrate') || lower.includes('woohoo')) return 'celebrating';
   if (lower.includes('sorry') || lower.includes('sad') || lower.includes('tough')) return 'sad';
   if (lower.includes('great') || lower.includes('awesome') || lower.includes('nice')) return 'happy';
   if (lower.includes('think') || lower.includes('analyze') || lower.includes('step')) return 'thinking';
   if (lower.includes('love') || lower.includes('proud')) return 'heart_eyes';
   if (lower.includes('wow') || lower.includes('amazing')) return 'surprised';
+  if (lower.includes('play') || lower.includes('game')) return 'playing_games';
+  if (lower.includes('music') || lower.includes('song') || lower.includes('listen')) return 'listening_music';
   return 'happy';
 }
 

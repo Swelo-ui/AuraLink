@@ -370,19 +370,22 @@ export default function ActionMojiAvatar({
       case 'thinking':
         return {
           ...base,
-          eyes: { x: [-3, 0], y: [-3, 0], transition: { repeat: Infinity, duration: 2, repeatType: 'reverse' } },
-          mouth: { width: 12, height: 2, borderRadius: '2px', x: -2 },
+          eyes: { x: [-4, 0, -4], y: [-3, 0, -3], transition: { repeat: Infinity, duration: 2.5, ease: 'easeInOut' } },
+          mouth: { width: 12, height: 2, borderRadius: '2px', x: -3 },
           bgGradient: 'from-sky-300 to-blue-400',
           borderColor: 'border-blue-500',
           statusText: 'Thinking',
           statusColor: 'bg-sky-500',
           props: (
-            <FloatEmoji
-              emoji="💭"
-              className="-top-5 right-2 text-xl"
-              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5], y: [0, -3, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
+            <>
+              <FloatEmoji
+                emoji="💭"
+                className="-top-5 right-2 text-xl"
+                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5], y: [0, -3, 0] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              />
+              <TypingDots />
+            </>
           ),
         };
 
@@ -850,6 +853,76 @@ export default function ActionMojiAvatar({
         };
 
 
+
+      // ─── SEARCHING ───
+      case 'searching':
+        return {
+          ...base,
+          eyes: { x: [-4, 4, -4], scale: [1, 1.15, 1], transition: { repeat: Infinity, duration: 1.2, ease: 'easeInOut' } },
+          mouth: { width: 8, height: 8, borderRadius: '50%' },
+          bgGradient: 'from-violet-400 to-indigo-500',
+          borderColor: 'border-indigo-500',
+          statusText: 'Searching',
+          statusColor: 'bg-violet-500',
+          props: (
+            <FloatEmoji
+              emoji="🔍"
+              className="-top-2 right-0 text-xl"
+              animate={{ rotate: [0, 20, -20, 0], scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            />
+          ),
+        };
+
+      // ─── UPLOADING ───
+      case 'uploading':
+        return {
+          ...base,
+          eyes: { y: [-2, 2, -2], transition: { repeat: Infinity, duration: 1 } },
+          mouth: { width: 12, height: 5, borderRadius: '0 0 8px 8px' },
+          bgGradient: 'from-teal-400 to-emerald-500',
+          borderColor: 'border-emerald-500',
+          statusText: 'Uploading',
+          statusColor: 'bg-teal-500',
+          props: (
+            <motion.div
+              className="absolute -top-4 left-1/2 -translate-x-1/2 z-20"
+              animate={{ y: [0, -6, 0], opacity: [0.6, 1, 0.6] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            >
+              ⬆️
+            </motion.div>
+          ),
+        };
+
+      // ─── CELEBRATING ───
+      case 'celebrating':
+        return {
+          ...base,
+          eyes: { height: [8, 2, 8], transition: { repeat: Infinity, duration: 0.8 } },
+          mouth: { width: 16, height: 10, borderRadius: '0 0 12px 12px' },
+          body: { rotate: [-5, 5, -5], scale: [1, 1.05, 1], transition: { repeat: Infinity, duration: 0.7 } },
+          bgGradient: 'from-yellow-300 to-orange-400',
+          borderColor: 'border-orange-400',
+          statusText: 'Celebrating!',
+          statusColor: 'bg-orange-500',
+          props: (
+            <>
+              <FloatEmoji
+                emoji="🎊"
+                className="-top-3 -left-2 text-xl"
+                animate={{ rotate: [0, 20, -20, 0], y: [0, -4, 0] }}
+                transition={{ repeat: Infinity, duration: 1.0 }}
+              />
+              <FloatEmoji
+                emoji="🎉"
+                className="-top-3 right-0 text-xl"
+                animate={{ rotate: [0, -20, 20, 0], y: [0, -4, 0] }}
+                transition={{ repeat: Infinity, duration: 1.0, delay: 0.3 }}
+              />
+            </>
+          ),
+        };
 
       // ─── ONLINE (DEFAULT) ───
       case 'online':
