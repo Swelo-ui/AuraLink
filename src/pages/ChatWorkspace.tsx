@@ -35,6 +35,13 @@ const STATUS_LABELS: Record<string, string> = {
   cool: '😎 Cool',
   crying: '😭 Crying',
   magic: '✨ Feeling magical',
+  searching: '🔍 Searching...',
+  writing_code: '💻 Writing code',
+  uploading: '⬆️ Uploading...',
+  reading_book: '📖 Reading',
+  celebrating: '🎊 Celebrating!',
+  playing_games: '🎮 Playing games',
+  listening_music: '🎵 Listening to music',
 };
 
 function getStatusLabel(status: string) {
@@ -44,6 +51,13 @@ function getStatusLabel(status: string) {
 
 // ── Sentiment keywords ──────────────────────────────────────────────────
 const SENTIMENT_MAP: { states: string[]; keywords: string[] }[] = [
+  { states: ['searching'],  keywords: ['search', 'find', 'looking for', 'dhund', 'dhundh', 'kahan hai', 'kidhar hai', 'talash', 'search kar', 'khoj'] },
+  { states: ['writing_code'], keywords: ['code', 'debug', 'function', 'error', 'bug', 'coding', 'script', 'logic', 'code kar', 'fix kar', 'program', 'build kar'] },
+  { states: ['uploading'],  keywords: ['upload', 'send file', 'attachment', 'bhej', 'bheja', 'send kar', 'file le', 'document bhej', 'share kar', 'daal raha'] },
+  { states: ['reading_book'], keywords: ['read', 'study', 'learn', 'book', 'padhai', 'padh', 'seekh', 'notes padh', 'exam', 'revision', 'kitaab', 'padhne'] },
+  { states: ['celebrating'],keywords: ['congratulations', 'yay', 'woohoo', 'party', 'celebrate', 'mubarak', 'badhai', 'kamaal', 'badiya', 'jeeta', 'op', 'gg', 'booyah'] },
+  { states: ['playing_games'], keywords: ['play', 'game', 'khel', 'pubg', 'bgmi', 'valorant', 'minecraft', 'khelte', 'match', 'lobby', 'push kar', 'gaming'] },
+  { states: ['listening_music'], keywords: ['music', 'song', 'listen', 'gaana', 'symphony', 'gaane', 'sun', 'spotify', 'playlist', 'vibe', 'beat'] },
   { states: ['angry'],    keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'worst', 'horrible', 'useless', 'terrible', 'rude', 'frustrated', 'annoying', 'mad', 'furious', 'damn', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas'] },
   { states: ['sad'],      keywords: ['sad', 'depressed', 'unhappy', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'tears', 'unfortunate', 'broken', 'lost', 'hopeless', 'sorry', 'regret', 'fail', 'bad', 'worst day', 'dukhi', 'rona', 'akela', 'bura', 'udas'] },
   { states: ['confused'], keywords: ['confused', 'what', 'huh', 'idk', 'not sure', 'don\'t understand', 'unclear', 'weird', 'strange', 'why', 'how', 'lost', 'really?', 'seriously', '??', 'kya', 'samajh nahi', 'kaise', 'kyu'] },

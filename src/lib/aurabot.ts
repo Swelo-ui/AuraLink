@@ -29,18 +29,18 @@ function cleanAssistantText(text: string): string {
 
 function inferMoodFromText(text: string): string {
   const lower = text.toLowerCase();
-  if (lower.includes('search') || lower.includes('find') || lower.includes('look for')) return 'searching';
-  if (lower.includes('code') || lower.includes('debug') || lower.includes('function')) return 'writing_code';
-  if (lower.includes('upload') || lower.includes('file') || lower.includes('save')) return 'uploading';
-  if (lower.includes('read') || lower.includes('study') || lower.includes('learn')) return 'reading_book';
-  if (lower.includes('congratulations') || lower.includes('yay') || lower.includes('celebrate') || lower.includes('woohoo')) return 'celebrating';
-  if (lower.includes('sorry') || lower.includes('sad') || lower.includes('tough')) return 'sad';
-  if (lower.includes('great') || lower.includes('awesome') || lower.includes('nice')) return 'happy';
-  if (lower.includes('think') || lower.includes('analyze') || lower.includes('step')) return 'thinking';
-  if (lower.includes('love') || lower.includes('proud')) return 'heart_eyes';
-  if (lower.includes('wow') || lower.includes('amazing')) return 'surprised';
-  if (lower.includes('play') || lower.includes('game')) return 'playing_games';
-  if (lower.includes('music') || lower.includes('song') || lower.includes('listen')) return 'listening_music';
+  if (lower.includes('search') || lower.includes('find') || lower.includes('look for') || lower.includes('dhund') || lower.includes('khoj')) return 'searching';
+  if (lower.includes('code') || lower.includes('debug') || lower.includes('function') || lower.includes('script') || lower.includes('fix kar')) return 'writing_code';
+  if (lower.includes('upload') || lower.includes('file') || lower.includes('bhej') || lower.includes('share kar')) return 'uploading';
+  if (lower.includes('read') || lower.includes('study') || lower.includes('learn') || lower.includes('padhai') || lower.includes('seekh')) return 'reading_book';
+  if (lower.includes('congratulations') || lower.includes('yay') || lower.includes('celebrate') || lower.includes('mubarak') || lower.includes('party')) return 'celebrating';
+  if (lower.includes('sorry') || lower.includes('sad') || lower.includes('tough') || lower.includes('dukhi') || lower.includes('bura')) return 'sad';
+  if (lower.includes('great') || lower.includes('awesome') || lower.includes('nice') || lower.includes('badiya') || lower.includes('mast')) return 'happy';
+  if (lower.includes('think') || lower.includes('analyze') || lower.includes('step') || lower.includes('soch') || lower.includes('hmm')) return 'thinking';
+  if (lower.includes('love') || lower.includes('proud') || lower.includes('pyar') || lower.includes('sundar')) return 'heart_eyes';
+  if (lower.includes('wow') || lower.includes('amazing') || lower.includes('sachme') || lower.includes('kya baat')) return 'surprised';
+  if (lower.includes('play') || lower.includes('game') || lower.includes('khel') || lower.includes('match')) return 'playing_games';
+  if (lower.includes('music') || lower.includes('song') || lower.includes('listen') || lower.includes('gaana') || lower.includes('sun')) return 'listening_music';
   return 'happy';
 }
 
