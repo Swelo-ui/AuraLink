@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
-const PRIMARY_MODEL = 'moonshotai/kimi-k2.6';
-const VISION_MODEL = 'meta/llama-3.2-11b-vision-instruct';
+const PRIMARY_MODEL = 'stepfun-ai/step-3.5-flash';
+const VISION_MODEL = 'mistralai/mistral-large-3-675b-instruct-2512';
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
 const corsHeaders = {
@@ -12,18 +12,19 @@ const corsHeaders = {
 };
 
 async function callNvidia(apiKey: string, model: string, messages: any[]) {
-  const isKimi = model.includes('kimi');
+  const isMistral = model.includes('mistral');
   const payload: any = {
     model,
     messages,
-    temperature: 1.0,
-    top_p: 1.0,
-    max_tokens: 16384,
+    temperature: isMistral ? 0.15 : 1.0,
+    top_p: isMistral ? 1.0 : 0.9,
+    max_tokens: isMistral ? 2048 : 16384,
     stream: false,
   };
 
-  if (isKimi) {
-    payload.chat_template_kwargs = { thinking: true };
+  if (isMistral) {
+    payload.frequency_penalty = 0.0;
+    payload.presence_penalty = 0.0;
   }
 
   const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
@@ -37,12 +38,16 @@ async function callNvidia(apiKey: string, model: string, messages: any[]) {
 
   if (!response.ok) {
     const errText = await response.text();
-    // Return status so we can handle retries
     return { error: true, status: response.status, message: errText };
   }
 
   const json = await response.json();
-  return { error: false, content: String(json?.choices?.[0]?.message?.content || '').trim() };
+  const msg = json.choices?.[0]?.message || {};
+  const reasoning = msg.reasoning_content || '';
+  const content = msg.content || '';
+  
+  const text = reasoning ? `${reasoning}\n\n${content}` : content;
+  return { error: false, content: text };
 }
 
 serve(async (req) => {
@@ -82,24 +87,31 @@ serve(async (req) => {
       );
     }
 
-    const model = hasImage ? VISION_MODEL : (reqModel || PRIMARY_MODEL);
+    const modelsToTry = [model];
+    if (model !== VISION_MODEL) {
+      modelsToTry.push(VISION_MODEL); // Mistral as backup
+    }
+
     let lastError = '';
     
-    // Try each available key
-    for (const apiKey of availableKeys) {
-      try {
-        const result = await callNvidia(apiKey, model, messages);
-        if (!result.error) {
-          return new Response(
-            JSON.stringify({ text: result.content, model }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-          );
+    // Try each model
+    for (const targetModel of modelsToTry) {
+      // Try each available key
+      for (const apiKey of availableKeys) {
+        try {
+          const result = await callNvidia(apiKey, targetModel, messages);
+          if (!result.error) {
+            return new Response(
+              JSON.stringify({ text: result.content, model: targetModel }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+            );
+          }
+          lastError = `${targetModel} key failed (${result.status}): ${result.message.slice(0, 100)}`;
+          console.warn(`[AuraBot] ${targetModel} key failed, trying next...`, lastError);
+        } catch (err) {
+          lastError = (err as Error).message;
+          console.error(`[AuraBot] Exception with key for ${targetModel}:`, lastError);
         }
-        lastError = `Key failed (${result.status}): ${result.message.slice(0, 100)}`;
-        console.warn(`[AuraBot] Key failed, trying next...`, lastError);
-      } catch (err) {
-        lastError = (err as Error).message;
-        console.error(`[AuraBot] Exception with key:`, lastError);
       }
     }
 

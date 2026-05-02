@@ -5,8 +5,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-const PRIMARY_MODEL = 'moonshotai/kimi-k2.6';
-const VISION_MODEL = 'meta/llama-3.2-11b-vision-instruct';
+const PRIMARY_MODEL = 'stepfun-ai/step-3.5-flash';
+const VISION_MODEL = 'mistralai/mistral-large-3-675b-instruct-2512';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,18 +32,19 @@ interface RequestBody {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function callNvidia(apiKey: string, model: string, messages: any[]) {
-  const isKimi = model.includes('kimi');
+  const isMistral = model.includes('mistral');
   const payload: any = {
     model,
     messages,
-    temperature: 1.0,
-    top_p: 1.0,
-    max_tokens: 16384,
+    temperature: isMistral ? 0.15 : 1.0,
+    top_p: isMistral ? 1.0 : 0.9,
+    max_tokens: isMistral ? 2048 : 16384,
     stream: false,
   };
 
-  if (isKimi) {
-    payload.chat_template_kwargs = { thinking: true };
+  if (isMistral) {
+    payload.frequency_penalty = 0.0;
+    payload.presence_penalty = 0.0;
   }
 
   const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
@@ -61,7 +62,14 @@ async function callNvidia(apiKey: string, model: string, messages: any[]) {
   }
 
   const json = await response.json();
-  return { error: false, content: json };
+  const msg = json.choices?.[0]?.message || {};
+  const reasoning = msg.reasoning_content || '';
+  const content = msg.content || '';
+  
+  // Combine reasoning and content if reasoning exists
+  const text = reasoning ? `${reasoning}\n\n${content}` : content;
+  
+  return { error: false, content: { ...json, choices: [{ ...json.choices[0], message: { ...msg, content: text } }] } };
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -119,28 +127,34 @@ export default async function handler(req: any, res: any) {
     }
 
     let lastError = '';
+    const modelsToTry = [selectedModel];
+    if (selectedModel !== VISION_MODEL) {
+      modelsToTry.push(VISION_MODEL);
+    }
     
-    // 4. Try keys until success
-    for (const apiKey of availableKeys) {
-      try {
-        const result = await callNvidia(apiKey, selectedModel, formattedMessages);
-        
-        if (!result.error) {
-          const data = result.content;
-          const text = data.choices?.[0]?.message?.content || '';
+    // 4. Try models and keys until success
+    for (const targetModel of modelsToTry) {
+      for (const apiKey of availableKeys) {
+        try {
+          const result = await callNvidia(apiKey, targetModel, formattedMessages);
+          
+          if (!result.error) {
+            const data = result.content;
+            const text = data.choices?.[0]?.message?.content || '';
 
-          if (!text) {
-            return res.status(200).json({ text: "Mujhe samajh nahi aaya, dobara try karo." });
+            if (!text) {
+              return res.status(200).json({ text: "Mujhe samajh nahi aaya, dobara try karo." });
+            }
+
+            return res.status(200).json({ text });
           }
-
-          return res.status(200).json({ text });
+          
+          lastError = `${targetModel} key failed (${result.status}): ${result.message.slice(0, 100)}`;
+          console.warn(`[NVIDIA API] Key failed, trying next...`, lastError);
+        } catch (err: any) {
+          lastError = err.message;
+          console.error(`[NVIDIA API] Exception:`, lastError);
         }
-        
-        lastError = `Key failed (${result.status}): ${result.message.slice(0, 100)}`;
-        console.warn(`[NVIDIA API] Key failed, trying next...`, lastError);
-      } catch (err: any) {
-        lastError = err.message;
-        console.error(`[NVIDIA API] Exception:`, lastError);
       }
     }
 
