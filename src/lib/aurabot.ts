@@ -450,25 +450,38 @@ export async function getAuraBotResponse(
         messageContent = `[FILE: ${fileUrl}]\n${userMessage || 'Analyse this.'}`;
       }
 
-      const response = await fetch('/api/ai/chat', {
+      const apiKey = (process.env as any).NVIDIA_API_KEY;
+      
+      // Fallback: Use direct NVIDIA call if /api/ai/chat is unavailable
+      const nvidiaBase = 'https://integrate.api.nvidia.com/v1';
+      const hasImage = !!imageBase64;
+      const selectedModel = hasImage ? 'meta/llama-3.2-11b-vision-instruct' : 'meta/llama-3.1-70b-instruct';
+
+      const response = await fetch(`${nvidiaBase}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
         body: JSON.stringify({
-          systemPrompt: AURA_SYSTEM_PROMPT,
-          messages: [...history, { role: 'user', content: messageContent }],
-          model,
-          userId,
-          partnerId,
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: AURA_SYSTEM_PROMPT },
+            ...history, 
+            { role: 'user', content: messageContent }
+          ],
+          temperature: 0.7,
+          max_tokens: 1024,
         }),
       });
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${response.status}`);
+        throw new Error(err.error?.message || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      const rawText: string = data.text || '';
+      const rawText: string = data.choices?.[0]?.message?.content || '';
 
       const { text, mood, actions, clarifyQuestion } = parseRawResponse(rawText);
 
