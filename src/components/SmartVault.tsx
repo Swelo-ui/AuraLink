@@ -11,8 +11,8 @@ import { useAuthStore } from '../store/authStore';
 // Add to your .env:
 //   VITE_TG_BOT_TOKEN=<your_bot_token>
 //   VITE_TG_CHAT_ID=<your_private_channel_id>   e.g. -1001234567890
-const TG_BOT  = import.meta.env.VITE_TG_BOT_TOKEN  as string;
-const TG_CHAT = import.meta.env.VITE_TG_CHAT_ID     as string;
+const TG_BOT  = (import.meta.env.VITE_TG_BOT_TOKEN || '') as string;
+const TG_CHAT = (import.meta.env.VITE_TG_CHAT_ID    || '') as string;
 const TG_API  = `https://api.telegram.org/bot${TG_BOT}`;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,9 +68,17 @@ async function tgUploadFile(file: File): Promise<{ file_id: string; message_id: 
   // Optional caption so you can identify files in the channel
   form.append('caption', `🗄 ${file.name}`);
 
+  if (!TG_BOT || !TG_CHAT) {
+    throw new Error('Telegram Bot Token or Chat ID is missing in .env. Please restart your dev server.');
+  }
+
   const res  = await fetch(`${TG_API}/sendDocument`, { method: 'POST', body: form });
   const json = await res.json();
-  if (!json.ok) throw new Error(`Telegram upload failed: ${json.description}`);
+  
+  if (!json.ok) {
+    console.error('Telegram Error:', json);
+    throw new Error(`Telegram upload failed: ${json.description || 'Not Found (Check Bot/Chat ID)'}`);
+  }
 
   const result = json.result;
   const doc = result.document ?? result.video ?? result.audio ?? (result.photo ? result.photo[result.photo.length - 1] : null);
