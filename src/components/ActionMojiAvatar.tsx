@@ -108,6 +108,14 @@ export default function ActionMojiAvatar({
   const s = SIZE[size];
 
   const config: AnimationConfig = useMemo(() => {
+    let activeState = state;
+    let isTypingExtra = false;
+
+    if (state.startsWith('typing_')) {
+      isTypingExtra = true;
+      activeState = state.replace('typing_', '');
+    }
+
     const base: AnimationConfig = {
       eyes: {},
       mouth: {},
@@ -121,7 +129,8 @@ export default function ActionMojiAvatar({
       blush: false,
     };
 
-    switch (state) {
+    const getConfig = (): AnimationConfig => {
+      switch (activeState) {
 
       // ─── ONLINE ────────────────────────────────────────────────────────────
       case 'online':
@@ -965,7 +974,31 @@ export default function ActionMojiAvatar({
           statusText: 'Online',
           statusColor: 'bg-green-500',
         };
+      }
+    };
+
+    const result = getConfig();
+
+    // Modifier for composite typing states (e.g. typing_happy)
+    if (isTypingExtra) {
+      result.statusText = 'Typing…';
+      result.statusColor = 'bg-blue-500';
+      result.props = (
+        <>
+          {result.props}
+          <TypingDots />
+        </>
+      );
+      // Small bounce to body to simulate typing while holding mood
+      result.body = { ...result.body, y: [0, 2, 0], transition: { repeat: Infinity, duration: 1.5, ease: 'easeInOut' } };
     }
+
+    // Ensure smooth default transitions so they don't snap
+    if (!result.eyes.transition) result.eyes.transition = { type: 'spring', bounce: 0.4, duration: 0.6 };
+    if (!result.mouth.transition) result.mouth.transition = { type: 'spring', bounce: 0.4, duration: 0.6 };
+    if (!result.body.transition) result.body.transition = { type: 'spring', bounce: 0.4, duration: 0.6 };
+
+    return result;
   // FIX: username added so isBot-dependent states re-compute correctly
   }, [state, username]);
 
@@ -988,6 +1021,8 @@ export default function ActionMojiAvatar({
   // FIX: Status ring should use matching shape
   const ringShapeClass = isBot ? 'rounded-[50%_50%_50%_20%_/_20%_50%_50%_50%] rotate-12 scale-110' : 'rounded-2xl';
 
+  const isTypingExtra = state.startsWith('typing_');
+
   return (
     <div className="relative inline-flex flex-col items-center gap-1 group">
 
@@ -1008,6 +1043,23 @@ export default function ActionMojiAvatar({
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.94 }}
       >
+        {/* Typing Dots Indicator */}
+        {isTypingExtra && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute -top-6 left-1/2 -translate-x-1/2 flex gap-1 bg-aura-panel/80 backdrop-blur-sm px-2 py-1 rounded-full border border-aura-border shadow-sm z-50"
+          >
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="w-1.5 h-1.5 bg-aura-primary rounded-full"
+                animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
+                transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }}
+              />
+            ))}
+          </motion.div>
+        )}
 
         {/* Bot Antenna */}
         {isBot && (

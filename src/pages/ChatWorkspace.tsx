@@ -12,8 +12,23 @@ import ActionMojiAvatar from '../components/ActionMojiAvatar';
 import { supabase } from '../lib/supabaseClient';
 import { getAuraBotResponse } from '../lib/aurabot';
 import { playPopSound, playReceiveSound } from '../lib/audio';
+export interface Message {
+  id?: string;
+  sender_id?: string;
+  senderId?: string;
+  receiver_id?: string;
+  receiverId?: string;
+  content: string;
+  created_at?: string;
+  createdAt?: string;
+  isVirtual?: boolean;
+  type?: string;
+  fileUrl?: string;
+  timestamp?: string | number;
+}
 
 // Human-readable status labels
+
 const STATUS_LABELS: Record<string, string> = {
   offline: '⚫ Offline',
   idle: '💤 Idle',
@@ -102,12 +117,15 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
   const [showSettings, setShowSettings] = useState(false);
   const [chatSettings, setChatSettings] = useState(() => {
-    const saved = localStorage.getItem(`chat_settings_${connectionId}`);
+    const saved = localStorage.getItem('aura_chat_settings');
     return saved ? JSON.parse(saved) : { vanishMode: false, sendSound: true, receiveSound: true };
   });
 
   const chatSettingsRef = useRef(chatSettings);
-  chatSettingsRef.current = chatSettings;
+  useEffect(() => {
+    chatSettingsRef.current = chatSettings;
+    localStorage.setItem('aura_chat_settings', JSON.stringify(chatSettings));
+  }, [chatSettings]);
 
   useEffect(() => {
     if (connectionId) {
@@ -345,6 +363,78 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     };
   }, [socket, partner?.id, partner?.username, input, toolTab]);
 
+  // ── AuraBot Core Response Flow ─────────────────────────────────────────────
+  const handleBotResponse = async (userText: string, imageBase64?: string, fileUrl?: string) => {
+    if (!user?.id || !partner) return;
+    
+    setPartnerStatus(partner.id, 'thinking');
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+    try {
+      const llm = await getAuraBotResponse(
+        user.id,
+        partner.id,
+        userText,
+        imageBase64,
+        fileUrl
+      );
+
+      // Step 1: show typing indicator with predicted mood
+      setPartnerStatus(partner.id, `typing_${llm.mood}`);
+      
+      // Artificial delay for realism based on text length
+      const delay = Math.min(2000, Math.max(800, llm.text.length * 15));
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      const botMsg: Message = {
+        id: `local-bot-${Date.now()}`,
+        senderId: partner.id,
+        receiverId: user.id,
+        content: llm.text,
+        type: 'text',
+        fileUrl: null,
+        timestamp: new Date().toISOString(),
+      };
+
+      if (chatSettings.receiveSound) playReceiveSound();
+      setMessages(prev => {
+        const next = [...prev, botMsg];
+        messagesRef.current = next;
+        return next;
+      });
+
+      // Step 2: Set final emotion for a few seconds
+      setPartnerStatus(partner.id, llm.mood || 'happy');
+      
+      // Auto-revert to baseline after 5s
+      setTimeout(() => {
+        const currentTab = toolTab;
+        if (currentTab === 'vault') setPartnerStatus(partner.id, 'browsing_files');
+        else if (currentTab === 'notes') setPartnerStatus(partner.id, 'viewing_notes');
+        else if (currentTab === 'timetable') setPartnerStatus(partner.id, 'timetable_open');
+        else setPartnerStatus(partner.id, 'online');
+      }, 5000);
+
+    } catch (err: any) {
+      console.error('[Bot Response Error]', err);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `local-bot-error-${Date.now()}`,
+          senderId: partner.id,
+          receiverId: user.id,
+          content: `AuraBot connectivity issue: ${err?.message || 'Server timeout'}`,
+          type: 'text',
+          fileUrl: null,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      setPartnerStatus(partner.id, 'confused');
+      setTimeout(() => setPartnerStatus(partner.id, 'online'), 3000);
+    }
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !user?.id || !partner) return;
@@ -354,7 +444,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
     if (isVirtualBot) {
       const now = new Date().toISOString();
-      const userMsg = {
+      const userMsg: Message = {
         id: `local-user-${Date.now()}`,
         senderId: user.id,
         receiverId: partner.id,
@@ -369,61 +459,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         return next;
       });
       if (chatSettings.sendSound) playPopSound();
-      setPartnerStatus(partner.id, 'thinking');
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
-      try {
-        const llm = await getAuraBotResponse(
-          user.id,
-          partner.id,
-          msgContent
-        );
-
-        // Step 1: show typing indicator with mood
-        setPartnerStatus(partner.id, `typing_${llm.mood}`);
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        const botMsg = {
-          id: `local-bot-${Date.now()}`,
-          senderId: partner.id,
-          receiverId: user.id,
-          content: llm.text,
-          type: 'text',
-          fileUrl: null,
-          timestamp: new Date().toISOString(),
-        };
-        if (chatSettings.receiveSound) playReceiveSound();
-        setMessages(prev => {
-          const next = [...prev, botMsg];
-          messagesRef.current = next;
-          return next;
-        });
-        // Step 2: show final emotion for 4s, then return to activity/online
-        setPartnerStatus(partner.id, llm.mood || 'happy');
-        setTimeout(() => {
-          const tab = toolTab;
-          if (tab === 'vault') setPartnerStatus(partner.id, 'browsing_files');
-          else if (tab === 'notes') setPartnerStatus(partner.id, 'viewing_notes');
-          else if (tab === 'timetable') setPartnerStatus(partner.id, 'timetable_open');
-          else setPartnerStatus(partner.id, 'online');
-        }, 4000);
-      } catch (err: any) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `local-bot-error-${Date.now()}`,
-            senderId: partner.id,
-            receiverId: user.id,
-            content: `AuraBot response error: ${err?.message || 'Unknown error'}`,
-            type: 'text',
-            fileUrl: null,
-            timestamp: new Date().toISOString(),
-          },
-        ]);
-        setPartnerStatus(partner.id, 'confused');
-        setTimeout(() => setPartnerStatus(partner.id, 'online'), 3000);
-      }
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      
+      // Trigger bot flow
+      handleBotResponse(msgContent);
       return;
     }
     
@@ -452,7 +490,6 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id || !partner) return;
-    if (isVirtualBot) return;
 
     try {
       const fileExt = file.name.split('.').pop();
@@ -464,28 +501,54 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
       const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
 
-      const { data } = await supabase.from('messages').insert([{
-        sender_id: user.id,
-        receiver_id: partner.id,
-        content: file.name,
-        type: 'file',
-        file_url: publicUrl
-      }]).select().single();
+      if (isVirtualBot) {
+        // Local preview for bot chat
+        const userMsg: Message = {
+          id: `local-file-${Date.now()}`,
+          senderId: user.id,
+          receiverId: partner.id,
+          content: file.name,
+          type: 'file',
+          fileUrl: publicUrl,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, userMsg]);
+        
+        // Convert to base64 if image for LLM analysis
+        let imageBase64: string | undefined;
+        if (file.type.startsWith('image/')) {
+          imageBase64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }
 
-      if (data) {
-        setMessages(prev => [...prev, {
-          id: data.id,
-          senderId: data.sender_id,
-          receiverId: data.receiver_id,
-          content: data.content,
-          type: data.type,
-          fileUrl: data.file_url,
-          timestamp: data.timestamp
-        }]);
-        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        handleBotResponse(`Uploaded file: ${file.name}`, imageBase64, publicUrl);
+      } else {
+        const { data } = await supabase.from('messages').insert([{
+          sender_id: user.id,
+          receiver_id: partner.id,
+          content: file.name,
+          type: 'file',
+          file_url: publicUrl
+        }]).select().single();
+
+        if (data) {
+          setMessages(prev => [...prev, {
+            id: data.id,
+            senderId: data.sender_id,
+            receiverId: data.receiver_id,
+            content: data.content,
+            type: data.type,
+            fileUrl: data.file_url,
+            timestamp: data.timestamp
+          }]);
+        }
       }
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
-      console.error(err);
+      console.error('[Upload Error]', err);
     }
   };
 
@@ -563,27 +626,22 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {/* ── ActionMoji ── */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={avatarMood}
-                initial={{ opacity: 0, scale: 0.7, y: -6 }}
-                animate={{ opacity: 1, scale: 1, y: 4 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                className="flex-shrink-0 flex items-center justify-center overflow-visible self-center w-8 sm:w-12 h-8 sm:h-12"
-                title={getStatusLabel(avatarMood)}
-              >
-                {/* Scale wrapper: 80px avatar shrunk to fit */}
-                <div className="w-[80px] h-[80px] scale-[0.45] sm:scale-[0.6] origin-center">
-                  <ActionMojiAvatar 
-                    state={avatarMood} 
-                    username={partner.username} 
-                    showStatusRing={false}
-                    showStatus={false}
-                  />
-                </div>
-              </motion.div>
-            </AnimatePresence>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex-shrink-0 flex items-center justify-center overflow-visible self-center w-8 sm:w-12 h-8 sm:h-12"
+              title={getStatusLabel(avatarMood)}
+            >
+              {/* Removed key and AnimatePresence to allow smooth internal ActionMoji state transitions */}
+              <div className="w-[80px] h-[80px] scale-[0.45] sm:scale-[0.6] origin-center">
+                <ActionMojiAvatar 
+                  state={avatarMood} 
+                  username={partner.username} 
+                  showStatusRing={false}
+                  showStatus={false}
+                />
+              </div>
+            </motion.div>
 
             {/* Tool Toggles */}
             <div className="flex items-center gap-0.5 sm:gap-2 bg-aura-navy/50 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-aura-border/50">
@@ -711,10 +769,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         {/* Input */}
         <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
           <form onSubmit={sendMessage} autoComplete="off" className="flex items-center gap-2 relative">
-            {/* Aggressive Honeypot: Using zero-size absolute container with non-display:none to trick detectors */}
-            <div className="absolute overflow-hidden w-[1px] h-[1px] -left-[1000px] pointer-events-none" aria-hidden="true">
-              <input type="text" name="fake_un" autoComplete="username" tabIndex={-1} />
-              <input type="password" name="fake_pw" autoComplete="current-password" tabIndex={-1} />
+            {/* Using a hidden field with a neutral name to steer away aggressive password manager heuristics */}
+            <div className="hidden" aria-hidden="true">
+              <input type="text" name="aura_chat_session" tabIndex={-1} />
             </div>
             <label className="p-2.5 text-aura-lavender/50 hover:text-white cursor-pointer transition-colors bg-aura-navy rounded-xl hover:bg-aura-border shrink-0 border border-aura-border/50">
               <Paperclip size={19} />
@@ -722,11 +779,11 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             </label>
             <input
               type="text"
-              name={`aura_msg_${Math.random().toString(36).substring(7)}`}
+              name={`aura_msg_${Math.floor(Date.now() / 1000)}`}
               placeholder="Message..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              autoComplete="new-password"
+              autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
@@ -734,7 +791,6 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               data-lpignore="true"
               data-1p-ignore="true"
               inputMode="text"
-              role="presentation"
               className="flex-1 min-w-0 bg-aura-navy border border-aura-border rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-aura-primary transition-colors text-[15px]"
             />
             <button
