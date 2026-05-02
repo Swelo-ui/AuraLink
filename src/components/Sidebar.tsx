@@ -130,12 +130,26 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
 
       <div className="p-4">
         <form onSubmit={handleSearch} className="relative">
+          {/* Honeypot fields to trick password managers, using absolute positioning instead of display: none */}
+          <div className="absolute opacity-0 -z-10 w-0 h-0 overflow-hidden" aria-hidden="true">
+            <input type="text" name="fake_username" autoComplete="username" tabIndex={-1} />
+            <input type="password" name="fake_password" autoComplete="current-password" tabIndex={-1} />
+          </div>
+          
           <input 
             type="text" 
-            placeholder="Find by username..." 
+            name="search_users_query"
+            placeholder="Search connections..." 
             className="w-full bg-aura-navy border border-aura-border rounded-lg pl-10 pr-4 py-2 flex-1 text-sm text-white focus:outline-none focus:border-aura-primary transition-colors"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            autoComplete="new-password"
+            inputMode="search"
+            autoCorrect="off"
+            spellCheck="false"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-form-type="other"
           />
           <Search size={16} className="absolute left-3 top-2.5 text-aura-lavender/40" />
         </form>
