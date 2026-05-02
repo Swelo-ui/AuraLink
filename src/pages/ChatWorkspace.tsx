@@ -564,6 +564,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         {/* Input */}
         <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
           <form onSubmit={sendMessage} autoComplete="off" className="flex items-center gap-2">
+            {/* Honeypot: browser ko lagta hai credentials already fill hain, isliye password manager bar nahi aata */}
+            <input type="text" name="username" autoComplete="username" style={{ display: 'none' }} readOnly tabIndex={-1} aria-hidden="true" />
+            <input type="password" name="password" autoComplete="current-password" style={{ display: 'none' }} readOnly tabIndex={-1} aria-hidden="true" />
             <label className="p-2.5 text-aura-lavender/50 hover:text-white cursor-pointer transition-colors bg-aura-navy rounded-xl hover:bg-aura-border shrink-0 border border-aura-border/50">
               <Paperclip size={19} />
               <input type="file" className="hidden" onChange={handleFileUpload} />
@@ -574,11 +577,14 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               placeholder="Message..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              autoComplete="new-password"
+              autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
-              spellCheck="false"
+              spellCheck={false}
               data-form-type="other"
+              data-lpignore="true"
+              data-1p-ignore="true"
+              inputMode="text"
               role="presentation"
               className="flex-1 min-w-0 bg-aura-navy border border-aura-border rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-aura-primary transition-colors text-[15px]"
             />
