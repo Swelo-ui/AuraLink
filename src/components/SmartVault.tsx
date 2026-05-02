@@ -166,16 +166,12 @@ export default function SmartVault({ connectionId, messages, partner, isPersonal
       <img src={url} alt="Preview" className="max-w-full max-h-[70vh] rounded-xl shadow-2xl object-contain" />
     );
 
-    if (type === 'pdf') return (
-      <iframe src={url} className="w-full h-[70vh] rounded-xl border border-aura-border bg-white" title="PDF Preview" />
-    );
-
     if (type === 'video') return (
       <video src={url} controls className="max-w-full max-h-[70vh] rounded-xl shadow-xl" />
     );
 
-    // For doc/ppt/xls — use Google Docs Viewer (works without downloading)
-    if (['doc', 'ppt', 'sheet'].includes(type)) {
+    // For PDF/doc/ppt/xls — use Google Docs Viewer (works reliably on mobile and without downloading)
+    if (['pdf', 'doc', 'ppt', 'sheet'].includes(type)) {
       const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
       return (
         <iframe

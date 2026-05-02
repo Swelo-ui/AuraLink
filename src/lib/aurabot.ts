@@ -450,38 +450,24 @@ export async function getAuraBotResponse(
         messageContent = `[FILE: ${fileUrl}]\n${userMessage || 'Analyse this.'}`;
       }
 
-      const apiKey = (process.env as any).NVIDIA_API_KEY;
-      
-      // Fallback: Use direct NVIDIA call if /api/ai/chat is unavailable
-      const nvidiaBase = 'https://integrate.api.nvidia.com/v1';
-      const hasImage = !!imageBase64;
-      const selectedModel = hasImage ? 'meta/llama-3.2-11b-vision-instruct' : 'meta/llama-3.1-70b-instruct';
-
-      const response = await fetch(`${nvidiaBase}/chat/completions`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: selectedModel,
+      // Call Supabase Edge Function (Bypasses CORS and keeps API Key secure)
+      const { data, error: invokeError } = await supabase.functions.invoke('aurabot-llm', {
+        body: {
           messages: [
             { role: 'system', content: AURA_SYSTEM_PROMPT },
             ...history, 
             { role: 'user', content: messageContent }
           ],
-          temperature: 0.7,
-          max_tokens: 1024,
-        }),
+          hasImage: !!imageBase64
+        }
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error?.message || `HTTP ${response.status}`);
+      if (invokeError) {
+        console.error('[EdgeFunction Error]', invokeError);
+        throw new Error(`AI Service Error: ${invokeError.message}`);
       }
 
-      const data = await response.json();
-      const rawText: string = data.choices?.[0]?.message?.content || '';
+      const rawText: string = data?.text || '';
 
       const { text, mood, actions, clarifyQuestion } = parseRawResponse(rawText);
 

@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
-const PRIMARY_MODEL = 'mistralai/devstral-2-123b-instruct-2512';
-const FALLBACK_MODEL = 'minimaxai/minimax-m2.7';
+const PRIMARY_MODEL = 'meta/llama-3.1-70b-instruct';
+const VISION_MODEL = 'meta/llama-3.2-11b-vision-instruct';
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
 const corsHeaders = {
@@ -11,12 +11,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type ReqBody = {
-  systemPrompt: string;
-  userPrompt: string;
-};
-
-async function callNvidia(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
+async function callNvidia(apiKey: string, model: string, messages: any[]) {
   const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -25,13 +20,10 @@ async function callNvidia(apiKey: string, model: string, systemPrompt: string, u
     },
     body: JSON.stringify({
       model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: model === PRIMARY_MODEL ? 0.15 : 1,
-      top_p: 0.95,
-      max_tokens: 1200,
+      messages,
+      temperature: 0.7,
+      top_p: 0.9,
+      max_tokens: 1024,
       stream: false,
     }),
   });
@@ -51,40 +43,30 @@ serve(async (req) => {
   }
 
   try {
-    const { systemPrompt, userPrompt } = (await req.json()) as ReqBody;
-    if (!systemPrompt || !userPrompt) {
+    const { messages, hasImage } = (await req.json());
+    if (!messages || !Array.isArray(messages)) {
       return new Response(
-        JSON.stringify({ error: 'Missing systemPrompt/userPrompt' }),
+        JSON.stringify({ error: 'Missing or invalid messages array' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const primaryKey = Deno.env.get('NVIDIA_API_KEY_PRIMARY') || '';
-    const secondaryKey = Deno.env.get('NVIDIA_API_KEY_SECONDARY') || '';
-    if (!primaryKey && !secondaryKey) {
+    const apiKey = Deno.env.get('NVIDIA_API_KEY') || Deno.env.get('NVIDIA_API_KEY_PRIMARY');
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'NVIDIA keys missing in Supabase secrets' }),
+        JSON.stringify({ error: 'NVIDIA_API_KEY missing in Supabase secrets' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    try {
-      const content = await callNvidia(primaryKey || secondaryKey, PRIMARY_MODEL, systemPrompt, userPrompt);
-      return new Response(
-        JSON.stringify({ content, model: PRIMARY_MODEL }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    } catch (primaryErr) {
-      const content = await callNvidia(secondaryKey || primaryKey, FALLBACK_MODEL, systemPrompt, userPrompt);
-      return new Response(
-        JSON.stringify({
-          content,
-          model: FALLBACK_MODEL,
-          primaryError: (primaryErr as Error)?.message || 'primary failed',
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
+    const model = hasImage ? VISION_MODEL : PRIMARY_MODEL;
+    
+    const content = await callNvidia(apiKey, model, messages);
+    return new Response(
+      JSON.stringify({ text: content, model }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+    
   } catch (err) {
     return new Response(
       JSON.stringify({ error: (err as Error)?.message || 'unknown error' }),
