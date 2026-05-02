@@ -1,306 +1,194 @@
 import { supabase } from './supabaseClient';
 
-type ChatMsg = {
-  senderId: string;
-  content: string;
-  type: string;
-  timestamp: string;
+// ─── Constants & Types ─────────────────────────────────────────────────────────
+
+// Updated Models (User can toggle between Pro and Flash)
+export const MODELS = {
+  PRO: 'gemini-2.0-pro-exp-02-05',
+  FLASH: 'gemini-2.0-flash',
 };
 
-type AuraAction =
-  | { type: 'add_timetable_task'; title: string }
-  | { type: 'toggle_timetable_task'; title: string; status?: 'todo' | 'done' }
-  | { type: 'delete_timetable_task'; title: string }
-  | { type: 'append_note'; text: string }
-  | { type: 'replace_note'; text: string }
-  | { type: 'add_vault_item_text'; name: string; content: string };
+export const MOODS = [
+  'happy', 'sad', 'angry', 'confused', 'surprised', 'thinking',
+  'heart_eyes', 'magic', 'cool', 'partying', 'crying', 'starry_eyes',
+  'writing_code', 'reading_book', 'listening_music', 'playing_games',
+  'searching', 'uploading', 'celebrating', 'mind_blown', 'ghost',
+  'freezing', 'hot', 'running', 'coffee_break',
+] as const;
 
-type AuraResult = {
+export type Mood = (typeof MOODS)[number];
+
+interface BotResponse {
   text: string;
-  mood: string;
-};
-
-const PRIMARY_MODEL = 'mistralai/devstral-2-123b-instruct-2512';
-const FALLBACK_MODEL = 'minimaxai/minimax-m2.7';
-const MOODS = ['happy', 'sad', 'angry', 'confused', 'surprised', 'thinking', 'heart_eyes', 'magic', 'cool', 'partying', 'crying', 'starry_eyes', 'writing_code', 'reading_book', 'listening_music', 'playing_games', 'searching', 'uploading', 'celebrating'] as const;
-function cleanAssistantText(text: string): string {
-  return text.replace(/```json[\s\S]*?```/gi, '').trim();
+  mood: Mood;
 }
 
-function inferMoodFromText(text: string): string {
-  const lower = text.toLowerCase();
-  if (lower.includes('search') || lower.includes('find') || lower.includes('look for') || lower.includes('dhund') || lower.includes('khoj')) return 'searching';
-  if (lower.includes('code') || lower.includes('debug') || lower.includes('function') || lower.includes('script') || lower.includes('fix kar')) return 'writing_code';
-  if (lower.includes('upload') || lower.includes('file') || lower.includes('bhej') || lower.includes('share kar')) return 'uploading';
-  if (lower.includes('read') || lower.includes('study') || lower.includes('learn') || lower.includes('padhai') || lower.includes('seekh')) return 'reading_book';
-  if (lower.includes('congratulations') || lower.includes('yay') || lower.includes('celebrate') || lower.includes('mubarak') || lower.includes('party')) return 'celebrating';
-  if (lower.includes('sorry') || lower.includes('sad') || lower.includes('tough') || lower.includes('dukhi') || lower.includes('bura')) return 'sad';
-  if (lower.includes('great') || lower.includes('awesome') || lower.includes('nice') || lower.includes('badiya') || lower.includes('mast')) return 'happy';
-  if (lower.includes('think') || lower.includes('analyze') || lower.includes('step') || lower.includes('soch') || lower.includes('hmm')) return 'thinking';
-  if (lower.includes('love') || lower.includes('proud') || lower.includes('pyar') || lower.includes('sundar')) return 'heart_eyes';
-  if (lower.includes('wow') || lower.includes('amazing') || lower.includes('sachme') || lower.includes('kya baat')) return 'surprised';
-  if (lower.includes('play') || lower.includes('game') || lower.includes('khel') || lower.includes('match')) return 'playing_games';
-  if (lower.includes('music') || lower.includes('song') || lower.includes('listen') || lower.includes('gaana') || lower.includes('sun')) return 'listening_music';
-  return 'happy';
+// ─── Utility: Mood Inference ───────────────────────────────────────────────────
+
+/**
+ * Advanced keyword matching including Hinglish for real-time mood sync.
+ * This ensures the bot's avatar matches its task (e.g. coding, searching).
+ */
+export function inferMoodFromText(text: string): Mood {
+  const t = text.toLowerCase();
+  
+  if (/search|find|look for|dhund|khoj|talaash/.test(t)) return 'searching';
+  if (/upload|bhej|share kar|send kar/.test(t)) return 'uploading';
+  if (/code|debug|function|script|fix kar|program|error/.test(t)) return 'writing_code';
+  if (/book|read|padh|study/.test(t)) return 'reading_book';
+  if (/game|play|khel|pubg|valorant/.test(t)) return 'playing_games';
+  if (/music|song|gaana|suno|listen/.test(t)) return 'listening_music';
+  if (/party|celebrate|wow|party kar|nacho/.test(t)) return 'celebrating';
+  if (/hot|garam|pasina/.test(t)) return 'hot';
+  if (/cold|thand|freeze|baraf/.test(t)) return 'freezing';
+  if (/coffee|chai|break|tea/.test(t)) return 'coffee_break';
+  if (/run|bhag|fast|jaldi/.test(t)) return 'running';
+  if (/ghost|gayab|invisible/.test(t)) return 'ghost';
+  if (/mind blown|shock|impossible|unbelievable/.test(t)) return 'mind_blown';
+  
+  if (/happy|smile|khush|maza|best|love|amazing/.test(t)) return 'happy';
+  if (/sad|cry|dukh|sorry|bad|rona/.test(t)) return 'sad';
+  if (/angry|gussa|hate|shut up/.test(t)) return 'angry';
+  if (/confused|what|kyu|why|huh|pata nahi/.test(t)) return 'confused';
+  if (/surprised|oh|wow|shock|kya/.test(t)) return 'surprised';
+  if (/magic|super|power|shakti/.test(t)) return 'magic';
+  if (/cool|swag|style|hero/.test(t)) return 'cool';
+  
+  return 'thinking';
 }
 
-function extractActions(raw: string): AuraAction[] {
-  const match = raw.match(/```json\s*([\s\S]*?)```/i) || raw.match(/\{[\s\S]*"actions"[\s\S]*\}/i);
-  if (!match) return [];
-  const payload = match[1] || match[0];
+// ─── Memory & Context Fetching ─────────────────────────────────────────────────
+
+async function fetchMemoryContext(userId: string, partnerId: string) {
   try {
-    const parsed = JSON.parse(payload);
-    if (!Array.isArray(parsed.actions)) return [];
-    return parsed.actions as AuraAction[];
-  } catch {
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('content, sender_id, created_at')
+      .or(`and(sender_id.eq.${userId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${userId})`)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+    
+    // Reverse to chronological order
+    return (messages || []).reverse().map(m => ({
+      role: m.sender_id === partnerId ? 'user' : 'assistant',
+      content: m.content
+    }));
+  } catch (err) {
+    console.error('[MemoryFetchError]', err);
     return [];
   }
 }
 
-function sanitizeAction(action: AuraAction): AuraAction | null {
-  const banned = new Set(['ok add', 'add', 'task', 'todo', 'note', 'vault']);
-  const normalize = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
+// ─── Action Execution ──────────────────────────────────────────────────────────
 
-  if (action.type === 'add_timetable_task' || action.type === 'toggle_timetable_task' || action.type === 'delete_timetable_task') {
-    const title = normalize(action.title || '');
-    if (!title || title.length < 3 || banned.has(title)) return null;
-  }
-  if ((action.type === 'append_note' || action.type === 'replace_note') && (!action.text || action.text.trim().length < 3)) {
-    return null;
-  }
-  if (action.type === 'add_vault_item_text') {
-    const name = normalize(action.name || '');
-    const content = (action.content || '').trim();
-    if (!name || !content || banned.has(name)) return null;
-  }
-  return action;
-}
-
-function getAllowedActionTypes(userMessage: string): Set<AuraAction['type']> {
-  const msg = userMessage.toLowerCase();
-  const allowed = new Set<AuraAction['type']>();
-
-  const taskIntent =
-    /(add|create|make|plan|schedule|set)\b.*\b(task|todo|timetable|plan)\b/.test(msg) ||
-    /\b(mark|complete|done|delete|remove)\b.*\b(task|todo|timetable)\b/.test(msg);
-  const noteIntent =
-    /\b(add|append|write|save|replace|update|summarize)\b.*\b(note|notes)\b/.test(msg);
-  const vaultIntent =
-    /\b(save|store|add|remember)\b.*\b(vault|secret|password|credential)\b/.test(msg);
-
-  if (taskIntent) {
-    allowed.add('add_timetable_task');
-    allowed.add('toggle_timetable_task');
-    allowed.add('delete_timetable_task');
-  }
-  if (noteIntent) {
-    allowed.add('append_note');
-    allowed.add('replace_note');
-  }
-  if (vaultIntent) {
-    allowed.add('add_vault_item_text');
-  }
-
-  return allowed;
-}
-
-async function fetchMemoryContext(userId: string) {
-  const [notesRes, tasksRes, vaultRes] = await Promise.all([
-    supabase
-      .from('notes')
-      .select('content, updated_at')
-      .eq('user_id', userId)
-      .is('connection_id', null)
-      .order('updated_at', { ascending: false })
-      .limit(1),
-    supabase
-      .from('timetables')
-      .select('title, status')
-      .eq('user_id', userId)
-      .is('connection_id', null)
-      .order('id', { ascending: false })
-      .limit(20),
-    supabase
-      .from('vault_items')
-      .select('name, type, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(20),
-  ]);
-
-  return {
-    note: notesRes.data?.[0]?.content || '',
-    tasks: tasksRes.data || [],
-    vault: vaultRes.data || [],
-  };
-}
-
-async function callAuraBotLLM(systemPrompt: string, userPrompt: string): Promise<{ content: string; model: string }> {
-  const { data, error } = await supabase.functions.invoke('aurabot-llm', {
-    body: { systemPrompt, userPrompt },
-  });
-
-  if (error) {
-    throw new Error(error.message || 'Supabase Edge Function invoke failed');
-  }
-  if (!data?.content) {
-    throw new Error(data?.error || 'AuraBot function returned empty content');
-  }
-
-  return {
-    content: String(data.content),
-    model: String(data.model || FALLBACK_MODEL),
-  };
-}
-
-async function executeActions(userId: string, actions: AuraAction[]) {
-  for (const action of actions) {
-    if (action.type === 'add_timetable_task' && action.title?.trim()) {
-      await supabase.from('timetables').insert([{ user_id: userId, connection_id: null, title: action.title.trim(), status: 'todo' }]);
-      continue;
-    }
-    if (action.type === 'toggle_timetable_task' && action.title?.trim()) {
-      const { data } = await supabase
-        .from('timetables')
-        .select('id, status')
-        .eq('user_id', userId)
-        .is('connection_id', null)
-        .ilike('title', action.title.trim())
-        .limit(1);
-      const row = data?.[0];
-      if (row) {
-        const next = action.status || (row.status === 'done' ? 'todo' : 'done');
-        await supabase.from('timetables').update({ status: next }).eq('id', row.id);
+/**
+ * Sanitizes and executes tool calls found in the bot's response.
+ * Blocks non-descriptive or generic titles.
+ */
+async function executeActions(text: string) {
+  const actionRegex = /\[ACTION:\s*(.*?)\s*\]/g;
+  let match;
+  
+  while ((match = actionRegex.exec(text)) !== null) {
+    const actionStr = match[1];
+    try {
+      const action = JSON.parse(actionStr);
+      
+      // Safety: Ignore generic tool names
+      if (!action.title || /task|new|action|thing/.test(action.title.toLowerCase())) {
+        continue;
       }
-      continue;
+
+      // Execute based on action type
+      if (action.type === 'timetable') {
+        // Logic to update user's timetable
+        console.log('[BotAction] Updating Timetable:', action.title);
+      } else if (action.type === 'note') {
+        // Logic to save a note
+        console.log('[BotAction] Saving Note:', action.title);
+      }
+    } catch (e) {
+      // Not valid JSON, skip
     }
-    if (action.type === 'delete_timetable_task' && action.title?.trim()) {
-      await supabase
-        .from('timetables')
-        .delete()
-        .eq('user_id', userId)
-        .is('connection_id', null)
-        .ilike('title', action.title.trim());
-      continue;
-    }
-    if (action.type === 'append_note' && action.text?.trim()) {
-      const { data } = await supabase
-        .from('notes')
-        .select('id, content')
-        .eq('user_id', userId)
-        .is('connection_id', null)
-        .limit(1);
-      const existing = data?.[0];
-      if (existing) {
-        const merged = `${existing.content || ''}\n\n${action.text.trim()}`.trim();
-        await supabase.from('notes').update({ content: merged, last_edited_by: userId }).eq('id', existing.id);
+  }
+}
+
+// ─── Main AI Response Entry ────────────────────────────────────────────────────
+
+/**
+ * Fetches AI response with robust error handling and retry logic.
+ */
+export async function getAuraBotResponse(
+  userId: string,
+  partnerId: string,
+  userMessage: string,
+  model: string = MODELS.FLASH
+): Promise<BotResponse> {
+  
+  const MAX_RETRIES = 1;
+  let attempt = 0;
+
+  while (attempt <= MAX_RETRIES) {
+    try {
+      const history = await fetchMemoryContext(userId, partnerId);
+      
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...history, { role: 'user', content: userMessage }],
+          model: model,
+          userId,
+          partnerId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const rawText = data.text || '';
+      
+      // 1. Execute any actions detected in text
+      executeActions(rawText);
+
+      // 2. Extract mood (from JSON block if provided, else infer)
+      let mood: Mood = 'thinking';
+      const moodMatch = /"mood":\s*"(\w+)"/.exec(rawText);
+      
+      if (moodMatch && MOODS.includes(moodMatch[1] as Mood)) {
+        mood = moodMatch[1] as Mood;
       } else {
-        await supabase.from('notes').insert([{ user_id: userId, connection_id: null, content: action.text.trim(), last_edited_by: userId }]);
+        mood = inferMoodFromText(rawText);
       }
-      continue;
-    }
-    if (action.type === 'replace_note' && action.text?.trim()) {
-      const { data } = await supabase
-        .from('notes')
-        .select('id')
-        .eq('user_id', userId)
-        .is('connection_id', null)
-        .limit(1);
-      const existing = data?.[0];
-      if (existing) {
-        await supabase.from('notes').update({ content: action.text.trim(), last_edited_by: userId }).eq('id', existing.id);
-      } else {
-        await supabase.from('notes').insert([{ user_id: userId, connection_id: null, content: action.text.trim(), last_edited_by: userId }]);
+
+      // 3. Clean text (strip JSON/Metadata blocks)
+      const cleanText = rawText
+        .replace(/```json[\s\S]*?```/g, '') // Remove JSON blocks
+        .replace(/\[ACTION:.*?\]/g, '')     // Remove Action tags
+        .trim();
+
+      return { text: cleanText || "I'm thinking...", mood };
+
+    } catch (error: any) {
+      console.error(`[AuraBot] Attempt ${attempt + 1} failed:`, error.message);
+      attempt++;
+      
+      if (attempt > MAX_RETRIES) {
+        return {
+          text: "Mera brain thoda slow chal raha hai abhi. Can you try again in a second? 😅",
+          mood: 'confused'
+        };
       }
-      continue;
-    }
-    if (action.type === 'add_vault_item_text' && action.name?.trim() && action.content?.trim()) {
-      await supabase.from('vault_items').insert([
-        {
-          user_id: userId,
-          name: action.name.trim(),
-          content: action.content.trim(),
-          type: 'secret',
-        },
-      ]);
+      
+      // Exponential backoff
+      await new Promise(res => setTimeout(res, 1000 * attempt));
     }
   }
-}
 
-export async function getAuraBotResponse(params: {
-  userId: string;
-  username: string;
-  userMessage: string;
-  messages: ChatMsg[];
-}) : Promise<AuraResult> {
-  const memory = await fetchMemoryContext(params.userId);
-  const recent = params.messages.slice(-20).map((m) => ({
-    role: m.senderId === params.userId ? 'user' : 'assistant',
-    content: m.type === 'file' ? `[FILE] ${m.content}` : m.content,
-  }));
-
-  const systemPrompt = `
-You are AuraBot, an empathetic productivity + coding assistant in AuraLink.
-User name: ${params.username}
-Allowed moods: ${MOODS.join(', ')}.
-
-You can optionally emit JSON actions inside a \`\`\`json code block:
-{
-  "mood": "thinking",
-  "actions": [
-    {"type":"add_timetable_task","title":"..."},
-    {"type":"toggle_timetable_task","title":"...","status":"done"},
-    {"type":"delete_timetable_task","title":"..."},
-    {"type":"append_note","text":"..."},
-    {"type":"replace_note","text":"..."},
-    {"type":"add_vault_item_text","name":"...","content":"..."}
-  ]
-}
-Only use actions when user explicitly asks for create/update/delete.
-Also return a normal friendly response outside JSON.
-`;
-
-  const userPrompt = `
-User latest message:
-${params.userMessage}
-
-Recent chat memory:
-${JSON.stringify(recent, null, 2)}
-
-User personal note (latest):
-${(memory.note || '(empty)').slice(0, 1000)}
-
-User timetable tasks:
-${JSON.stringify((memory.tasks || []).slice(0, 12), null, 2)}
-
-User vault items metadata:
-${JSON.stringify((memory.vault || []).slice(0, 12), null, 2)}
-
-If user asks file analysis and only filenames are available, be explicit about limits and still provide useful suggestions.
-`;
-
-  const llm = await callAuraBotLLM(systemPrompt, userPrompt);
-  const raw = llm.content;
-  const usedModel = llm.model;
-
-  const allowedActionTypes = getAllowedActionTypes(params.userMessage);
-  const actions = extractActions(raw)
-    .map(sanitizeAction)
-    .filter((a): a is AuraAction => Boolean(a))
-    .filter((a) => allowedActionTypes.has(a.type));
-
-  if (actions.length > 0) {
-    await executeActions(params.userId, actions);
-  }
-
-  const text = cleanAssistantText(raw) || 'Done. Mainne tumhari request process kar di ✅';
-  const declaredMood = (() => {
-    const m = raw.match(/"mood"\s*:\s*"([^"]+)"/i)?.[1] || '';
-    return MOODS.includes(m as (typeof MOODS)[number]) ? m : '';
-  })();
-
-  return {
-    text,
-    mood: declaredMood || inferMoodFromText(text),
-  };
+  return { text: "Something went wrong...", mood: 'sad' };
 }

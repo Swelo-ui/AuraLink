@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
 import { supabase } from '../lib/supabaseClient';
+import ActionMojiAvatar from './ActionMojiAvatar';
 
 export default function Sidebar({ connections, onRefresh, className }: { connections: any[], onRefresh: () => void, className?: string }) {
   const { user, logout } = useAuthStore();
@@ -129,16 +130,16 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       </div>
 
       <div className="p-4">
-        <form onSubmit={handleSearch} className="relative">
-          {/* Honeypot fields to trick password managers, using absolute positioning instead of display: none */}
-          <div className="absolute opacity-0 -z-10 w-0 h-0 overflow-hidden" aria-hidden="true">
-            <input type="text" name="fake_username" autoComplete="username" tabIndex={-1} />
-            <input type="password" name="fake_password" autoComplete="current-password" tabIndex={-1} />
+        <form onSubmit={handleSearch} className="relative" autoComplete="off">
+          {/* Aggressive Honeypot: Using zero-size absolute container with non-display:none to trick detectors */}
+          <div className="absolute overflow-hidden w-[1px] h-[1px] -left-[1000px] pointer-events-none" aria-hidden="true">
+            <input type="text" name="fake_un" autoComplete="username" tabIndex={-1} />
+            <input type="password" name="fake_pw" autoComplete="current-password" tabIndex={-1} />
           </div>
           
           <input 
             type="text" 
-            name="search_users_query"
+            name={`aura_search_${Math.random().toString(36).substring(7)}`}
             placeholder="Search connections..." 
             className="w-full bg-aura-navy border border-aura-border rounded-lg pl-10 pr-4 py-2 flex-1 text-sm text-white focus:outline-none focus:border-aura-primary transition-colors"
             value={search}
@@ -213,11 +214,13 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <div className={clsx("w-10 h-10 rounded-full flex items-center justify-center text-white font-medium relative", isAuraBot ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
-                    {partner.username[0].toUpperCase()}
-                    {!isPending && status !== 'offline' && !isAuraBot && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-aura-teal border-2 border-aura-panel rounded-full"></span>
-                    )}
+                  <div className="shrink-0 scale-[0.5] -mx-4">
+                    <ActionMojiAvatar 
+                      state={isPending ? 'offline' : status} 
+                      username={partner.username} 
+                      size="lg" 
+                      showStatusRing={!isPending && status !== 'offline'}
+                    />
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-white flex items-center gap-2">

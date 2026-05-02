@@ -373,12 +373,11 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
       try {
-        const llm = await getAuraBotResponse({
-          userId: user.id,
-          username: user.username,
-          userMessage: msgContent,
-          messages: messagesRef.current,
-        });
+        const llm = await getAuraBotResponse(
+          user.id,
+          partner.id,
+          msgContent
+        );
 
         // Step 1: show typing indicator with mood
         setPartnerStatus(partner.id, `typing_${llm.mood}`);
@@ -576,7 +575,12 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               >
                 {/* Scale wrapper: 80px avatar shrunk to fit */}
                 <div className="w-[80px] h-[80px] scale-[0.45] sm:scale-[0.6] origin-center">
-                  <ActionMojiAvatar state={avatarMood} username={partner.username} showStatusRing={false} />
+                  <ActionMojiAvatar 
+                    state={avatarMood} 
+                    username={partner.username} 
+                    showStatusRing={false}
+                    showStatus={true}
+                  />
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -706,21 +710,23 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
         {/* Input */}
         <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
-          <form onSubmit={sendMessage} autoComplete="off" className="flex items-center gap-2">
-            {/* Honeypot: browser ko lagta hai credentials already fill hain, isliye password manager bar nahi aata */}
-            <input type="text" name="username" autoComplete="username" style={{ display: 'none' }} readOnly tabIndex={-1} aria-hidden="true" />
-            <input type="password" name="password" autoComplete="current-password" style={{ display: 'none' }} readOnly tabIndex={-1} aria-hidden="true" />
+          <form onSubmit={sendMessage} autoComplete="off" className="flex items-center gap-2 relative">
+            {/* Aggressive Honeypot: Using zero-size absolute container with non-display:none to trick detectors */}
+            <div className="absolute overflow-hidden w-[1px] h-[1px] -left-[1000px] pointer-events-none" aria-hidden="true">
+              <input type="text" name="fake_un" autoComplete="username" tabIndex={-1} />
+              <input type="password" name="fake_pw" autoComplete="current-password" tabIndex={-1} />
+            </div>
             <label className="p-2.5 text-aura-lavender/50 hover:text-white cursor-pointer transition-colors bg-aura-navy rounded-xl hover:bg-aura-border shrink-0 border border-aura-border/50">
               <Paperclip size={19} />
               <input type="file" className="hidden" onChange={handleFileUpload} />
             </label>
             <input
               type="text"
-              name="chat_message_input"
+              name={`aura_msg_${Math.random().toString(36).substring(7)}`}
               placeholder="Message..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              autoComplete="off"
+              autoComplete="new-password"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
