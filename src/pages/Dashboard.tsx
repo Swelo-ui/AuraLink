@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import ChatWorkspace from './ChatWorkspace';
 import PersonalWorkspace from './PersonalWorkspace.tsx';
 import { SocketProvider } from '../components/SocketProvider';
+import GlobalNotificationListener from '../components/GlobalNotificationListener';
 import clsx from 'clsx';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
@@ -67,6 +68,7 @@ export default function Dashboard() {
 
   return (
     <SocketProvider>
+      <GlobalNotificationListener />
       {/* height: 100% inherits the browser-resized viewport when keyboard opens */}
       <div className="flex w-full bg-aura-navy overflow-hidden" style={{ height: '100%' }}>
         <Sidebar connections={connections} onRefresh={fetchConnections} className={isChat ? "hidden md:flex" : "flex"} />

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../components/SocketProvider';
 import { useAuthStore } from '../store/authStore';
-import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff, Settings as SettingsIcon, Volume2, VolumeX, EyeOff } from 'lucide-react';
+import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff, Settings as SettingsIcon, Volume2, VolumeX, EyeOff, Clock } from 'lucide-react';
 import clsx from 'clsx';
 import SyncNotes from '../components/SyncNotes';
 import SmartVault from '../components/SmartVault';
@@ -552,7 +552,28 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     }
   };
 
+  const acceptFriend = async () => {
+    if (!connectionId) return;
+    await supabase
+      .from('connections')
+      .update({ status: 'accepted' })
+      .eq('id', connectionId);
+  };
+
+  const rejectFriend = async () => {
+    if (!connectionId) return;
+    await supabase
+      .from('connections')
+      .delete()
+      .eq('id', connectionId);
+    navigate('/dashboard');
+  };
+
   if (!partner) return null;
+
+  const isPending = conn?.status === 'pending';
+  const amIReceiver = (conn?.user2_id || conn?.user2Id) === user?.id;
+  const amISender = (conn?.user1_id || conn?.user1Id) === user?.id;
 
   const currentPartnerStatus = partnerStatus[partner.id] || (partner.username === 'AuraBot' ? 'online' : 'offline');
 
@@ -768,7 +789,37 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
         {/* Input */}
         <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
-          <form onSubmit={sendMessage} autoComplete="off" className="flex items-center gap-2 relative">
+          {isPending ? (
+            <div className="flex flex-col items-center gap-3 py-2 animate-in fade-in slide-in-from-bottom-2">
+              {amIReceiver ? (
+                <>
+                  <p className="text-aura-lavender/70 text-sm font-medium">Accept friend request to chat with {partner.username}?</p>
+                  <div className="flex items-center gap-4 w-full">
+                    <button 
+                      onClick={rejectFriend}
+                      className="flex-1 bg-aura-navy border border-aura-border text-red-400 py-2.5 rounded-xl text-sm font-bold hover:bg-red-500/10 transition-all active:scale-95"
+                    >
+                      Reject
+                    </button>
+                    <button 
+                      onClick={acceptFriend}
+                      className="flex-1 bg-aura-primary text-white py-2.5 rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-aura-primary/20 active:scale-95"
+                    >
+                      Accept
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="bg-aura-navy/50 border border-aura-border/50 rounded-xl px-6 py-4 text-center w-full">
+                  <Clock className="w-5 h-5 text-aura-primary mx-auto mb-2 opacity-50" />
+                  <p className="text-aura-lavender/60 text-sm">Waiting for <span className="text-white font-bold">{partner.username}</span> to accept your friend request.</p>
+                  <p className="text-[10px] text-aura-lavender/30 mt-1">You can still send messages, but they might not see them until accepted.</p>
+                </div>
+              )}
+            </div>
+          ) : null}
+          
+          <form onSubmit={sendMessage} autoComplete="off" className={clsx("flex items-center gap-2 relative transition-opacity duration-300", isPending && amIReceiver && "opacity-40 pointer-events-none")}>
             {/* Using a hidden field with a neutral name to steer away aggressive password manager heuristics */}
             <div className="hidden" aria-hidden="true">
               <input type="text" name="aura_chat_session" tabIndex={-1} />

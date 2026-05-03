@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, Palette, Shield, Download } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, Palette, Shield, Download, BookOpen, Monitor } from 'lucide-react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
 import { supabase } from '../lib/supabaseClient';
@@ -12,8 +12,11 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(localStorage.getItem('aura_notifications') !== 'false');
+  const [focusMode, setFocusMode] = useState(localStorage.getItem('aura_focus') === 'true');
   const navigate = useNavigate();
   const location = useLocation();
+  const { id: connectionId } = useParams();
   const { partnerStatus } = useSocket();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -68,6 +71,24 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     setInstallHint('Install prompt not ready yet. In Android Chrome, tap menu (3 dots) -> Add to Home screen.');
   };
 
+  const toggleNotifications = async () => {
+    if (!notificationsEnabled && 'Notification' in window) {
+      if (Notification.permission !== 'granted') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+      }
+    }
+    const newVal = !notificationsEnabled;
+    setNotificationsEnabled(newVal);
+    localStorage.setItem('aura_notifications', newVal.toString());
+  };
+
+  const toggleFocusMode = () => {
+    const newVal = !focusMode;
+    setFocusMode(newVal);
+    localStorage.setItem('aura_focus', newVal.toString());
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     logout();
@@ -89,9 +110,27 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const addFriend = async (targetUserId: string) => {
     if (!user?.id) return;
     
-    await supabase.from('connections').insert([
+    // Check if connection already exists in either direction
+    const { data: existing } = await supabase
+      .from('connections')
+      .select('id')
+      .or(`and(user1_id.eq.${user.id},user2_id.eq.${targetUserId}),and(user1_id.eq.${targetUserId},user2_id.eq.${user.id})`)
+      .single();
+
+    if (existing) {
+      navigate(`/dashboard/c/${existing.id}`);
+      setSearch('');
+      setResults([]);
+      return;
+    }
+
+    const { data, error } = await supabase.from('connections').insert([
       { user1_id: user.id, user2_id: targetUserId, status: 'pending' }
-    ]);
+    ]).select().single();
+    
+    if (data) {
+      navigate(`/dashboard/c/${data.id}`);
+    }
     
     setSearch('');
     setResults([]);
@@ -102,6 +141,16 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       .from('connections')
       .update({ status: 'accepted' })
       .eq('id', id);
+    onRefresh();
+  };
+
+  const rejectFriend = async (id: string) => {
+    await supabase
+      .from('connections')
+      .delete()
+      .eq('id', id);
+    onRefresh();
+    navigate('/dashboard');
   };
 
   return (
@@ -207,10 +256,11 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             return (
               <div 
                 key={conn.id} 
-                onClick={() => !isPending && navigate(`/dashboard/c/${conn.id}`)}
+                onClick={() => navigate(`/dashboard/c/${conn.id}`)}
                 className={clsx(
                   "flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer group",
-                  isPending ? "bg-aura-navy/50 opacity-70" : "hover:bg-aura-navy cursor-pointer active:scale-[0.98]"
+                  conn.id === connectionId ? "bg-aura-primary/10 border-aura-primary/20" : "hover:bg-aura-navy active:scale-[0.98]",
+                  isPending && !canAccept && "opacity-70"
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -228,7 +278,9 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                       {isAuraBot && <span className="text-[10px] bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded-full">AI</span>}
                     </h3>
                     {isPending ? (
-                      <span className="text-xs flex items-center gap-1 text-orange-400"><Clock size={12}/> Pending</span>
+                      <span className={clsx("text-xs flex items-center gap-1", canAccept ? "text-aura-primary font-bold animate-pulse" : "text-orange-400")}>
+                        <Clock size={12}/> {canAccept ? 'New Request' : 'Pending'}
+                      </span>
                     ) : (
                       <span className="text-xs text-aura-lavender/50 truncate w-24 block">
                         {status === 'typing' ? 'Typing...' : status === 'reading_chat' ? 'Reading chat' : status === 'browsing_files' ? 'In vault' : status === 'viewing_notes' ? 'Editing notes' : status === 'timetable_open' ? 'Viewing timetable' : status}
@@ -236,11 +288,26 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                     )}
                   </div>
                 </div>
-                {canAccept && (
-                  <button onClick={(e) => { e.stopPropagation(); acceptFriend(conn.id); }} className="w-8 h-8 rounded-full bg-aura-primary/20 text-aura-primary flex items-center justify-center hover:bg-aura-primary hover:text-white transition-colors">
-                    <Check size={16} />
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {canAccept && (
+                    <>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); rejectFriend(conn.id); }} 
+                        className="w-8 h-8 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
+                        title="Reject"
+                      >
+                        <X size={16} />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); acceptFriend(conn.id); }} 
+                        className="w-8 h-8 rounded-full bg-aura-primary/20 text-aura-primary flex items-center justify-center hover:bg-aura-primary hover:text-white transition-colors"
+                        title="Accept"
+                      >
+                        <Check size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             )
           })}
@@ -279,27 +346,26 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                 <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Preferences</h3>
                 <div className="space-y-2">
                   <button 
-                    onClick={() => alert('Theme customization coming soon! ✨')}
-                    className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
+                    onClick={toggleFocusMode}
+                    className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-colors", focusMode ? "bg-aura-primary/10 border-aura-primary/30" : "bg-aura-navy hover:bg-aura-border border-aura-border")}
                   >
-                    <div className="flex items-center gap-3 text-white"><Palette size={18} className="text-pink-400" /> Theme</div>
-                    <span className="text-xs text-aura-lavender/50">Dark Mode</span>
+                    <div className="flex items-center gap-3 text-white"><BookOpen size={18} className={focusMode ? "text-aura-primary" : "text-gray-400"} /> Focus Mode</div>
+                    <span className="text-xs font-medium text-aura-lavender/50">{focusMode ? "On" : "Off"}</span>
                   </button>
                   <button 
-                    onClick={() => alert('Notification settings coming soon! 🔔')}
-                    className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
+                    onClick={toggleNotifications}
+                    className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-colors", notificationsEnabled ? "bg-aura-navy hover:bg-aura-border border-aura-border" : "bg-red-500/10 border-red-500/30")}
                   >
-                    <div className="flex items-center gap-3 text-white"><Bell size={18} className="text-aura-teal" /> Notifications</div>
-                    <span className="text-xs text-aura-lavender/50">Enabled</span>
+                    <div className="flex items-center gap-3 text-white"><Bell size={18} className={notificationsEnabled ? "text-aura-teal" : "text-red-400"} /> Notifications</div>
+                    <span className="text-xs font-medium text-aura-lavender/50">{notificationsEnabled ? "Enabled" : "Muted"}</span>
                   </button>
                   <button 
-                    onClick={() => alert('Privacy settings coming soon! 🛡️')}
+                    onClick={handleInstallApp}
                     className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
                   >
-                    <div className="flex items-center gap-3 text-white"><Shield size={18} className="text-blue-400" /> Privacy</div>
-                    <span className="text-xs text-aura-lavender/50">&gt;</span>
+                    <div className="flex items-center gap-3 text-white"><Monitor size={18} className="text-pink-400" /> Install App</div>
+                    <span className="text-xs text-aura-lavender/50 text-right max-w-[120px] truncate">{isInstalled ? "Installed" : "PWA"}</span>
                   </button>
-
                 </div>
               </div>
             </div>

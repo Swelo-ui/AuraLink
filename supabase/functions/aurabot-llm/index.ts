@@ -56,7 +56,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, hasImage, model: reqModel } = (await req.json());
+    const { messages, hasImage, model = PRIMARY_MODEL } = (await req.json());
     if (!messages || !Array.isArray(messages)) {
       return new Response(
         JSON.stringify({ error: 'Missing or invalid messages array' }),
