@@ -41,9 +41,40 @@ export default function PersonalWorkspace() {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar for tabs */}
-        <div className="w-64 bg-aura-panel border-r border-aura-border flex flex-col p-4 gap-2">
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
+        {/* Horizontal Tabs for Mobile */}
+        <div className="md:hidden flex bg-aura-panel border-b border-aura-border p-2 gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium shrink-0",
+              activeTab === 'notes' ? "bg-aura-primary text-white" : "text-aura-lavender/70 hover:text-white"
+            )}
+          >
+            <FileText size={16} /> Notes
+          </button>
+          <button
+            onClick={() => setActiveTab('timetable')}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium shrink-0",
+              activeTab === 'timetable' ? "bg-aura-primary text-white" : "text-aura-lavender/70 hover:text-white"
+            )}
+          >
+            <Calendar size={16} /> Timetable
+          </button>
+          <button
+            onClick={() => setActiveTab('vault')}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium shrink-0",
+              activeTab === 'vault' ? "bg-aura-primary text-white" : "text-aura-lavender/70 hover:text-white"
+            )}
+          >
+            <Lock size={16} /> Vault
+          </button>
+        </div>
+
+        {/* Sidebar for tabs (Desktop only) */}
+        <div className="hidden md:flex w-64 bg-aura-panel border-r border-aura-border flex-col p-4 gap-2 shrink-0">
           <button
             onClick={() => setActiveTab('notes')}
             className={clsx(
@@ -74,7 +105,7 @@ export default function PersonalWorkspace() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-aura-navy">
+        <div className="flex-1 bg-aura-navy overflow-hidden relative">
           {activeTab === 'notes' && <SyncNotes connectionId={undefined} />}
           {activeTab === 'timetable' && <SharedTimetable connectionId={undefined} />}
           {activeTab === 'vault' && <SmartVault connectionId="" messages={[]} partner={null} isPersonal={true} />}

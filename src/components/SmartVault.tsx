@@ -19,6 +19,7 @@ interface VaultFile {
   telegram_msg_id?: number;
   type: string;
   timestamp?: string;
+  created_at?: string;       // Add this for DB compatibility
   file_url?: string;
   folder_id?: string | null;
   file_size?: number;
@@ -94,20 +95,33 @@ export default function SmartVault({
   const [deletingId,    setDeletingId]    = useState<string | null>(null);
 
   // ── Build display list ────────────────────────────────────────────────────
-  const rawFiles: VaultFile[] = isPersonal
-    ? vaultItems.map(item => ({
-        id:                item.id,
-        content:           (item as any).name ?? item.content,
-        fileUrl:           '',
-        telegram_file_id:  item.telegram_file_id,
-        telegram_msg_id:   item.telegram_msg_id,
-        file_size:         item.file_size,
-        type:              item.type || 'file',
-        timestamp:         (item as any).created_at,
-        folder_id:         item.folder_id,
-        is_chat_file:      item.is_chat_file
-      }))
-    : messages.filter(m => m.type === 'file').map(m => ({...m, folder_id: null}));
+  const rawFiles: VaultFile[] = [
+    ...vaultItems.map(item => ({
+      id:                item.id,
+      content:           item.content || (item as any).name,
+      fileUrl:           '',
+      telegram_file_id:  item.telegram_file_id,
+      telegram_msg_id:   item.telegram_msg_id,
+      file_size:         item.file_size,
+      type:              item.type || 'file',
+      timestamp:         item.created_at || (item as any).timestamp,
+      folder_id:         item.folder_id,
+      is_chat_file:      item.is_chat_file
+    })),
+    // Local messages that might not be in DB yet
+    ...messages.filter(m => m.type === 'file' && !vaultItems.find(v => v.telegram_file_id === m.telegram_file_id)).map(m => ({
+      id:                m.id || `local-${Date.now()}`,
+      content:           m.content,
+      fileUrl:           m.fileUrl || m.file_url || '',
+      telegram_file_id:  m.telegram_file_id,
+      telegram_msg_id:   m.telegram_msg_id,
+      file_size:         null,
+      type:              'file',
+      timestamp:         m.timestamp,
+      folder_id:         null,
+      is_chat_file:      true
+    }))
+  ];
 
   // Apply filters and folder navigation
   let displayFiles = rawFiles;
@@ -155,9 +169,11 @@ export default function SmartVault({
       folder_id: null
     }));
 
-    const combined = [...vaultData, ...msgItems].sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    const combined = [...vaultData, ...msgItems].sort((a, b) => {
+      const timeA = new Date(a.created_at || a.timestamp || 0).getTime();
+      const timeB = new Date(b.created_at || b.timestamp || 0).getTime();
+      return timeB - timeA;
+    });
 
     const unique = [];
     const seen = new Set();
@@ -173,8 +189,8 @@ export default function SmartVault({
   }, [user?.id]);
 
   useEffect(() => {
-    if (isPersonal) fetchPersonalVault();
-  }, [isPersonal, fetchPersonalVault]);
+    fetchPersonalVault();
+  }, [fetchPersonalVault]);
 
   // ── Resolve Telegram download URLs ──────────────────────────────────────────
   useEffect(() => {
