@@ -67,20 +67,21 @@ function getStatusLabel(status: string) {
 
 // ── Sentiment keywords ──────────────────────────────────────────────────
 const SENTIMENT_MAP: { states: string[]; keywords: string[] }[] = [
-  { states: ['searching'],  keywords: ['search', 'find', 'looking for', 'dhund', 'dhundh', 'kahan hai', 'kidhar hai', 'talash', 'search kar', 'khoj'] },
-  { states: ['writing_code'], keywords: ['code', 'debug', 'function', 'error', 'bug', 'coding', 'script', 'logic', 'code kar', 'fix kar', 'program', 'build kar'] },
-  { states: ['uploading'],  keywords: ['upload', 'send file', 'attachment', 'bhej', 'bheja', 'send kar', 'file le', 'document bhej', 'share kar', 'daal raha'] },
-  { states: ['reading_book'], keywords: ['read', 'study', 'learn', 'book', 'padhai', 'padh', 'seekh', 'notes padh', 'exam', 'revision', 'kitaab', 'padhne'] },
-  { states: ['celebrating'],keywords: ['congratulations', 'yay', 'woohoo', 'party', 'celebrate', 'mubarak', 'badhai', 'kamaal', 'badiya', 'jeeta', 'op', 'gg', 'booyah'] },
-  { states: ['playing_games'], keywords: ['play', 'game', 'khel', 'pubg', 'bgmi', 'valorant', 'minecraft', 'khelte', 'match', 'lobby', 'push kar', 'gaming'] },
-  { states: ['listening_music'], keywords: ['music', 'song', 'listen', 'gaana', 'symphony', 'gaane', 'sun', 'spotify', 'playlist', 'vibe', 'beat'] },
-  { states: ['angry'],    keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'worst', 'horrible', 'useless', 'terrible', 'rude', 'frustrated', 'annoying', 'mad', 'furious', 'damn', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas'] },
-  { states: ['sad'],      keywords: ['sad', 'depressed', 'unhappy', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'tears', 'unfortunate', 'broken', 'lost', 'hopeless', 'sorry', 'regret', 'fail', 'bad', 'worst day', 'dukhi', 'rona', 'akela', 'bura', 'udas'] },
-  { states: ['confused'], keywords: ['confused', 'what', 'huh', 'idk', 'not sure', 'don\'t understand', 'unclear', 'weird', 'strange', 'why', 'how', 'lost', 'really?', 'seriously', '??', 'kya', 'samajh nahi', 'kaise', 'kyu'] },
-  { states: ['surprised'],keywords: ['wow', 'omg', 'whoa', 'no way', 'seriously', 'really', 'oh my', 'unbelievable', 'shocking', 'unexpected', 'wait what', 'sachme', 'are waah', 'kya baat'] },
-  { states: ['happy'],    keywords: ['happy', 'great', 'awesome', 'love', 'haha', 'lol', 'fun', 'nice', 'good', 'cool', 'yes!', 'yay', 'excited', 'amazing', 'perfect', 'thanks', 'thank you', 'lmao', 'hehe', ':)', '😊', '❤️', '🔥', 'khush', 'acha', 'mast', 'badiya', 'sahi'] },
-  { states: ['thinking'], keywords: ['hmm', 'think', 'maybe', 'perhaps', 'possibly', 'consider', 'let me', 'actually', 'well...', 'interesting', 'i guess'] },
-  { states: ['heart_eyes'],keywords: ['love you', 'adore', 'crush', 'beautiful', 'gorgeous', 'cute', '❤️', '🥰', '😍', 'i like you', 'sundar', 'pyar', 'khoobsurat', 'mast lag'] },
+  { states: ['searching'],  keywords: ['search', 'find', 'looking', 'dhund', 'dhundh', 'kahan', 'kidhar', 'talash', 'khoj', 'mil nahi', 'pata karo'] },
+  { states: ['writing_code'], keywords: ['code', 'debug', 'error', 'bug', 'coding', 'script', 'logic', 'fix', 'build', 'program', 'run kar', 'chalao', 'developer'] },
+  { states: ['uploading'],  keywords: ['upload', 'send file', 'attachment', 'bhej', 'bheja', 'lelo', 'document', 'share', 'daal raha', 'receive', 'photo', 'video'] },
+  { states: ['reading_book'], keywords: ['read', 'study', 'learn', 'book', 'padhai', 'padh', 'seekh', 'notes', 'exam', 'revision', 'kitaab', 'paper', 'homework'] },
+  { states: ['celebrating'],keywords: ['congratulations', 'yay', 'party', 'mubarak', 'badhai', 'kamaal', 'badiya', 'jeeta', 'op', 'gg', 'booyah', 'shabaash', 'party do', 'daaru', 'masti'] },
+  { states: ['playing_games'], keywords: ['play', 'game', 'khel', 'pubg', 'bgmi', 'valorant', 'minecraft', 'match', 'lobby', 'push kar', 'kill', 'winner', 'chicken dinner'] },
+  { states: ['listening_music'], keywords: ['music', 'song', 'listen', 'gaana', 'sun', 'spotify', 'playlist', 'vibe', 'beat', 'lyrics', 'singer', 'voice note', 'audio'] },
+  { states: ['angry'],    keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'mad', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas', 'dimag kharab', 'hatt', 'bak', 'chup', 'ghatiya', 'sharam', 'bewakoof', 'gadha'] },
+  { states: ['sad'],      keywords: ['sad', 'depressed', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'sorry', 'regret', 'fail', 'bad', 'dukhi', 'rona', 'akela', 'bura', 'udas', 'pareshan', 'ro mat', 'tension', 'dard', 'kyu kiya', 'bechara'] },
+  { states: ['confused'], keywords: ['confused', 'what', 'huh', 'idk', 'unclear', 'weird', 'strange', 'why', 'how', 'lost', 'really?', '??', 'kya', 'samajh nahi', 'kaise', 'kyu', 'pata nahi', 'kuch bhi', 'hein', 'matlab'] },
+  { states: ['surprised'],keywords: ['wow', 'omg', 'whoa', 'no way', 'seriously', 'really', 'shocking', 'unexpected', 'wait what', 'sachme', 'are waah', 'kya baat', 'gazab', 'dhamaal', 'bhayanak', 'baap re', 'hey bhagwan'] },
+  { states: ['happy'],    keywords: ['happy', 'great', 'awesome', 'love', 'haha', 'lol', 'fun', 'nice', 'good', 'cool', 'yes!', 'yay', 'excited', 'amazing', 'perfect', 'thanks', 'thank you', 'khush', 'acha', 'mast', 'badiya', 'sahi', 'maza', 'wah', 'super', 'ji'] },
+  { states: ['thinking'], keywords: ['hmm', 'think', 'maybe', 'perhaps', 'possibly', 'let me', 'well...', 'soch', 'dimag', 'idea', 'plan', 'batata hoon', 'wait', 'ek min', 'sochne de'] },
+  { states: ['heart_eyes'],keywords: ['love you', 'adore', 'crush', 'beautiful', 'gorgeous', 'cute', 'sundar', 'pyar', 'khoobsurat', 'mast lag', 'jaan', 'shona', 'babu', 'pyaara', 'sweet', 'mohabat', 'ishq'] },
+  { states: ['sleepy'], keywords: ['sleep', 'good night', 'gn', 'so jao', 'so raha', 'bye', 'tata', 'shubh ratri', 'nini', 'neend', 'thak gaya', 'rest', 'dream', 'sapne'] },
 ];
 
 function deriveMoodFromString(text: string): string | null {
@@ -94,12 +95,10 @@ function deriveMoodFromString(text: string): string | null {
   return null;
 }
 
-function deriveAvatarMoodFromMessages(msgs: any[], myId: string): string | null {
-  // Look at last 3 messages from PARTNER (not me)
-  const partnerMsgs = msgs.filter(m => m.senderId !== myId).slice(-3);
-  if (partnerMsgs.length === 0) return null;
-  const combined = partnerMsgs.map(m => (m.content || '')).join(' ');
-  return deriveMoodFromString(combined);
+function deriveAvatarMoodFromMessages(msgs: any[]): string | null {
+  if (msgs.length === 0) return null;
+  const lastMsg = msgs[msgs.length - 1];
+  return deriveMoodFromString(lastMsg.content || '');
 }
 
 export default function ChatWorkspace({ connections }: { connections: any[] }) {
@@ -204,7 +203,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     messagesRef.current = messages;
     // Re-derive mood when messages change
     if (user?.id) {
-      const mood = deriveAvatarMoodFromMessages(messages, user.id);
+      const mood = deriveAvatarMoodFromMessages(messages);
       setSentimentState(mood);
     }
   }, [messages, user?.id]);

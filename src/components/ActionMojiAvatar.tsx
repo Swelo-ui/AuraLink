@@ -1,29 +1,17 @@
-import { motion, AnimatePresence } from 'motion/react';
-import React, { useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "motion/react";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-
-type EyeAnim = Record<string, any>;
-type MouthAnim = Record<string, any>;
-type BodyAnim = Record<string, any>;
-
-interface AnimationConfig {
-  eyes: EyeAnim;
-  mouth: MouthAnim;
-  body: BodyAnim;
-  bgGradient: string;
-  borderColor: string;
-  isGrayscale: boolean;
-  props: React.ReactNode;
-  statusText: string;
-  statusColor: string;
-  blush: boolean;
-}
-
+// --- Types ---
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
+export type ActionMojiState = 
+  | 'idle' | 'online' | 'offline' | 'away' | 'busy'
+  | 'listening' | 'reading_chat' | 'thinking' | 'browsing_files' | 'browsing_vault' | 'viewing_notes' | 'timetable_open' | 'writing_code' | 'searching'
+  | 'talking' | 'typing'
+  | 'happy' | 'celebrating' | 'surprised' | 'mind_blown' | 'angry' | 'sad' | 'crying' | 'love' | 'heart_eyes' | 'wink' | 'sleepy' | 'excited' | 'starry_eyes' | 'magic';
+
 interface ActionMojiProps {
-  state: string;
+  state: ActionMojiState | string;
   username: string;
   size?: AvatarSize;
   showStatus?: boolean;
@@ -31,70 +19,326 @@ interface ActionMojiProps {
   onClick?: () => void;
 }
 
-// ─── Size Config ───────────────────────────────────────────────────────────────
+// --- Constants from Reference ---
+const BASE = {
+  blue:   { l:"#7db8ff", m:"#3a6ef5", d:"#1130cc", g:"rgba(58,110,245,.55)"  },
+  purple: { l:"#b07aff", m:"#7b3af5", d:"#3e10cc", g:"rgba(123,58,245,.55)" },
+  teal:   { l:"#5cf0d8", m:"#0ac8a8", d:"#057a62", g:"rgba(10,200,168,.55)"  },
+  pink:   { l:"#ff8ec8", m:"#f53a90", d:"#aa0055", g:"rgba(245,58,144,.55)"  },
+};
 
-const SIZE = {
-  xs: { container: 'w-8 h-8',   eye: 'w-1.5 h-1.5', fontSize: 'text-[8px]',  dot: 'w-2 h-2',   dotOff: '-bottom-0.5 -right-0.5' },
-  sm: { container: 'w-12 h-12', eye: 'w-2 h-2',     fontSize: 'text-[10px]', dot: 'w-2.5 h-2.5', dotOff: '-bottom-0.5 -right-0.5' },
-  md: { container: 'w-16 h-16', eye: 'w-2.5 h-2.5', fontSize: 'text-xs',     dot: 'w-3 h-3',   dotOff: '-bottom-0.5 -right-0.5' },
-  lg: { container: 'w-20 h-20', eye: 'w-3 h-3',     fontSize: 'text-sm',     dot: 'w-3.5 h-3.5', dotOff: '-bottom-0.5 -right-0.5' },
-  xl: { container: 'w-24 h-24', eye: 'w-3.5 h-3.5', fontSize: 'text-base',   dot: 'w-4 h-4',   dotOff: '-bottom-1 -right-1' },
-} as const;
+const S_COL: Record<string, any> = {
+  angry: { l:"#ffaa88", m:"#e84030", d:"#8a0010", g:"rgba(232,64,48,.65)"  },
+  sad:   { l:"#88aaff", m:"#3a50e0", d:"#102080", g:"rgba(58,80,224,.5)"   },
+  crying: { l:"#88aaff", m:"#3a50e0", d:"#102080", g:"rgba(58,80,224,.5)"   },
+  love:  { l:"#ffaacc", m:"#f03880", d:"#880040", g:"rgba(240,56,128,.6)"  },
+  heart_eyes: { l:"#ffaacc", m:"#f03880", d:"#880040", g:"rgba(240,56,128,.6)" },
+  excited: { l:"#ffdd88", m:"#f09830", d:"#a05010", g:"rgba(240,152,48,.55)" },
+  starry_eyes: { l:"#ffdd88", m:"#f09830", d:"#a05010", g:"rgba(240,152,48,.55)" },
+  mind_blown: { l:"#ffcc88", m:"#f06030", d:"#a02010", g:"rgba(240,96,48,.55)" },
+};
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * FIX: Safely scale a motion value that can be a number OR an array.
- * Original code did `(eyes.x || 0) * 0.3` which is NaN when eyes.x is an array.
- */
-function scalePupil(val: number | number[] | undefined, factor: number): number | number[] {
-  if (val === undefined || val === null) return 0;
-  if (Array.isArray(val)) return val.map((v) => v * factor);
-  return val * factor;
+const KF_ID = "ak4kf";
+function injectKF() {
+  if (typeof document === "undefined" || document.getElementById(KF_ID)) return;
+  const el = document.createElement("style");
+  el.id = KF_ID;
+  el.textContent = `
+    @keyframes ak4_f   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(var(--afy))} }
+    @keyframes ak4_wb  { 0%{transform:translateY(0) rotate(-3.5deg)} 50%{transform:translateY(var(--awy)) rotate(3.5deg)} 100%{transform:translateY(0) rotate(-3.5deg)} }
+    @keyframes ak4_sh  { 0%,100%{transform:translateX(0)} 15%{transform:translateX(-6px)} 35%{transform:translateX(6px)} 55%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+    @keyframes ak4_bc  { 0%,100%{transform:translateY(0) scaleX(1) scaleY(1)} 40%{transform:translateY(var(--aby)) scaleX(1.06) scaleY(.95)} }
+    @keyframes ak4_hf  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(var(--ahfy))} }
+    @keyframes ak4_sdw { 0%,100%{transform:scaleX(1);opacity:.28} 50%{transform:scaleX(.7);opacity:.11} }
+    @keyframes ak4_sp  { 0%,100%{transform:translateY(0) scale(1);opacity:.82} 50%{transform:translateY(var(--asy)) scale(1.2);opacity:1} }
+    @keyframes ak4_rng { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:0;transform:scale(1.35)} }
+    @keyframes ak4_dot { 0%,80%,100%{transform:scale(.55);opacity:.4} 40%{transform:scale(1.12);opacity:1} }
+    @keyframes ak4_z   { 0%{transform:translateY(0) scale(.75);opacity:0} 25%{opacity:.9} 100%{transform:translateY(-44px) scale(1.35);opacity:0} }
+    @keyframes ak4_tr  { 0%{transform:translateY(0) scaleY(1);opacity:.9} 100%{transform:translateY(26px) scaleY(1.4);opacity:0} }
+    @keyframes ak4_ang { 0%,100%{opacity:.65;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
+    @keyframes ak4_hrt { 0%{transform:translateY(0) scale(.75);opacity:0} 20%{opacity:1} 100%{transform:translateY(-44px) scale(1.35);opacity:0} }
+    @keyframes ak4_bar { 0%,100%{transform:scaleY(.2);opacity:.45} 50%{transform:scaleY(1);opacity:1} }
+  `;
+  document.head.appendChild(el);
 }
 
-/** Typing bubble with speech-tail */
-const TypingDots = () => (
-  <motion.div
-    className="absolute -top-4 -right-3 w-9 h-5 bg-white rounded-2xl flex gap-1 justify-center items-center shadow-lg border border-neutral-200 z-20 px-1.5"
-    initial={{ scale: 0, opacity: 0 }}
-    animate={{ scale: 1, opacity: 1 }}
-    exit={{ scale: 0, opacity: 0 }}
-    style={{ transformOrigin: 'bottom left' }}
-  >
-    <div className="absolute -bottom-1 -left-1 w-2.5 h-2.5 bg-white border-b border-l border-neutral-200 rotate-45" />
-    {[0, 0.15, 0.3].map((delay, i) => (
-      <motion.span
-        key={i}
-        className="w-1 h-1 bg-neutral-400 rounded-full relative z-10"
-        animate={{ y: [0, -2.5, 0], opacity: [0.4, 1, 0.4] }}
-        transition={{ repeat: Infinity, duration: 0.8, delay }}
-      />
-    ))}
-  </motion.div>
-);
+const ER = 9;
+const SS: React.CSSProperties = { position:"absolute", width:"74%", height:"58%", top:"20%", left:"13%", overflow:"visible" };
 
-/** Floating emoji prop (emoji + animation config) */
-interface FloatEmojiProps {
-  emoji: string;
-  className?: string;
-  animate?: Record<string, any>;
-  transition?: Record<string, any>;
-  style?: React.CSSProperties;
+// --- Sub-components ---
+function Glare({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const R = r || ER;
+  return <>
+    <circle cx={cx - R*.28} cy={cy - R*.32} r={R*.33} fill="rgba(255,255,255,.95)" />
+    <circle cx={cx + R*.30} cy={cy + R*.30} r={R*.14} fill="rgba(255,255,255,.4)"  />
+  </>;
 }
-const FloatEmoji = ({ emoji, className = '', animate, transition, style }: FloatEmojiProps) => (
-  <motion.div
-    className={`absolute z-20 pointer-events-none select-none ${className}`}
-    animate={animate}
-    transition={transition}
-    style={style}
-  >
-    {emoji}
-  </motion.div>
-);
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+function FaceSVG({ state, vx, vy, mOpen, blinking, lidColor }: any) {
+  const lx = 28 + vx, ly = 30 + vy;
+  const rx = 72 + vx, ry = 30 + vy;
 
+  const eNormal = (cx: number, cy: number, r?: number) => {
+    const R = r || ER;
+    return <g><circle cx={cx} cy={cy} r={R} fill="#0e0420"/><Glare cx={cx} cy={cy} r={R}/></g>;
+  };
+
+  const eArch = (cx: number, cy: number) => (
+    <g>
+      <path d={"M"+(cx-ER-.5)+","+(cy+.5)+" A"+(ER+.5)+","+(ER+.5)+" 0 0,0 "+(cx+ER+.5)+","+(cy+.5)+"Z"} fill="#0e0420"/>
+      <ellipse cx={cx-1.5} cy={cy-2.5} rx={3.2} ry={2} fill="rgba(255,255,255,.92)"/>
+    </g>
+  );
+
+  const eWink = (cx: number, cy: number) => (
+    <g>
+      <path d={"M"+(cx-ER-1)+","+(cy+1)+" A"+(ER+1)+","+(ER+1)+" 0 0,0 "+(cx+ER+1)+","+(cy+1)+"Z"} fill="#0e0420"/>
+      <line x1={cx-5.5} y1={cy-5} x2={cx-8} y2={cy-10} stroke="#0e0420" strokeWidth={2.2} strokeLinecap="round"/>
+      <line x1={cx}     y1={cy-7} x2={cx}   y2={cy-12} stroke="#0e0420" strokeWidth={2.2} strokeLinecap="round"/>
+      <line x1={cx+5.5} y1={cy-5} x2={cx+8} y2={cy-10} stroke="#0e0420" strokeWidth={2.2} strokeLinecap="round"/>
+    </g>
+  );
+
+  const eSquint = (cx: number, cy: number) => (
+    <g>
+      <circle cx={cx} cy={cy} r={ER*.78} fill="#0e0420"/>
+      <path d={"M"+(cx-ER*.78-1)+","+(cy-2)+" Q"+cx+","+(cy-ER*.78-3)+" "+(cx+ER*.78+1)+","+(cy-2)+" L"+(cx+ER*.78+3)+","+(cy-ER-8)+" L"+(cx-ER*.78-3)+","+(cy-ER-8)+"Z"} fill={lidColor}/>
+      <circle cx={cx-3} cy={cy+1.5} r={2.8} fill="rgba(255,255,255,.92)"/>
+    </g>
+  );
+
+  const eHeart = (cx: number, cy: number) => (
+    <g>
+      <path d={"M"+cx+","+(cy+2.5)+" C"+(cx-4)+","+(cy-3.5)+" "+(cx-9.5)+","+(cy+.5)+" "+cx+","+(cy+8)+" C"+(cx+9.5)+","+(cy+.5)+" "+(cx+4)+","+(cy-3.5)+" "+cx+","+(cy+2.5)+"Z"} fill="#ff3070"/>
+      <circle cx={cx-3} cy={cy} r={2.5} fill="rgba(255,255,255,.8)"/>
+    </g>
+  );
+
+  const eStar = (cx: number, cy: number) => (
+    <g>
+      <path d={"M"+cx+","+(cy-10)+" L"+(cx+2.4)+","+(cy-2.4)+" L"+(cx+10)+","+cy+" L"+(cx+2.4)+","+(cy+2.4)+" L"+cx+","+(cy+10)+" L"+(cx-2.4)+","+(cy+2.4)+" L"+(cx-10)+","+cy+" L"+(cx-2.4)+","+(cy-2.4)+"Z"} fill="rgba(255,230,20,.96)"/>
+      <circle cx={cx} cy={cy} r={2.8} fill="rgba(255,255,255,.94)"/>
+    </g>
+  );
+
+  const eSleepy = (cx: number, cy: number) => {
+    const lidY = cy + ER * .18;
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={ER} fill="#0e0420"/>
+        <circle cx={cx - 2} cy={cy + ER * .55} r={ER * .22} fill="rgba(255,255,255,.7)"/>
+        <path
+          d={
+            "M" + (cx - ER - .5) + "," + lidY +
+            " Q" + cx + "," + (lidY - ER * .5) + " " + (cx + ER + .5) + "," + lidY +
+            " Q" + cx + "," + (cy - ER * 1.05) + " " + (cx - ER - .5) + "," + lidY + "Z"
+          }
+          fill={lidColor}
+        />
+        <path
+          d={"M"+(cx-ER-.5)+","+lidY+" Q"+cx+","+(lidY-ER*.5)+" "+(cx+ER+.5)+","+lidY}
+          fill="none" stroke="rgba(0,0,0,.25)" strokeWidth={.8}
+        />
+      </g>
+    );
+  };
+
+  const eBlink = (cx: number, cy: number) => (
+    <path d={"M"+(cx-ER-1)+","+cy+" A"+(ER+1)+","+(ER+1)+" 0 0,0 "+(cx+ER+1)+","+cy+"Z"} fill="#0e0420"/>
+  );
+
+  const bOp = ["happy","love","heart_eyes","excited","wink"].includes(state) ? .9
+            : ["surprised","listening","reading_chat","listening_music"].includes(state) ? .6
+            : state==="angry" ? 0 : .52;
+
+  const cheeks = <>
+    <ellipse cx={12} cy={43} rx={7.5} ry={5} fill="rgba(255,118,168,1)" opacity={bOp} />
+    <ellipse cx={88} cy={43} rx={7.5} ry={5} fill="rgba(255,118,168,1)" opacity={bOp} />
+  </>;
+
+  if (blinking) return (
+    <svg viewBox="0 0 100 80" style={SS}>
+      {eBlink(lx,ly)}{eBlink(rx,ry)}
+      <path d="M37,55 Q50,63 63,55" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>
+      {cheeks}
+    </svg>
+  );
+
+  let le, re, brows=null, mouth, extras=null;
+
+  switch(state) {
+    case "idle":
+    case "online":
+      le=eNormal(lx,ly); re=eNormal(rx,ry);
+      mouth=<path d="M38,56 Q50,64 62,56" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>;
+      break;
+    case "listening":
+    case "reading_chat":
+      le=eNormal(lx,ly,ER+1.5); re=eNormal(rx,ry,ER+1.5);
+      brows=<>
+        <path d="M17,17 Q28,13 39,17" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>
+        <path d="M61,17 Q72,13 83,17" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M40,57 Q50,63 60,57" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>;
+      break;
+    case "thinking":
+    case "browsing_files":
+    case "browsing_vault":
+    case "viewing_notes":
+    case "timetable_open":
+    case "writing_code":
+    case "searching":
+    case "uploading":
+    case "reading_book":
+      le=eNormal(lx-2,ly-3.5);
+      re=eSquint(rx,ry);
+      brows=<>
+        <path d="M17,19 Q28,17 39,19" fill="none" stroke="#0e0420" strokeWidth={2.6} strokeLinecap="round"/>
+        <path d="M61,15 Q72,11 83,16" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M39,57 Q54,64 65,55" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>;
+      break;
+    case "talking":
+    case "typing":
+      le=eNormal(lx,ly); re=eNormal(rx,ry);
+      mouth=mOpen
+        ? <><ellipse cx={50} cy={57} rx={10} ry={9} fill="#0e0420"/><ellipse cx={50} cy={60} rx={7} ry={4} fill="rgba(255,255,255,.88)"/></>
+        : <path d="M40,56 Q50,61 60,56" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>;
+      break;
+    case "happy":
+    case "celebrating":
+      le=eArch(lx,ly); re=eArch(rx,ry);
+      brows=<>
+        <path d="M17,18 Q28,14 39,18" fill="none" stroke="#0e0420" strokeWidth={2.4} strokeLinecap="round"/>
+        <path d="M61,18 Q72,14 83,18" fill="none" stroke="#0e0420" strokeWidth={2.4} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M20,52 Q50,72 80,52" fill="none" stroke="#0e0420" strokeWidth={4} strokeLinecap="round"/>;
+      break;
+    case "surprised":
+    case "mind_blown":
+      le=eNormal(lx,ly,ER+3); re=eNormal(rx,ry,ER+3);
+      brows=<>
+        <path d="M17,10 Q28,6 39,10" fill="none" stroke="#0e0420" strokeWidth={3.2} strokeLinecap="round"/>
+        <path d="M61,10 Q72,6 83,10" fill="none" stroke="#0e0420" strokeWidth={3.2} strokeLinecap="round"/>
+      </>;
+      mouth=<ellipse cx={50} cy={59} rx={8} ry={10} fill="#0e0420"/>;
+      break;
+    case "angry":
+      le=eNormal(lx,ly,ER-1); re=eNormal(rx,ry,ER-1);
+      brows=<>
+        <line x1={16} y1={14} x2={37} y2={22} stroke="#5a0010" strokeWidth={4.5} strokeLinecap="round"/>
+        <line x1={63} y1={22} x2={84} y2={14} stroke="#5a0010" strokeWidth={4.5} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M33,60 Q50,54 67,60" fill="none" stroke="#0e0420" strokeWidth={3.2} strokeLinecap="round"/>;
+      extras=<>
+        <text x={6}  y={27} fontSize={13} fill="#ff1010" fontWeight="900" style={{animation:"ak4_ang .8s ease-in-out infinite",fontFamily:"sans-serif"}}>✕</text>
+        <text x={80} y={27} fontSize={13} fill="#ff1010" fontWeight="900" style={{animation:"ak4_ang .8s ease-in-out .18s infinite",fontFamily:"sans-serif"}}>✕</text>
+      </>;
+      break;
+    case "sad":
+    case "crying":
+      le=eNormal(lx,ly); re=eNormal(rx,ry);
+      brows=<>
+        <line x1={17} y1={20} x2={38} y2={13} stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>
+        <line x1={62} y1={13} x2={83} y2={20} stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M34,62 Q50,52 66,62" fill="none" stroke="#0e0420" strokeWidth={3.2} strokeLinecap="round"/>;
+      extras=<g style={{animation:"ak4_tr 2.4s ease-in infinite .5s"}}>
+        <ellipse cx={30} cy={41} rx={3} ry={4.5} fill="rgba(120,180,255,.95)"/>
+        <path d="M27,44 Q30,50 33,44" fill="rgba(120,180,255,.95)"/>
+      </g>;
+      break;
+    case "love":
+    case "heart_eyes":
+      le=eHeart(lx,ly); re=eHeart(rx,ry);
+      brows=<>
+        <path d="M17,18 Q28,14 39,18" fill="none" stroke="#0e0420" strokeWidth={2.4} strokeLinecap="round"/>
+        <path d="M61,18 Q72,14 83,18" fill="none" stroke="#0e0420" strokeWidth={2.4} strokeLinecap="round"/>
+      </>;
+      mouth=<ellipse cx={50} cy={57} rx={5} ry={6} fill="#ff7eb3"/>;
+      break;
+    case "wink":
+      le=eNormal(lx,ly);
+      re=eWink(rx,ry);
+      brows=<path d="M61,13 Q72,9 83,14" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>;
+      mouth=<path d="M36,55 Q52,65 65,53" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>;
+      break;
+    case "sleepy":
+    case "offline":
+      le=eSleepy(lx,ly); re=eSleepy(rx,ry);
+      brows=<>
+        <path d="M17,21 Q28,18 39,21" fill="none" stroke="#0e0420" strokeWidth={2.6} strokeLinecap="round"/>
+        <path d="M61,21 Q72,18 83,21" fill="none" stroke="#0e0420" strokeWidth={2.6} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M41,57 Q50,62 59,57" fill="none" stroke="#0e0420" strokeWidth={2.6} strokeLinecap="round"/>;
+      break;
+    case "excited":
+    case "starry_eyes":
+    case "magic":
+      le=eStar(lx,ly); re=eStar(rx,ry);
+      brows=<>
+        <path d="M17,13 Q28,9 39,13" fill="none" stroke="#0e0420" strokeWidth={2.6} strokeLinecap="round"/>
+        <path d="M61,13 Q72,9 83,13" fill="none" stroke="#0e0420" strokeWidth={2.6} strokeLinecap="round"/>
+      </>;
+      mouth=<>
+        <path d="M20,51 Q50,72 80,51 L80,60 Q50,74 20,60Z" fill="#0e0420"/>
+        <path d="M25,54 Q50,70 75,54 Q71,62 50,68 Q29,62 25,54Z" fill="rgba(255,255,255,.9)"/>
+      </>;
+      break;
+    case "cool":
+      le=<rect x={lx-14} y={ly-6} width={28} height={12} rx={3} fill="#0e0420"/>;
+      re=<rect x={rx-14} y={ly-6} width={28} height={12} rx={3} fill="#0e0420"/>;
+      brows=<path d="M43,30 L57,30" stroke="#0e0420" strokeWidth={2.5} strokeLinecap="round"/>;
+      mouth=<path d="M38,60 Q50,64 62,60" fill="none" stroke="#0e0420" strokeWidth={3.5} strokeLinecap="round"/>;
+      break;
+    case "confused":
+      le=eNormal(lx,ly,ER-1); re=eNormal(rx,ry,ER-1);
+      brows=<>
+        <path d="M17,16 Q28,22 39,18" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>
+        <path d="M61,14 Q72,10 83,14" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M38,62 Q50,58 62,62" fill="none" stroke="#0e0420" strokeWidth={3.2} strokeLinecap="round"/>;
+      break;
+    case "partying":
+      le=eArch(lx,ly); re=eArch(rx,ry);
+      brows=<>
+        <path d="M17,12 Q28,8 39,12" fill="none" stroke="#0e0420" strokeWidth={2.5} strokeLinecap="round"/>
+        <path d="M61,12 Q72,8 83,12" fill="none" stroke="#0e0420" strokeWidth={2.5} strokeLinecap="round"/>
+      </>;
+      mouth=<ellipse cx={50} cy={61} rx={8} ry={10} fill="#0e0420"/>;
+      break;
+    default:
+      le=eNormal(lx,ly); re=eNormal(rx,ry);
+      mouth=<path d="M38,56 Q50,64 62,56" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>;
+  }
+
+  return (
+    <svg viewBox="0 0 100 80" style={SS}>
+      {brows}{le}{re}{mouth}{cheeks}{extras}
+    </svg>
+  );
+}
+
+function Sparkle({ x, y, delay, sz, col }: any) {
+  return (
+    <div style={{position:"absolute",left:x,top:y,animation:"ak4_sp "+(2.8+delay*.4)+"s ease-in-out "+delay+"s infinite",pointerEvents:"none",lineHeight:0}}>
+      <svg width={sz} height={sz} viewBox="0 0 20 20" fill={col}>
+        <path d="M10 0L11.9 8.1 20 10l-8.1 1.9L10 20l-1.9-8.1L0 10l8.1-1.9Z"/>
+      </svg>
+    </div>
+  );
+}
+function HeartDeco({ x, y, delay, sz }: any) {
+  return (
+    <div style={{position:"absolute",left:x,top:y,animation:"ak4_sp 3.4s ease-in-out "+delay+"s infinite",pointerEvents:"none",lineHeight:0}}>
+      <svg width={sz} height={sz*.9} viewBox="0 0 24 22">
+        <path fill="#ff7eb3" d="M12 21.6C6.4 16 1 11.3 1 7.2 1 3.4 4.1 2 6.3 2c1.3 0 4.2.5 5.7 4.5C13.6 2.5 16.5 2 17.7 2c2.5 0 5.3 1.6 5.3 5.2 0 4.1-5.1 8.6-11 14.4z"/>
+      </svg>
+    </div>
+  );
+}
+
+// --- Main ActionMojiAvatar Component ---
 export default function ActionMojiAvatar({
   state,
   username,
@@ -103,1101 +347,287 @@ export default function ActionMojiAvatar({
   showStatusRing = true,
   onClick,
 }: ActionMojiProps) {
-  // FIX: username added to useMemo deps because isBot depends on it
   const isBot = username === 'AuraBot';
-  const s = SIZE[size];
 
-  const config: AnimationConfig = useMemo(() => {
-    let activeState = state;
-    let isTypingExtra = false;
+  // Size mapping: AvatarSize -> pixel value
+  const sizeMap: Record<AvatarSize, number> = { xs: 32, sm: 48, md: 64, lg: 80, xl: 120 };
+  const s = sizeMap[size] ?? 80;
 
-    if (state.startsWith('typing_')) {
-      isTypingExtra = true;
-      activeState = state.replace('typing_', '');
+  // Handle composite states (e.g. "typing_happy")
+  const activeState = useMemo(() => {
+    if (state.startsWith('typing_')) return state.replace('typing_', '');
+    if (state.startsWith('aura_')) return state.replace('aura_', '');
+    const sLow = state.toLowerCase();
+    if (sLow === 'offline' || sLow === 'away' || sLow === 'busy') return 'offline';
+    return state;
+  }, [state]);
+
+  const isOffline = activeState === 'offline';
+  const isTypingEffect = state.includes('typing') || state.includes('thinking');
+  
+  // Mapping colors based on username or state
+  const colorKey = isBot ? 'purple' : 'blue';
+  const T = S_COL[activeState] || BASE[colorKey];
+  const fp = (n: number) => n.toFixed(1) + "px";
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const blinkTmr = useRef<any>(null);
+  const talkTmr = useRef<any>(null);
+
+  const [eyeOff, setEyeOff] = useState({ x: 0, y: 0 });
+  const [blinking, setBlinking] = useState(false);
+  const [mOpen, setMOpen] = useState(false);
+
+  useEffect(() => { injectKF(); }, []);
+
+  const schedBlink = useCallback(() => {
+    blinkTmr.current = setTimeout(() => {
+      setBlinking(true);
+      setTimeout(() => {
+        setBlinking(false);
+        schedBlink();
+      }, 110);
+    }, 2800 + Math.random() * 3200);
+  }, []);
+
+  useEffect(() => {
+    schedBlink();
+    return () => { if (blinkTmr.current) clearTimeout(blinkTmr.current); };
+  }, [schedBlink]);
+
+  useEffect(() => {
+    const isActiveState = ["talking", "typing", "thinking"].some(s => state.includes(s));
+    if (isActiveState) {
+      talkTmr.current = setInterval(() => {
+        setMOpen(v => !v);
+      }, 190);
+    } else {
+      if (talkTmr.current) clearInterval(talkTmr.current);
+      setMOpen(false);
     }
+    return () => { if (talkTmr.current) clearInterval(talkTmr.current); };
+  }, [state]);
 
-    const base: AnimationConfig = {
-      eyes: {},
-      mouth: {},
-      body: {},
-      bgGradient: 'from-yellow-300 to-yellow-400',
-      borderColor: 'border-yellow-500',
-      isGrayscale: false,
-      props: null,
-      statusText: 'Online',
-      statusColor: 'bg-green-500',
-      blush: false,
+  useEffect(() => {
+    const fn = (e: MouseEvent) => {
+      const el = rootRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dy = e.clientY - (r.top + r.height / 2);
+      const m = Math.hypot(dx, dy) || 1;
+      const str = Math.min(m / 420, 1);
+      const mx = s * 0.052;
+      setEyeOff({ x: (dx / m) * str * mx, y: (dy / m) * str * mx });
     };
-
-    const getConfig = (): AnimationConfig => {
-      switch (activeState) {
-
-      // ─── ONLINE ────────────────────────────────────────────────────────────
-      case 'online':
-        return {
-          ...base,
-          eyes: { height: [8, 1, 8], transition: { repeat: Infinity, duration: 4, times: [0, 0.95, 1] } },
-          mouth: { width: 14, height: 5, borderRadius: '0 0 8px 8px' },
-          blush: true,
-          statusText: 'Online',
-          statusColor: 'bg-green-500',
-        };
-
-      // ─── OFFLINE ───────────────────────────────────────────────────────────
-      case 'offline':
-        return {
-          ...base,
-          eyes: { height: 2, y: 3, opacity: 0.5 },
-          mouth: { width: 10, height: 2, borderRadius: '2px', y: 2 },
-          bgGradient: 'from-neutral-400 to-neutral-600',
-          borderColor: 'border-neutral-700',
-          isGrayscale: true,
-          statusText: 'Offline',
-          statusColor: 'bg-neutral-500',
-          props: (
-            <FloatEmoji
-              emoji="🌙"
-              className="-top-1 -right-1 text-sm opacity-70"
-              animate={{ rotate: [-5, 5, -5] }}
-              transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-            />
-          ),
-        };
-
-      // ─── TYPING ────────────────────────────────────────────────────────────
-      case 'typing':
-        return {
-          ...base,
-          eyes: {
-            x: [-1.5, 1.5, -1.5],
-            y: 1,
-            transition: { repeat: Infinity, duration: 1.2, ease: 'easeInOut' },
-          },
-          mouth: { width: 5, height: 5, borderRadius: '50%', y: 1 },
-          body: { y: [0, 2, 0], transition: { repeat: Infinity, duration: 1.5, ease: 'easeInOut' } },
-          bgGradient: 'from-cyan-300 to-blue-400',
-          borderColor: 'border-blue-500',
-          statusText: 'Typing…',
-          statusColor: 'bg-blue-500',
-          props: <TypingDots />,
-        };
-
-      // ─── READING CHAT ──────────────────────────────────────────────────────
-      case 'reading_chat':
-        return {
-          ...base,
-          eyes: { x: [-3, 3, -3], transition: { repeat: Infinity, duration: 2.5 } },
-          mouth: { width: 14, height: 2, borderRadius: '2px' },
-          body: { rotateY: [-8, 8, -8], transition: { repeat: Infinity, duration: 3 } },
-          bgGradient: 'from-yellow-200 to-yellow-400',
-          borderColor: 'border-yellow-400',
-          statusText: 'Reading',
-          statusColor: 'bg-blue-400',
-          props: (
-            <FloatEmoji
-              emoji="👀"
-              className="-top-1 -right-1 text-lg"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            />
-          ),
-        };
-
-      // ─── BROWSING FILES ────────────────────────────────────────────────────
-      case 'browsing_files':
-        return {
-          ...base,
-          eyes: { scale: [1, 1.15, 1], transition: { repeat: Infinity, duration: 1.5 } },
-          mouth: { width: 10, height: 8, borderRadius: '50%' },
-          bgGradient: 'from-yellow-400 to-amber-500',
-          borderColor: 'border-amber-600',
-          statusText: 'In Files',
-          statusColor: 'bg-amber-500',
-          props: (
-            <FloatEmoji
-              emoji="📂"
-              className="top-1 right-1 text-xl"
-              animate={{ rotate: [0, 10, -10, 0], y: [0, -2, 0] }}
-              transition={{ repeat: Infinity, duration: 3 }}
-            />
-          ),
-        };
-
-      // ─── VIEWING NOTES ─────────────────────────────────────────────────────
-      case 'viewing_notes':
-        return {
-          ...base,
-          eyes: { x: [0, 3, 0], y: [0, 2, 0], transition: { repeat: Infinity, duration: 2 } },
-          mouth: { width: 12, height: 4, borderRadius: '0 0 8px 8px' },
-          bgGradient: 'from-yellow-300 to-green-400',
-          borderColor: 'border-green-500',
-          statusText: 'Viewing Notes',
-          statusColor: 'bg-green-500',
-          props: (
-            <FloatEmoji
-              emoji="📝"
-              className="top-1 -left-2 text-xl"
-              animate={{ y: [0, -4, 0], rotate: [0, 5, -5, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
-          ),
-        };
-
-      // ─── TIMETABLE OPEN ────────────────────────────────────────────────────
-      case 'timetable_open':
-        return {
-          ...base,
-          eyes: { x: [2, -2, 2], transition: { repeat: Infinity, duration: 2 } },
-          mouth: { width: 10, height: 6, borderRadius: '50%' },
-          bgGradient: 'from-yellow-300 to-pink-400',
-          borderColor: 'border-pink-400',
-          statusText: 'Checking Schedule',
-          statusColor: 'bg-pink-500',
-          props: (
-            <FloatEmoji
-              emoji="📅"
-              className="top-1 right-1 text-xl"
-              animate={{ rotateY: [0, 180, 360], scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 4 }}
-            />
-          ),
-        };
-
-      // ─── IDLE / SLEEPING ───────────────────────────────────────────────────
-      case 'idle':
-        return {
-          ...base,
-          eyes: { height: [8, 1, 8], transition: { repeat: Infinity, duration: 4, times: [0, 0.9, 1] } },
-          mouth: { width: 8, height: 3, borderRadius: '50%' },
-          body: { y: [0, 3, 0], transition: { repeat: Infinity, duration: 3, ease: 'easeInOut' } },
-          bgGradient: 'from-neutral-200 to-yellow-200',
-          borderColor: 'border-yellow-300',
-          statusText: 'Idle',
-          statusColor: 'bg-yellow-400',
-          props: (
-            <div className="absolute -top-3 -right-1 z-20 pointer-events-none">
-              <motion.span
-                className="text-sm font-bold text-neutral-400 absolute"
-                animate={{ opacity: [0, 1, 0], y: [0, -8, -16] }}
-                transition={{ repeat: Infinity, duration: 2.5, delay: 0.5 }}
-              >Z</motion.span>
-              <motion.span
-                className="text-xs font-bold text-neutral-400 absolute -top-2 -left-2"
-                animate={{ opacity: [0, 1, 0], y: [0, -6, -12] }}
-                transition={{ repeat: Infinity, duration: 2.5 }}
-              >z</motion.span>
-            </div>
-          ),
-        };
-
-      // ─── HAPPY ─────────────────────────────────────────────────────────────
-      case 'happy':
-        return {
-          ...base,
-          eyes: { height: [8, 8, 2, 8], transition: { repeat: Infinity, duration: 3 } },
-          mouth: { width: 16, height: 8, borderRadius: '0 0 10px 10px' },
-          body: { y: [0, -4, 0], transition: { repeat: Infinity, duration: 1, ease: 'easeInOut' } },
-          bgGradient: 'from-yellow-300 to-orange-400',
-          borderColor: 'border-orange-400',
-          blush: true,
-          statusText: 'Happy 😄',
-          statusColor: 'bg-orange-500',
-          props: (
-            <FloatEmoji
-              emoji="✨"
-              className="-top-2 left-1/2 -translate-x-1/2 text-lg"
-              animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            />
-          ),
-        };
-
-      // ─── SAD ───────────────────────────────────────────────────────────────
-      case 'sad':
-        return {
-          ...base,
-          eyes: { height: 4, y: 2, opacity: 0.7 },
-          mouth: { width: 14, height: 5, borderRadius: '10px 10px 0 0' },
-          bgGradient: 'from-blue-300 to-indigo-400',
-          borderColor: 'border-indigo-500',
-          statusText: 'Sad 😢',
-          statusColor: 'bg-blue-500',
-          props: (
-            <div className="absolute top-5 w-full flex justify-center gap-6 z-20 pointer-events-none">
-              <motion.div
-                className="w-1.5 h-2.5 bg-blue-300 rounded-full"
-                animate={{ y: [0, 12], opacity: [1, 0] }}
-                transition={{ repeat: Infinity, duration: 1.2, delay: 0.3 }}
-              />
-              <motion.div
-                className="w-1.5 h-2.5 bg-blue-300 rounded-full"
-                animate={{ y: [0, 12], opacity: [1, 0] }}
-                transition={{ repeat: Infinity, duration: 1.2 }}
-              />
-            </div>
-          ),
-        };
-
-      // ─── ANGRY ─────────────────────────────────────────────────────────────
-      case 'angry':
-        return {
-          ...base,
-          eyes: { height: 3, y: 1, rotate: [-5, 5, -5], transition: { repeat: Infinity, duration: 0.8, ease: 'easeInOut' } },
-          mouth: { width: 14, height: 3, borderRadius: '2px' },
-          body: { x: [-1.5, 1.5, -1.5], transition: { repeat: Infinity, duration: 0.35, ease: 'easeInOut' } },
-          bgGradient: 'from-red-400 to-orange-500',
-          borderColor: 'border-red-600',
-          statusText: 'Angry 😠',
-          statusColor: 'bg-red-600',
-          props: (
-            <FloatEmoji
-              emoji="💢"
-              className="-top-1 -right-1 text-xl"
-              animate={{ scale: [1, 1.15, 1] }}
-              transition={{ repeat: Infinity, duration: 0.8 }}
-            />
-          ),
-        };
-
-      // ─── CONFUSED ──────────────────────────────────────────────────────────
-      case 'confused':
-        return {
-          ...base,
-          eyes: {
-            height: [8, 4, 8],
-            y: [0, 2, 0],
-            transition: { repeat: Infinity, duration: 1.5 },
-          },
-          mouth: { width: 10, height: 5, borderRadius: '50%', x: 3 },
-          bgGradient: 'from-purple-300 to-fuchsia-400',
-          borderColor: 'border-fuchsia-500',
-          statusText: 'Confused 🤔',
-          statusColor: 'bg-purple-500',
-          props: (
-            <FloatEmoji
-              emoji="❓"
-              className="-top-2 -right-1 text-lg"
-              animate={{ rotate: [0, 15, -15, 0], y: [0, -3, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
-          ),
-        };
-
-      // ─── SURPRISED ─────────────────────────────────────────────────────────
-      case 'surprised':
-        return {
-          ...base,
-          eyes: { width: 10, height: 10, borderRadius: '50%', scale: [1, 1.2, 1], transition: { repeat: Infinity, duration: 0.9 } },
-          mouth: { width: 8, height: 12, borderRadius: '50%' },
-          body: { scale: [1, 1.05, 1], transition: { repeat: Infinity, duration: 0.8 } },
-          bgGradient: 'from-teal-300 to-cyan-500',
-          borderColor: 'border-cyan-500',
-          statusText: 'Surprised!',
-          statusColor: 'bg-cyan-500',
-          props: (
-            <FloatEmoji
-              emoji="❗"
-              className="-top-3 right-1 text-xl"
-              animate={{ y: [0, -5, 0], scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 0.6 }}
-            />
-          ),
-        };
-
-      // ─── THINKING ──────────────────────────────────────────────────────────
-      case 'thinking':
-        return {
-          ...base,
-          eyes: { x: [-4, 0, -4], y: [-3, 0, -3], transition: { repeat: Infinity, duration: 2.5, ease: 'easeInOut' } },
-          mouth: { width: 12, height: 2, borderRadius: '2px', x: -3 },
-          bgGradient: 'from-sky-300 to-blue-400',
-          borderColor: 'border-blue-500',
-          statusText: 'Thinking…',
-          statusColor: 'bg-sky-500',
-          props: (
-            <>
-              <FloatEmoji
-                emoji="💭"
-                className="-top-5 right-2 text-xl"
-                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5], y: [0, -3, 0] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-              />
-              <TypingDots />
-            </>
-          ),
-        };
-
-      // ─── MIND BLOWN ────────────────────────────────────────────────────────
-      case 'mind_blown':
-        return {
-          ...base,
-          eyes: { width: 10, height: 10, scale: [1, 1.4, 1], transition: { repeat: Infinity, duration: 0.8 } },
-          mouth: { width: 12, height: 12, borderRadius: '50%' },
-          body: { scale: [1, 1.1, 1], transition: { repeat: Infinity, duration: 0.8 } },
-          bgGradient: 'from-orange-400 to-pink-500',
-          borderColor: 'border-pink-500',
-          statusText: 'Mind Blown 🤯',
-          statusColor: 'bg-orange-500',
-          props: (
-            <FloatEmoji
-              emoji="🤯"
-              className="-top-5 -right-1 text-2xl"
-              animate={{ y: [0, -10, -20], opacity: [1, 0.5, 0], scale: [1, 1.5, 2] }}
-              transition={{ repeat: Infinity, duration: 1 }}
-            />
-          ),
-        };
-
-      // ─── HEART EYES ────────────────────────────────────────────────────────
-      case 'heart_eyes':
-        return {
-          ...base,
-          // FIX: Use explicit opacity 0 — handled by showEyes check below
-          eyes: { opacity: 0 },
-          mouth: { width: 14, height: 8, borderRadius: '0 0 10px 10px' },
-          body: { scale: [1, 1.05, 1], transition: { repeat: Infinity, duration: 1.2 } },
-          bgGradient: 'from-pink-300 to-rose-400',
-          borderColor: 'border-rose-400',
-          blush: true,
-          statusText: 'In Love 💕',
-          statusColor: 'bg-pink-500',
-          props: (
-            <div className="absolute top-2 w-full flex justify-center gap-2.5 z-20 px-2 pointer-events-none">
-              <motion.div
-                animate={{ scale: [1, 1.3, 1] }}
-                transition={{ repeat: Infinity, duration: 0.7 }}
-              >❤️</motion.div>
-              <motion.div
-                animate={{ scale: [1, 1.3, 1] }}
-                transition={{ repeat: Infinity, duration: 0.7, delay: 0.25 }}
-              >❤️</motion.div>
-            </div>
-          ),
-        };
-
-      // ─── STARRY EYES ───────────────────────────────────────────────────────
-      case 'starry_eyes':
-        return {
-          ...base,
-          eyes: { opacity: 0 },
-          mouth: { width: 14, height: 6, borderRadius: '0 0 10px 10px' },
-          blush: true,
-          bgGradient: 'from-yellow-200 to-yellow-500',
-          borderColor: 'border-yellow-500',
-          statusText: 'Amazed ⭐',
-          statusColor: 'bg-yellow-500',
-          props: (
-            <div className="absolute top-2 w-full flex justify-center gap-2.5 z-20 px-2 pointer-events-none">
-              <motion.div
-                animate={{ rotate: 360, scale: [1, 1.2, 1] }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
-              >⭐</motion.div>
-              <motion.div
-                animate={{ rotate: -360, scale: [1, 1.2, 1] }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
-              >⭐</motion.div>
-            </div>
-          ),
-        };
-
-      // ─── COOL ──────────────────────────────────────────────────────────────
-      case 'cool':
-        return {
-          ...base,
-          eyes: { opacity: 0 },
-          mouth: { width: 14, height: 3, borderRadius: '50%' },
-          bgGradient: 'from-cyan-300 to-blue-500',
-          borderColor: 'border-blue-500',
-          statusText: 'Cool 😎',
-          statusColor: 'bg-cyan-500',
-          props: (
-            <motion.div
-              className="absolute top-1 z-20 text-2xl pointer-events-none select-none"
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
-            >😎</motion.div>
-          ),
-        };
-
-      // ─── PARTYING ──────────────────────────────────────────────────────────
-      case 'partying':
-        return {
-          ...base,
-          eyes: { height: [4, 8, 4], transition: { repeat: Infinity, duration: 1.2, ease: 'easeInOut' } },
-          mouth: { width: 14, height: 8, borderRadius: '0 0 10px 10px' },
-          body: { rotate: [-3, 3, -3], transition: { repeat: Infinity, duration: 1.0, ease: 'easeInOut' } },
-          bgGradient: 'from-fuchsia-400 to-rose-500',
-          borderColor: 'border-rose-500',
-          blush: true,
-          statusText: 'Partying 🎊',
-          statusColor: 'bg-fuchsia-600',
-          props: (
-            <FloatEmoji
-              emoji="🎉"
-              className="-top-3 left-1 text-xl"
-              animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.15, 1] }}
-              transition={{ repeat: Infinity, duration: 1.4 }}
-            />
-          ),
-        };
-
-      // ─── CRYING ────────────────────────────────────────────────────────────
-      case 'crying':
-        return {
-          ...base,
-          eyes: { height: 3, y: 2, opacity: 0.6 },
-          mouth: { width: 12, height: 8, borderRadius: '10px 10px 0 0' },
-          bgGradient: 'from-blue-400 to-indigo-600',
-          borderColor: 'border-indigo-600',
-          statusText: 'Crying 😭',
-          statusColor: 'bg-blue-600',
-          props: (
-            <div className="absolute top-5 w-full flex justify-center gap-7 z-20 pointer-events-none">
-              <motion.div
-                className="w-1.5 h-3 bg-blue-300 rounded-full"
-                animate={{ y: [0, 14], opacity: [1, 0], scale: [1, 0.5] }}
-                transition={{ repeat: Infinity, duration: 0.7, delay: 0.2 }}
-              />
-              <motion.div
-                className="w-1.5 h-3 bg-blue-300 rounded-full"
-                animate={{ y: [0, 14], opacity: [1, 0], scale: [1, 0.5] }}
-                transition={{ repeat: Infinity, duration: 0.7 }}
-              />
-            </div>
-          ),
-        };
-
-      // ─── FREEZING ──────────────────────────────────────────────────────────
-      case 'freezing':
-        return {
-          ...base,
-          eyes: { x: [-0.8, 0.8, -0.8], transition: { repeat: Infinity, duration: 0.12, ease: 'easeInOut' } },
-          mouth: { width: 14, height: 2, borderRadius: '2px' },
-          body: { x: [-0.8, 0.8, -0.8], transition: { repeat: Infinity, duration: 0.12, ease: 'easeInOut' } },
-          bgGradient: 'from-cyan-200 to-blue-300',
-          borderColor: 'border-cyan-400',
-          statusText: 'Freezing 🥶',
-          statusColor: 'bg-cyan-400',
-          props: (
-            <FloatEmoji
-              emoji="🥶"
-              className="-top-1 -right-1 text-xl"
-              animate={{ y: [0, -2, 0], rotate: [0, 4, -4, 0] }}
-              transition={{ repeat: Infinity, duration: 1.2 }}
-            />
-          ),
-        };
-
-      // ─── HOT ───────────────────────────────────────────────────────────────
-      case 'hot':
-        return {
-          ...base,
-          eyes: { height: 3, opacity: 0.7 },
-          mouth: { width: 14, height: 8, borderRadius: '50%' },
-          bgGradient: 'from-red-300 to-red-500',
-          borderColor: 'border-red-600',
-          blush: true,
-          statusText: 'Too Hot 🥵',
-          statusColor: 'bg-red-500',
-          props: (
-            <FloatEmoji
-              emoji="💧"
-              className="-top-1 -right-1 text-lg"
-              animate={{ y: [0, 5, 0], opacity: [1, 0.4, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            />
-          ),
-        };
-
-      // ─── RUNNING ───────────────────────────────────────────────────────────
-      case 'running':
-        return {
-          ...base,
-          eyes: { x: 2 },
-          mouth: { width: 10, height: 6, borderRadius: '50%', x: 2 },
-          body: { x: [-2, 2, -2], rotate: 4, transition: { repeat: Infinity, duration: 0.5, ease: 'easeInOut' } },
-          bgGradient: 'from-green-400 to-teal-500',
-          borderColor: 'border-teal-500',
-          statusText: 'On the Move 🏃',
-          statusColor: 'bg-green-500',
-          props: (
-            <FloatEmoji
-              emoji="💨"
-              className="-left-3 top-4 text-lg"
-              animate={{ x: [-6, 0], opacity: [0, 0.8, 0] }}
-              transition={{ repeat: Infinity, duration: 0.7, ease: 'easeOut' }}
-            />
-          ),
-        };
-
-      // ─── GYM ───────────────────────────────────────────────────────────────
-      case 'gym':
-        return {
-          ...base,
-          eyes: { height: 2, y: 2 },
-          mouth: { width: 14, height: 5, borderRadius: '2px' },
-          body: { y: [-2, 2, -2], transition: { repeat: Infinity, duration: 0.9, ease: 'easeInOut' } },
-          bgGradient: 'from-stone-500 to-stone-700',
-          borderColor: 'border-stone-700',
-          statusText: 'Working Out 💪',
-          statusColor: 'bg-stone-600',
-          props: (
-            <FloatEmoji
-              emoji="🏋️"
-              className="-top-3 -right-1 text-xl"
-              animate={{ y: [-3, 3, -3] }}
-              transition={{ repeat: Infinity, duration: 1.0 }}
-            />
-          ),
-        };
-
-      // ─── LISTENING MUSIC ───────────────────────────────────────────────────
-      case 'listening_music':
-        return {
-          ...base,
-          eyes: { height: [8, 1, 8], transition: { repeat: Infinity, duration: 3 } },
-          mouth: { width: 12, height: 5, borderRadius: '0 0 8px 8px' },
-          body: { rotate: [-4, 4, -4], transition: { repeat: Infinity, duration: 0.8 } },
-          blush: true,
-          bgGradient: 'from-violet-400 to-fuchsia-500',
-          borderColor: 'border-fuchsia-500',
-          statusText: 'Vibing 🎶',
-          statusColor: 'bg-violet-500',
-          props: (
-            <div className="absolute -top-4 -left-2 z-20 pointer-events-none">
-              <motion.span
-                className="text-lg absolute"
-                animate={{ y: [-4, -14], opacity: [1, 0], x: [0, 3] }}
-                transition={{ repeat: Infinity, duration: 1.2 }}
-              >🎵</motion.span>
-              <motion.span
-                className="text-sm absolute left-3"
-                animate={{ y: [-4, -12], opacity: [1, 0], x: [0, -2] }}
-                transition={{ repeat: Infinity, duration: 1.2, delay: 0.4 }}
-              >🎶</motion.span>
-            </div>
-          ),
-        };
-
-      // ─── PLAYING GAMES ─────────────────────────────────────────────────────
-      case 'playing_games':
-        return {
-          ...base,
-          eyes: {
-            x: [-1.5, 1.5, -1.5],
-            y: [-1.5, 1.5, -1.5],
-            transition: { repeat: Infinity, duration: 0.8, ease: 'easeInOut' },
-          },
-          mouth: { width: 10, height: 3, borderRadius: '50%' },
-          bgGradient: 'from-green-500 to-lime-600',
-          borderColor: 'border-lime-600',
-          statusText: 'Gaming 🕹️',
-          statusColor: 'bg-green-600',
-          props: (
-            <FloatEmoji
-              emoji="🎮"
-              className="top-1 right-1 text-xl"
-              animate={{ scale: [1, 1.1, 1], rotate: [0, 4, -4, 0] }}
-              transition={{ repeat: Infinity, duration: 1.2 }}
-            />
-          ),
-        };
-
-      // ─── READING BOOK ──────────────────────────────────────────────────────
-      case 'reading_book':
-        return {
-          ...base,
-          eyes: { y: 3, x: [-2, 2, -2], transition: { repeat: Infinity, duration: 2 } },
-          mouth: { width: 12, height: 2, borderRadius: '2px' },
-          bgGradient: 'from-amber-600 to-yellow-700',
-          borderColor: 'border-yellow-700',
-          statusText: 'Reading 📖',
-          statusColor: 'bg-amber-700',
-          props: (
-            <FloatEmoji
-              emoji="📖"
-              className="top-4 right-1 text-xl"
-              animate={{ y: [0, -3, 0], rotate: [0, 5, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
-          ),
-        };
-
-      // ─── WRITING CODE ──────────────────────────────────────────────────────
-      case 'writing_code':
-        return {
-          ...base,
-          eyes: { x: [-2, 2, -2], transition: { repeat: Infinity, duration: 1.0, ease: 'easeInOut' } },
-          mouth: { width: 10, height: 3, borderRadius: '2px' },
-          bgGradient: 'from-slate-700 to-slate-900',
-          borderColor: 'border-slate-800',
-          statusText: 'Coding 💻',
-          statusColor: 'bg-slate-700',
-          props: (
-            <motion.div
-              className="absolute top-0.5 right-0.5 text-xs z-20 font-mono text-green-400 bg-neutral-900/90 rounded px-1 py-0.5 border border-green-500/30 pointer-events-none"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ repeat: Infinity, duration: 1.4 }}
-            >{'</>'}</motion.div>
-          ),
-        };
-
-      // ─── COFFEE BREAK ──────────────────────────────────────────────────────
-      case 'coffee_break':
-        return {
-          ...base,
-          eyes: { height: [8, 1, 8], transition: { repeat: Infinity, duration: 3 } },
-          mouth: { width: 10, height: 5, borderRadius: '50%' },
-          blush: true,
-          bgGradient: 'from-amber-700 to-orange-900',
-          borderColor: 'border-orange-900',
-          statusText: 'Coffee Break ☕',
-          statusColor: 'bg-amber-800',
-          props: (
-            <FloatEmoji
-              emoji="☕"
-              className="top-2 -right-2 text-xl"
-              animate={{ y: [0, -2, 0], rotate: [0, 5, 0] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            />
-          ),
-        };
-
-      // ─── MAGIC ─────────────────────────────────────────────────────────────
-      case 'magic':
-        return {
-          ...base,
-          eyes: { scale: [1, 1.3, 1], transition: { repeat: Infinity, duration: 0.8 } },
-          mouth: { width: 14, height: 6, borderRadius: '0 0 10px 10px' },
-          blush: true,
-          bgGradient: 'from-indigo-500 to-purple-600',
-          borderColor: 'border-purple-600',
-          statusText: 'Working Magic ✨',
-          statusColor: 'bg-indigo-600',
-          props: (
-            <FloatEmoji
-              emoji="✨"
-              className="-top-3 -right-2 text-2xl"
-              animate={{ rotate: 360, scale: [1, 1.3, 1] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
-          ),
-        };
-
-      // ─── GHOST ─────────────────────────────────────────────────────────────
-      case 'ghost':
-        return {
-          ...base,
-          eyes: { height: 10, width: 6, borderRadius: '50%', opacity: 0.85 },
-          mouth: { width: 8, height: 10, borderRadius: '50%', opacity: 0.85 },
-          body: { y: [-4, 4, -4], opacity: 0.85, transition: { repeat: Infinity, duration: 2, ease: 'easeInOut' } },
-          bgGradient: 'from-neutral-200 to-neutral-400',
-          borderColor: 'border-neutral-400',
-          statusText: 'Ghosting 👻',
-          statusColor: 'bg-neutral-400',
-        };
-
-      // ─── NINJA ─────────────────────────────────────────────────────────────
-      case 'ninja':
-        return {
-          ...base,
-          eyes: { height: 3, width: 10, rotate: [-4, 4], transition: { repeat: Infinity, duration: 0.5 } },
-          mouth: { opacity: 0 },
-          bgGradient: 'from-neutral-800 to-black',
-          borderColor: 'border-neutral-900',
-          statusText: 'Ninja Mode 🥷',
-          statusColor: 'bg-neutral-800',
-          props: (
-            <motion.div
-              className="absolute bottom-2 w-full h-7 bg-neutral-900 z-10 rounded-sm pointer-events-none"
-              animate={{ opacity: [0.9, 1, 0.9] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
-          ),
-        };
-
-      // ─── ALIEN ─────────────────────────────────────────────────────────────
-      case 'alien':
-        return {
-          ...base,
-          eyes: { width: 14, height: 16, rotate: [-8, 8], borderRadius: '50%', transition: { repeat: Infinity, duration: 2 } },
-          mouth: { width: 5, height: 2, borderRadius: '2px' },
-          body: { scale: [1, 1.02, 1], transition: { repeat: Infinity, duration: 2 } },
-          bgGradient: 'from-lime-400 to-green-600',
-          borderColor: 'border-green-600',
-          statusText: 'Not From Here 👽',
-          statusColor: 'bg-lime-500',
-        };
-
-      // ─── ROBOT ─────────────────────────────────────────────────────────────
-      case 'robot':
-        return {
-          ...base,
-          eyes: { width: 8, height: 8, borderRadius: '2px' },
-          mouth: { width: 14, height: 3, borderRadius: '2px' },
-          bgGradient: 'from-slate-400 to-slate-600',
-          borderColor: 'border-slate-600',
-          statusText: 'Bot Mode 🤖',
-          statusColor: 'bg-slate-500',
-          props: (
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-              <div className="w-1.5 h-3 bg-neutral-400 rounded-sm">
-                <motion.div
-                  className="w-3 h-3 bg-red-500 rounded-full absolute -top-2 -left-0.5"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ repeat: Infinity, duration: 1 }}
-                />
-              </div>
-            </div>
-          ),
-        };
-
-      // ─── DETECTIVE ─────────────────────────────────────────────────────────
-      case 'detective':
-        return {
-          ...base,
-          eyes: { height: 3, width: 8 },
-          mouth: { width: 12, height: 2, borderRadius: '2px' },
-          bgGradient: 'from-stone-600 to-stone-800',
-          borderColor: 'border-stone-800',
-          statusText: 'Investigating 🕵️',
-          statusColor: 'bg-stone-700',
-          props: (
-            <FloatEmoji
-              emoji="🕵️"
-              className="-top-1 -right-1 text-2xl"
-              animate={{ x: [-4, 4, -4], rotate: [0, 10, 0] }}
-              transition={{ repeat: Infinity, duration: 3 }}
-            />
-          ),
-        };
-
-      // ─── SUPERHERO ─────────────────────────────────────────────────────────
-      case 'superhero':
-        return {
-          ...base,
-          eyes: { height: 5, width: 8, borderRadius: '2px' },
-          mouth: { width: 14, height: 5, borderRadius: '0 0 8px 8px' },
-          body: { y: [-2, 2, -2], transition: { repeat: Infinity, duration: 0.8 } },
-          bgGradient: 'from-blue-500 to-blue-700',
-          borderColor: 'border-blue-700',
-          statusText: 'Hero Mode 🦸',
-          statusColor: 'bg-blue-600',
-          props: (
-            <motion.div
-              className="absolute top-2 w-full h-5 bg-red-500/80 z-20 rounded-sm pointer-events-none"
-              animate={{ opacity: [0.7, 1, 0.7] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)' }}
-            />
-          ),
-        };
-
-      // ─── SEARCHING ─────────────────────────────────────────────────────────
-      case 'searching':
-        return {
-          ...base,
-          eyes: { x: [-4, 4, -4], scale: [1, 1.15, 1], transition: { repeat: Infinity, duration: 1.2 } },
-          mouth: { width: 8, height: 8, borderRadius: '50%' },
-          bgGradient: 'from-violet-400 to-indigo-500',
-          borderColor: 'border-indigo-500',
-          statusText: 'Searching 🔍',
-          statusColor: 'bg-violet-500',
-          props: (
-            <FloatEmoji
-              emoji="🔍"
-              className="-top-2 -right-1 text-xl"
-              animate={{ rotate: [0, 20, -20, 0], scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            />
-          ),
-        };
-
-      // ─── UPLOADING ─────────────────────────────────────────────────────────
-      case 'uploading':
-        return {
-          ...base,
-          eyes: { y: [-2, 2, -2], transition: { repeat: Infinity, duration: 1 } },
-          mouth: { width: 12, height: 5, borderRadius: '0 0 8px 8px' },
-          bgGradient: 'from-teal-400 to-emerald-500',
-          borderColor: 'border-emerald-500',
-          statusText: 'Uploading ⬆️',
-          statusColor: 'bg-teal-500',
-          props: (
-            <FloatEmoji
-              emoji="⬆️"
-              className="-top-4 left-1/2 -translate-x-1/2 text-lg"
-              animate={{ y: [0, -6, 0], opacity: [0.6, 1, 0.6] }}
-              transition={{ repeat: Infinity, duration: 1 }}
-            />
-          ),
-        };
-
-      // ─── CELEBRATING ───────────────────────────────────────────────────────
-      case 'celebrating':
-        return {
-          ...base,
-          eyes: { height: [8, 2, 8], transition: { repeat: Infinity, duration: 0.8 } },
-          mouth: { width: 16, height: 10, borderRadius: '0 0 12px 12px' },
-          body: { rotate: [-5, 5, -5], scale: [1, 1.05, 1], transition: { repeat: Infinity, duration: 0.7 } },
-          blush: true,
-          bgGradient: 'from-yellow-300 to-orange-400',
-          borderColor: 'border-orange-400',
-          statusText: 'Celebrating! 🎊',
-          statusColor: 'bg-orange-500',
-          props: (
-            <>
-              <FloatEmoji
-                emoji="🎊"
-                className="-top-3 -left-2 text-xl"
-                animate={{ rotate: [0, 20, -20, 0], y: [0, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 1.0 }}
-              />
-              <FloatEmoji
-                emoji="🎉"
-                className="-top-3 -right-2 text-xl"
-                animate={{ rotate: [0, -20, 20, 0], y: [0, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 1.0, delay: 0.3 }}
-              />
-            </>
-          ),
-        };
-
-      // ─── DEFAULT / ONLINE FALLBACK ──────────────────────────────────────────
-      default:
-        return {
-          ...base,
-          eyes: { height: [8, 1, 8], transition: { repeat: Infinity, duration: 4, times: [0, 0.95, 1] } },
-          mouth: { width: 14, height: 5, borderRadius: '0 0 8px 8px' },
-          blush: true,
-          statusText: 'Online',
-          statusColor: 'bg-green-500',
-        };
-      }
-    };
-
-    const result = getConfig();
-
-    // Modifier for composite typing states (e.g. typing_happy)
-    if (isTypingExtra) {
-      result.statusText = 'Typing…';
-      result.statusColor = 'bg-blue-500';
-      result.props = (
-        <>
-          {result.props}
-          <TypingDots />
-        </>
-      );
-      // Small bounce to body to simulate typing while holding mood
-      result.body = { ...result.body, y: [0, 2, 0], transition: { repeat: Infinity, duration: 1.5, ease: 'easeInOut' } };
-    }
-
-    // Ensure smooth default transitions so they don't snap
-    if (!result.eyes.transition) result.eyes.transition = { type: 'spring', bounce: 0.4, duration: 0.6 };
-    if (!result.mouth.transition) result.mouth.transition = { type: 'spring', bounce: 0.4, duration: 0.6 };
-    if (!result.body.transition) result.body.transition = { type: 'spring', bounce: 0.4, duration: 0.6 };
-
-    return result;
-  // FIX: username added so isBot-dependent states re-compute correctly
-  }, [state, username]);
-
-  const { eyes, mouth, body, bgGradient, borderColor, isGrayscale, props, statusText, statusColor, blush } = config;
-
-  // FIX: Proper opacity check — only hide when explicitly set to 0
-  const showEyes = eyes?.opacity !== 0;
-  const showMouth = mouth?.opacity !== 0;
-
-  // FIX: Safely scale pupil — handles both number and array types
-  const pupilX = scalePupil(eyes?.x, 0.3);
-  const pupilY = scalePupil(eyes?.y, 0.3);
-  const hasPupilAnim = (eyes?.x !== undefined || eyes?.y !== undefined) && showEyes;
-
-  // FIX: Bot gets blob shape, user gets rounded-2xl
-  const faceShapeClass = isBot
-    ? 'rounded-[50%_50%_50%_20%_/_20%_50%_50%_50%] rotate-12 scale-110 border-b-[6px]'
-    : 'rounded-2xl border-4';
-
-  // FIX: Status ring should use matching shape
-  const ringShapeClass = isBot ? 'rounded-[50%_50%_50%_20%_/_20%_50%_50%_50%] rotate-12 scale-110' : 'rounded-2xl';
-
-  const isTypingExtra = state.startsWith('typing_');
-
-  return (
-    <div className="relative inline-flex flex-col items-center gap-1 group">
-
-      {/* ── Status Ring Glow ─────────────────────────────────────────────── */}
-      {showStatusRing && (
-        <motion.div
-          // FIX: Shape matches bot vs user
-          className={`absolute -inset-1 ${ringShapeClass} ${statusColor} opacity-25 blur-sm pointer-events-none`}
-          animate={{ scale: [1, 1.05, 1], opacity: [0.15, 0.35, 0.15] }}
-          transition={{ repeat: Infinity, duration: 2.5 }}
-        />
-      )}
-
-      {/* ── Avatar Wrapper ───────────────────────────────────────────────── */}
-      <motion.div
-        className={`relative ${s.container} cursor-pointer`}
-        onClick={onClick}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.94 }}
-      >
-        {/* Typing Dots Indicator */}
-        {isTypingExtra && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute -top-6 left-1/2 -translate-x-1/2 flex gap-1 bg-aura-panel/80 backdrop-blur-sm px-2 py-1 rounded-full border border-aura-border shadow-sm z-50"
-          >
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="w-1.5 h-1.5 bg-aura-primary rounded-full"
-                animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
-                transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }}
-              />
-            ))}
-          </motion.div>
-        )}
-
-        {/* Bot Antenna */}
-        {isBot && (
-          <motion.div
-            className={`absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-3.5 ${
-              isGrayscale ? 'bg-neutral-500 border-neutral-700' : 'bg-green-400 border-green-600'
-            } rounded-full border-2 rotate-[25deg] -z-10 shadow-sm`}
-            animate={{ rotate: [25, 35, 25] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-          />
-        )}
-
-        {/* ── Face ─────────────────────────────────────────────────────── */}
-        <motion.div
-          className={`
-            w-full h-full ${faceShapeClass}
-            bg-gradient-to-br ${bgGradient} ${borderColor}
-            ${isGrayscale ? 'grayscale' : ''}
-            shadow-lg shadow-black/20
-            flex flex-col items-center justify-center
-            relative overflow-visible
-          `}
-          animate={body}
-          style={{ transformStyle: 'preserve-3d' }}
-        >
-
-          {/* Blush cheeks */}
-          {blush && (
-            <>
-              <div className="absolute left-1 bottom-5 w-5 h-3 rounded-full bg-pink-400/30 blur-[2px] pointer-events-none" />
-              <div className="absolute right-1 bottom-5 w-5 h-3 rounded-full bg-pink-400/30 blur-[2px] pointer-events-none" />
-            </>
-          )}
-
-          {/* Username watermark for non-bot */}
-          {!isBot && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-10 text-3xl font-black text-white pointer-events-none select-none">
-              {username[0]?.toUpperCase() ?? '?'}
-            </div>
-          )}
-
-          {/* ── Eyes ──────────────────────────────────────────────────── */}
-          <div className="flex gap-3 mb-1.5 z-10 mt-1">
-            <AnimatePresence mode="popLayout">
-              {showEyes && (
-                <>
-                  {/* Left Eye */}
-                  <motion.div
-                    key="eye-left"
-                    className={`${s.eye} bg-neutral-800 rounded-full shadow-sm relative overflow-hidden`}
-                    animate={eyes}
-                    initial={false}
-                  >
-                    {/* FIX: Pupil uses scalePupil() — no more NaN from array × number */}
-                    {hasPupilAnim && (
-                      <motion.div
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40%] h-[40%] bg-neutral-600 rounded-full"
-                        animate={{ x: pupilX, y: pupilY }}
-                        transition={eyes?.transition}
-                      />
-                    )}
-                  </motion.div>
-
-                  {/* Right Eye */}
-                  <motion.div
-                    key="eye-right"
-                    className={`${s.eye} bg-neutral-800 rounded-full shadow-sm relative overflow-hidden`}
-                    animate={eyes}
-                    initial={false}
-                  >
-                    {hasPupilAnim && (
-                      <motion.div
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40%] h-[40%] bg-neutral-600 rounded-full"
-                        animate={{ x: pupilX, y: pupilY }}
-                        transition={eyes?.transition}
-                      />
-                    )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* ── Mouth ─────────────────────────────────────────────────── */}
-          {showMouth && (
-            <motion.div
-              className="bg-neutral-800 z-10 shadow-sm"
-              animate={mouth}
-              initial={false}
-            />
-          )}
-
-          {/* ── Dynamic Props ─────────────────────────────────────────── */}
-          {/* FIX: Removed the layout-breaking motion.div wrapper.
-               Props already use absolute positioning internally.
-               Instead, use AnimatePresence directly around the fragment. */}
-          <AnimatePresence mode="wait">
-            {props && (
-              <motion.div
-                key={state}
-                className="absolute inset-0 pointer-events-none"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                {props}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-        </motion.div>
-
-        {/* ── Status Dot ───────────────────────────────────────────────── */}
-        <motion.div
-          className={`absolute ${s.dotOff} ${s.dot} ${statusColor} rounded-full border-2 border-neutral-900 z-30`}
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ repeat: Infinity, duration: 2.2 }}
-        />
-      </motion.div>
-
-      {/* ── Snapchat-style Status Label ───────────────────────────────────── */}
-      {showStatus && (
-        <motion.div
-          key={`status-${state}`}
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 4 }}
-          transition={{ duration: 0.25 }}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${statusColor} bg-opacity-20 border border-current/20`}
-        >
-          <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusColor} flex-shrink-0`} />
-          <span className={`${s.fontSize} font-medium text-neutral-700 dark:text-neutral-200 whitespace-nowrap`}>
-            {statusText}
-          </span>
-        </motion.div>
-      )}
-
+    window.addEventListener("mousemove", fn, { passive: true });
+    return () => { window.removeEventListener("mousemove", fn); };
+  }, [s]);
+
+  const vbS = 100 / (s * 0.74);
+  const vx = Math.max(-3, Math.min(3, eyeOff.x * vbS));
+  const vy = Math.max(-3, Math.min(3, eyeOff.y * vbS));
+
+  const cv: any = {
+    "--afy": fp(-s * 0.065),
+    "--awy": fp(-s * 0.035),
+    "--aby": fp(-s * 0.055),
+    "--ahfy": fp(-s * 0.036),
+    "--asy": fp(-s * 0.09),
+  };
+
+  const ANIM: Record<string, string> = {
+    idle: "ak4_f 3.3s ease-in-out infinite",
+    online: "ak4_f 3.3s ease-in-out infinite",
+    listening: "ak4_f 3.3s ease-in-out infinite",
+    reading_chat: "ak4_f 3.3s ease-in-out infinite",
+    thinking: "ak4_wb 3s ease-in-out infinite",
+    browsing_files: "ak4_wb 3s ease-in-out infinite",
+    talking: "ak4_f .9s ease-in-out infinite",
+    typing: "ak4_f .9s ease-in-out infinite",
+    happy: "ak4_f 2.8s ease-in-out infinite",
+    surprised: "ak4_f 3.3s ease-in-out infinite",
+    angry: "ak4_sh .5s ease-in-out infinite",
+    sad: "ak4_hf 5s ease-in-out infinite",
+    love: "ak4_f 3.6s ease-in-out infinite",
+    wink: "ak4_f 3.3s ease-in-out infinite",
+    sleepy: "ak4_hf 5.5s ease-in-out infinite",
+    offline: "ak4_hf 5.5s ease-in-out infinite",
+    excited: "ak4_bc .42s ease-in-out infinite",
+  };
+
+  const currentAnim = ANIM[activeState] || ANIM["idle"];
+
+  const ListenBars = (activeState === "listening" || activeState === "reading_chat") && (
+    <div style={{position:"absolute",right:fp(-s*.3),top:fp(s*.34),display:"flex",gap:fp(s*.022),alignItems:"flex-end"}}>
+      {[s*.07,s*.12,s*.16,s*.12,s*.07].map((h,i) => (
+        <div key={i} style={{width:fp(s*.032),height:fp(h),borderRadius:fp(s*.016),background:T.l,animation:"ak4_bar .6s ease-in-out "+(i*.13).toFixed(2)+"s infinite",transformOrigin:"center bottom"}}/>
+      ))}
     </div>
   );
+
+  const ThinkDots = isTypingEffect && (
+    <div style={{position:"absolute",bottom:fp(-s*.08),right:fp(s*.05),display:"flex",gap:fp(s*.05),zIndex:2}}>
+      {[0,1,2].map((i) => (
+        <div key={i} style={{width:s*.08,height:s*.08,borderRadius:"50%",background:T.l,animation:"ak4_dot 1.1s ease-in-out "+(i*.22).toFixed(2)+"s infinite"}}/>
+      ))}
+    </div>
+  );
+
+  const Zs = (activeState === "sleepy" || activeState === "offline") && (
+    [{r:s*.07,t:s*.1,d:0,fs:s*.19},{r:s*.16,t:.01*s,d:.6,fs:s*.145},{r:s*.24,t:-s*.06,d:1.2,fs:s*.11}]
+      .map((p,i) => (
+        <div key={i} style={{position:"absolute",right:fp(-p.r),top:fp(p.t),color:"rgba(255,255,255,.8)",fontSize:fp(p.fs),fontWeight:"900",fontFamily:"system-ui,sans-serif",lineHeight:1,zIndex:5,animation:"ak4_z 1.8s ease-in-out "+p.d+"s infinite",pointerEvents:"none"}}>Z</div>
+      ))
+  );
+
+  const ActivityProp = useMemo(() => {
+    const props: Record<string, any> = {
+      browsing_vault: { emoji: "📂", pos: { right: fp(-s*.1), top: fp(s*.1) } },
+      browsing_files: { emoji: "📂", pos: { right: fp(-s*.1), top: fp(s*.1) } },
+      timetable_open: { emoji: "📅", pos: { right: fp(-s*.1), top: fp(s*.1) } },
+      viewing_notes:  { emoji: "📝", pos: { left: fp(-s*.1), top: fp(s*.1) } },
+      writing_code:   { emoji: "💻", pos: { right: fp(-s*.1), bottom: fp(s*.1) } },
+      searching:      { emoji: "🔍", pos: { right: fp(-s*.1), top: fp(s*.1) } },
+      celebrating:    { emoji: "🎉", pos: { right: fp(-s*.1), top: fp(-s*.1) } },
+      partying:       { emoji: "🎊", pos: { left: fp(-s*.1), top: fp(-s*.1) } },
+      magic:          { emoji: "✨", pos: { right: fp(-s*.15), top: fp(-s*.1) } },
+      reading_book:   { emoji: "📖", pos: { left: fp(-s*.1), bottom: fp(s*.1) } },
+      playing_games:  { emoji: "🎮", pos: { right: fp(-s*.15), bottom: fp(0) } },
+      listening_music:{ emoji: "🎵", pos: { right: fp(-s*.1), top: fp(s*.05) } },
+      uploading:      { emoji: "⬆️", pos: { right: fp(-s*.1), top: fp(s*.1) } },
+    };
+    const act = props[activeState];
+    if (!act) return null;
+    return (
+      <div style={{position:"absolute", ...act.pos, zIndex:10, pointerEvents:"none", animation:"ak4_sp 3s ease-in-out infinite"}}>
+        <span style={{fontSize:fp(s*.25)}}>{act.emoji}</span>
+      </div>
+    );
+  }, [activeState, s]);
+
+  const Hearts = (activeState === "love" || activeState === "heart_eyes") && (
+    [{x:-s*.09,y:s*.12,d:0,sz:s*.15,f:"#ff7eb3"},{x:s*.9,y:s*.04,d:.65,sz:s*.12,f:"#ffaacc"},{x:-s*.04,y:s*.44,d:1.2,sz:s*.09,f:"#ff9ec8"}]
+      .map((p,i) => (
+        <div key={i} style={{position:"absolute",left:fp(p.x),top:fp(p.y),lineHeight:0,zIndex:5,animation:"ak4_hrt 1.9s ease-in-out "+p.d+"s infinite",pointerEvents:"none"}}>
+          <svg width={p.sz} height={p.sz*.9} viewBox="0 0 24 22">
+            <path fill={p.f} d="M12 21.6C6.4 16 1 11.3 1 7.2 1 3.4 4.1 2 6.3 2c1.3 0 4.2.5 5.7 4.5C13.6 2.5 16.5 2 17.7 2c2.5 0 5.3 1.6 5.3 5.2 0 4.1-5.1 8.6-11 14.4z"/>
+          </svg>
+        </div>
+      ))
+  );
+
+  const isGrayscale = activeState === 'offline';
+
+  return (
+    <div className="flex flex-col items-center gap-1 group">
+      <div 
+        ref={rootRef} 
+        onClick={onClick}
+        className={`relative inline-flex flex-col items-center user-select-none cursor-pointer transition-transform duration-300 hover:scale-110 active:scale-95 ${isGrayscale ? 'grayscale opacity-70' : ''}`}
+        style={{ ...cv as React.CSSProperties }}
+      >
+        {/* Sparkles and Decorations */}
+        {!isGrayscale && (
+          <>
+            <Sparkle x={fp(-s*.34)} y={fp(s*.08)} delay={0} sz={s*.135} col="rgba(255,255,255,.9)"/>
+            <Sparkle x={fp(s*.74)} y={fp(s*.28)} delay={.9} sz={s*.09} col="rgba(255,255,255,.62)"/>
+            <HeartDeco x={fp(s*.77)} y={fp(-s*.06)} delay={.42} sz={s*.18}/>
+            <div style={{position:"absolute",left:fp(-s*.22),top:fp(s*.6),width:s*.068,height:s*.068,borderRadius:"50%",background:T.l,opacity:.7,animation:"ak4_sp 3s ease-in-out 1.2s infinite"}}/>
+            <div style={{position:"absolute",right:fp(-s*.1),top:fp(s*.75),width:s*.05,height:s*.05,borderRadius:"50%",background:"#ffb3d1",opacity:.82,animation:"ak4_sp 3.4s ease-in-out .5s infinite"}}/>
+          </>
+        )}
+        
+        {Zs}
+        {Hearts}
+        {ActivityProp}
+
+        {/* Listening Arcs */}
+        {(activeState === "listening" || activeState === "reading_chat") && (
+          <div style={{position:"absolute",right:fp(-s*.38),top:"50%",transform:"translateY(-50%)",display:"flex",flexDirection:"column",justifyContent:"center",gap:fp(s*.028),pointerEvents:"none"}}>
+            {[s*.11,s*.17,s*.23].map((w,i) => (
+              <div key={i} style={{width:fp(w),height:fp(w),borderRadius:"50%",border:fp(s*.025)+" solid "+T.l,borderLeft:"none",borderBottom:"none",transform:"rotate(45deg)",opacity:1-i*.22,animation:"ak4_rng "+(1.1+i*.25)+"s ease-in-out "+(i*.18)+"s infinite"}}/>
+            ))}
+          </div>
+        )}
+
+        {/* Main Body */}
+        <div style={{position:"relative", animation: currentAnim}}>
+          {ListenBars}
+          {ThinkDots}
+          
+          {/* Base Shadow / Blob */}
+          <div style={{position:"absolute",bottom:fp(-s*.135),left:fp(s*.09),width:fp(s*.235),height:fp(s*.22),borderRadius:"4% 40% 60% 70%",background:"radial-gradient(circle at 40% 28%, "+T.m+", "+T.d+")",boxShadow:fp(s*.012)+" "+fp(s*.022)+" "+fp(s*.03)+" rgba(0,0,60,.3)",transform:"rotate(-18deg)",zIndex:0}}/>
+          
+          {/* Main Face Container */}
+          <div style={{
+            position:"relative",
+            width:s,
+            height:s,
+            zIndex:1,
+            borderRadius: isBot ? "50% 50% 50% 43% / 50% 50% 47% 44%" : "24px",
+            background:"radial-gradient(circle at 64% 26%, "+T.m+" 0%, "+T.d+" 100%)",
+            boxShadow:"0 "+fp(s*.03)+" "+fp(s*.08)+" rgba(0,0,40,.4), inset -"+fp(s*.01)+" -"+fp(s*.015)+" "+fp(s*.03)+" rgba(0,0,100,.15)",
+            filter: isOffline ? "grayscale(1) opacity(0.8)" : "none",
+            overflow:"hidden",
+            transition:"background .4s ease, box-shadow .4s ease, border-radius .4s ease, filter .4s ease"
+          }}>
+            <div style={{position:"absolute",top:"-7%",right:"5%",width:"55%",height:"45%",borderRadius:"50%",background:"radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+            <div style={{position:"absolute",top:"13%",left:"18%",width:"16%",height:"12%",borderRadius:"50%",background:"radial-gradient(ellipse, rgba(255,255,255,.88) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+            <FaceSVG state={activeState} vx={vx} vy={vy} mOpen={mOpen} blinking={blinking} lidColor={T.m}/>
+          </div>
+        </div>
+
+        {/* Floor Shadow */}
+        <div style={{width:fp(s*.6),height:fp(s*.08),marginTop:fp(s*.05),borderRadius:"50%",background:"rgba(0,5,60,.22)",animation:"ak4_sdw 3.3s ease-in-out infinite"}}/>
+      </div>
+
+      {/* Status Ring */}
+      {showStatusRing && (
+        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-neutral-950 ${isOffline ? 'bg-neutral-500' : 'bg-green-500'}`} />
+      )}
+
+      {/* Status Label (Snapchat Style) */}
+      {showStatus && (
+        <div className="mt-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
+          <span className="text-[10px] font-medium text-neutral-400 capitalize">
+            {activeState.replace('_', ' ')}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Intelligent mood analyzer for chat messages (supports Hinglish)
+ */
+export function getMoodFromMessage(msg: string): ActionMojiState {
+  const m = msg.toLowerCase();
+  
+  // Sleepy / Night
+  if (m.includes('gn') || m.includes('good night') || m.includes('so raha') || m.includes('sleep') || m.includes('bye')) return 'sleepy';
+  
+  // Happy / Positive
+  if (m.includes('haha') || m.includes('lol') || m.includes('happy') || m.includes('mast') || m.includes('badhiya') || m.includes('nice') || m.includes('good') || m.includes('thanks') || m.includes('shukriya')) return 'happy';
+  
+  // Love / Appreciation
+  if (m.includes('love') || m.includes('heart') || m.includes('dil') || m.includes('cute') || m.includes('wow') || m.includes('amazing')) return 'love';
+  
+  // Surprise
+  if (m.includes('!') || m.includes('shock') || m.includes('kya') || m.includes('what') || m.includes('really') || m.includes('omg')) return 'surprised';
+  
+  // Magic / Aura
+  if (m.includes('magic') || m.includes('jadu') || m.includes('aura') || m.includes('star')) return 'magic';
+  
+  // Sad / Sorry
+  if (m.includes('sad') || m.includes('sorry') || m.includes('dukhi') || m.includes('maaf') || m.includes('crying') || m.includes('ro raha')) return 'sad';
+  
+  // Angry
+  if (m.includes('angry') || m.includes('gussa') || m.includes('pagal') || m.includes('hate') || m.includes('stupid')) return 'angry';
+  
+  // Thinking / Questions
+  if (m.includes('?') || m.includes('thinking') || m.includes('soch') || m.includes('how') || m.includes('why')) return 'thinking';
+  
+  return 'idle';
 }
