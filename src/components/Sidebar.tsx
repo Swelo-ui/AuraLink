@@ -21,6 +21,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [installHint, setInstallHint] = useState('');
+  const [showDiscover, setShowDiscover] = useState(false);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -136,9 +138,21 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       .from('users')
       .select('id, username, avatar_url')
       .ilike('username', `%${search}%`)
-      .neq('id', user?.id);
+      .neq('id', user?.id)
+      .limit(10);
       
     if (data) setResults(data);
+  };
+
+  const fetchDiscoverUsers = async () => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .neq('id', user?.id)
+      .limit(20);
+    
+    if (data) setAllUsers(data);
+    setShowDiscover(true);
   };
 
   const addFriend = async (targetUserId: string) => {
@@ -207,9 +221,14 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             <span className="text-xs text-aura-teal">Online</span>
           </div>
         </div>
-        <button onClick={() => setShowSettings(true)} className="p-2 text-aura-lavender/50 hover:text-white transition-colors" title="Settings">
-          <Settings size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={fetchDiscoverUsers} className="p-2 text-aura-teal hover:text-white transition-colors" title="Discover Friends">
+            <UserPlus size={18} />
+          </button>
+          <button onClick={() => setShowSettings(true)} className="p-2 text-aura-lavender/50 hover:text-white transition-colors" title="Settings">
+            <Settings size={18} />
+          </button>
+        </div>
       </div>
 
       <div className="p-4">
@@ -254,6 +273,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       )}
 
       <div className="flex-1 overflow-y-auto px-2 pb-4">
+        {/* Personal Space */}
         <div className="mb-4 mt-4 px-2">
           <button 
             onClick={() => navigate('/dashboard/personal')}
@@ -273,6 +293,34 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             </div>
           </button>
         </div>
+
+        {/* Friend Requests Section */}
+        {connections.some(c => c.status === 'pending' && (c.user2_id === user?.id || c.user2?.id === user?.id)) && (
+          <div className="mb-6">
+            <p className="text-xs text-aura-teal uppercase tracking-widest px-2 mb-2 font-bold flex items-center gap-2">
+              <Bell size={12} className="animate-bounce" /> Friend Requests
+            </p>
+            <div className="space-y-1">
+              {connections.filter(c => c.status === 'pending' && (c.user2_id === user?.id || c.user2?.id === user?.id)).map(conn => {
+                const partner = conn.user1;
+                return (
+                  <div key={conn.id} className="flex items-center justify-between p-3 bg-aura-primary/5 rounded-xl border border-aura-primary/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-aura-primary flex items-center justify-center text-white text-xs font-bold">
+                        {partner?.username?.[0]?.toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium text-white">{partner?.username}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => rejectFriend(conn.id)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg"><X size={16} /></button>
+                      <button onClick={() => acceptFriend(conn.id)} className="p-1.5 text-aura-teal hover:bg-aura-teal/10 rounded-lg"><Check size={16} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <p className="text-xs text-aura-lavender/40 uppercase tracking-widest px-2 mb-2 font-semibold">Connections</p>
         <div className="space-y-1">
@@ -408,6 +456,56 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
               <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium rounded-xl transition-colors border border-red-500/20">
                 <LogOut size={18} /> Log Out
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discover Modal */}
+      {showDiscover && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-aura-panel w-full max-w-md rounded-2xl border border-aura-border shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-aura-border flex items-center justify-between bg-aura-navy/50">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={20} className="text-aura-teal" /> Discover People</h2>
+              <button onClick={() => setShowDiscover(false)} className="p-1.5 text-aura-lavender/50 hover:text-white hover:bg-white/5 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh] space-y-3">
+              {allUsers.length === 0 ? (
+                <p className="text-center text-aura-lavender/40 py-8">No other users found yet.</p>
+              ) : (
+                allUsers.map(u => {
+                  const existingConn = connections.find(c => 
+                    (c.user1_id === u.id || c.user2_id === u.id) && !c.isVirtual
+                  );
+                  return (
+                    <div key={u.id} className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-aura-primary/20 flex items-center justify-center text-aura-primary font-bold">
+                          {u.username[0].toUpperCase()}
+                        </div>
+                        <span className="text-white font-medium">{u.username}</span>
+                      </div>
+                      {existingConn ? (
+                        <span className="text-xs text-aura-lavender/40 px-3 py-1 bg-white/5 rounded-lg">
+                          {existingConn.status === 'pending' ? 'Pending' : 'Connected'}
+                        </span>
+                      ) : (
+                        <button 
+                          onClick={() => { addFriend(u.id); setShowDiscover(false); }}
+                          className="text-xs bg-aura-primary hover:bg-aura-primary/80 text-white px-3 py-1.5 rounded-lg transition-colors font-semibold"
+                        >
+                          Add Friend
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="p-4 border-t border-aura-border bg-aura-navy/50 text-center">
+              <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest">Connect with other AuraLink users</p>
             </div>
           </div>
         </div>
