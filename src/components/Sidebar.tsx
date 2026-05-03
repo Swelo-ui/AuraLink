@@ -77,6 +77,31 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
         const perm = await Notification.requestPermission();
         if (perm !== 'granted') return;
       }
+      
+      // Subscribe to Web Push
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        let subscription = await registration.pushManager.getSubscription();
+        if (!subscription) {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
+          });
+        }
+        
+        // Save to DB
+        const subData = subscription.toJSON();
+        if (user?.id) {
+          await supabase.from('push_subscriptions').upsert({
+            user_id: user.id,
+            endpoint: subData.endpoint,
+            auth: subData.keys?.auth,
+            p256dh: subData.keys?.p256dh,
+          }, { onConflict: 'endpoint' });
+        }
+      } catch (e) {
+        console.error('Push subscription failed:', e);
+      }
     }
     const newVal = !notificationsEnabled;
     setNotificationsEnabled(newVal);
