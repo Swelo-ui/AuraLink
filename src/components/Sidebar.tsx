@@ -23,6 +23,9 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   const [installHint, setInstallHint] = useState('');
   const [showDiscover, setShowDiscover] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [newUsername, setNewUsername] = useState(user?.username || '');
+  const [newAvatar, setNewAvatar] = useState(user?.avatarUrl || '');
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -130,6 +133,25 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     logout();
   };
 
+  const handleUpdateProfile = async () => {
+    if (!user?.id || !newUsername) return;
+    
+    const { error } = await supabase
+      .from('users')
+      .update({ username: newUsername, avatar_url: newAvatar })
+      .eq('id', user.id);
+    
+    if (!error) {
+      const updatedUser = { ...user, username: newUsername, avatarUrl: newAvatar };
+      useAuthStore.getState().setAuth(localStorage.getItem('token') || '', updatedUser);
+      setIsEditing(false);
+      onRefresh();
+    }
+  };
+
+  const girlAvatars = ['Lily', 'Zoe', 'Mia', 'Ella', 'Ava', 'Chloe', 'Ruby', 'Luna', 'Sophie', 'Emily'].map(s => `https://api.dicebear.com/7.x/adventurer/svg?seed=${s}`);
+  const boyAvatars = ['Jack', 'Leo', 'Oliver', 'Milo', 'Finn', 'Noah', 'Charlie', 'Toby', 'Sam', 'Felix'].map(s => `https://api.dicebear.com/7.x/adventurer/svg?seed=${s}`);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!search) return setResults([]);
@@ -213,8 +235,12 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       </div>
       <div className="p-4 border-b border-aura-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-aura-primary flex items-center justify-center text-white font-bold text-lg">
-            {user?.username[0].toUpperCase()}
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-aura-primary flex items-center justify-center border border-white/10">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-white font-bold text-lg">{user?.username[0].toUpperCase()}</span>
+            )}
           </div>
           <div>
             <h2 className="text-white font-medium">{user?.username}</h2>
@@ -411,16 +437,51 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
               {/* Profile Section */}
               <div>
                 <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Account</h3>
-                <div className="flex items-center gap-4 bg-aura-navy p-3 rounded-xl border border-aura-border">
-                  <div className="w-12 h-12 rounded-full bg-aura-primary flex items-center justify-center text-white font-bold text-xl">
-                    {user?.username[0].toUpperCase()}
+                {isEditing ? (
+                  <div className="space-y-4 bg-aura-navy p-4 rounded-xl border border-aura-primary/30">
+                    <div>
+                      <label className="text-[10px] text-aura-lavender/50 uppercase mb-1 block">Username</label>
+                      <input 
+                        value={newUsername} 
+                        onChange={e => setNewUsername(e.target.value)}
+                        className="w-full bg-aura-panel border border-aura-border rounded-lg px-3 py-2 text-white text-sm focus:border-aura-primary outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-aura-lavender/50 uppercase mb-2 block">Choose Avatar</label>
+                      <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-1">
+                        {[...girlAvatars, ...boyAvatars].map((url, i) => (
+                          <button 
+                            key={i} 
+                            onClick={() => setNewAvatar(url)}
+                            className={clsx("w-10 h-10 rounded-lg border-2 transition-all overflow-hidden", newAvatar === url ? "border-aura-primary scale-110" : "border-transparent hover:border-white/20")}
+                          >
+                            <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button onClick={() => setIsEditing(false)} className="flex-1 text-xs text-aura-lavender/50 py-2 hover:text-white transition-colors">Cancel</button>
+                      <button onClick={handleUpdateProfile} className="flex-1 bg-aura-primary text-white text-xs py-2 rounded-lg font-bold">Save Changes</button>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-white font-medium">{user?.username}</p>
-                    <p className="text-xs text-aura-lavender/50">Free Tier Member</p>
+                ) : (
+                  <div className="flex items-center gap-4 bg-aura-navy p-3 rounded-xl border border-aura-border">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-aura-primary flex items-center justify-center border border-white/10">
+                      {user?.avatarUrl ? (
+                        <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white font-bold text-xl">{user?.username[0].toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{user?.username}</p>
+                      <p className="text-xs text-aura-lavender/50">Free Tier Member</p>
+                    </div>
+                    <button onClick={() => { setIsEditing(true); setNewUsername(user?.username || ''); setNewAvatar(user?.avatarUrl || ''); }} className="ml-auto text-xs bg-aura-border hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition-colors">Edit</button>
                   </div>
-                  <button className="ml-auto text-xs bg-aura-border hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition-colors">Edit</button>
-                </div>
+                )}
               </div>
 
               {/* Preferences */}
