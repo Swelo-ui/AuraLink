@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../components/SocketProvider';
 import { useAuthStore } from '../store/authStore';
-import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff, Settings as SettingsIcon, Volume2, VolumeX, EyeOff, Clock } from 'lucide-react';
+import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff, Settings as SettingsIcon, Volume2, VolumeX, EyeOff, Clock, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import SyncNotes from '../components/SyncNotes';
 import SmartVault, { FileIcon, getFileType } from '../components/SmartVault';
@@ -492,6 +492,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     }
   };
 
+  useEffect(() => {
+    const handleAISuggest = (e: any) => {
+      if (e.detail?.prompt) {
+        setInput(e.detail.prompt);
+        // Scroll to chat if needed
+        const input = document.querySelector('textarea');
+        input?.focus();
+      }
+    };
+    window.addEventListener('aura_ai_suggest', handleAISuggest);
+    return () => window.removeEventListener('aura_ai_suggest', handleAISuggest);
+  }, []);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id || !partner) return;
@@ -730,7 +743,22 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             return (
               <div key={i} className={clsx("flex flex-col max-w-[85%] sm:max-w-[75%]", isMe ? "ml-auto items-end" : "mr-auto items-start animate-in slide-in-from-left-2 duration-300")}>
                 <div className={clsx("px-4 py-2.5 rounded-2xl shadow-sm", isMe ? "bg-aura-primary text-white rounded-br-none" : "bg-aura-panel text-white rounded-bl-none border border-aura-border")}>
-                  {m.type === 'text' && <p className="text-[14px] sm:text-[15px] leading-relaxed">{m.content}</p>}
+                  {m.type === 'text' && (
+                    <div className="flex flex-col">
+                      <p className="text-[14px] sm:text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                      {m.senderId === 'aurabot' && (
+                        <button 
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('aura_note_update', { detail: { content: m.content } }));
+                            setToolTab('notes');
+                          }}
+                          className="mt-3 self-start flex items-center gap-1.5 px-3 py-1.5 bg-aura-primary text-white text-[10px] font-black uppercase tracking-wider rounded-lg shadow-lg shadow-aura-primary/20 hover:scale-105 active:scale-95 transition-all"
+                        >
+                          <Sparkles size={12} /> Apply to Notes
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {m.type === 'file' && (
                     <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity py-1">
                       <div className="p-2 bg-white/10 rounded-lg">
