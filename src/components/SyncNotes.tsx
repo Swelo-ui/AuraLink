@@ -323,7 +323,7 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
               {showAiMenu && (
                 <>
                   <div className="fixed inset-0 z-[60] bg-aura-navy/20 backdrop-blur-[2px] md:bg-transparent" onClick={() => setShowAiMenu(false)} />
-                  <div className="fixed bottom-0 inset-x-0 md:absolute md:bottom-auto md:top-full md:right-0 mt-0 md:mt-2 w-full md:w-64 bg-aura-panel border-t md:border border-aura-border rounded-t-3xl md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[70] overflow-hidden animate-in fade-in slide-in-from-bottom md:slide-in-from-top-2 duration-300 backdrop-blur-2xl">
+                  <div className="fixed bottom-0 inset-x-0 md:absolute md:bottom-auto md:top-full md:right-4 md:mr-2 mt-0 md:mt-2 w-full md:w-72 bg-aura-panel border-t md:border border-aura-border rounded-t-3xl md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[70] overflow-hidden animate-in fade-in slide-in-from-bottom md:slide-in-from-top-2 duration-300 backdrop-blur-2xl">
                     <div className="p-4 md:p-3 border-b border-aura-border bg-white/5 flex items-center justify-between">
                       <p className="text-[10px] md:text-[9px] font-black text-aura-primary uppercase tracking-[0.2em]">Aura Intelligence</p>
                       <button onClick={() => setShowAiMenu(false)} className="md:hidden text-aura-lavender/50"><X size={18} /></button>

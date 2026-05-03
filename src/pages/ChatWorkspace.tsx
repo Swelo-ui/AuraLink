@@ -523,11 +523,22 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         
         // Auto-send to AuraBot
         if (isVirtualBot) {
+          const now = new Date().toISOString();
+          const userMsg: Message = {
+            id: `local-user-ai-${Date.now()}`,
+            senderId: user?.id,
+            receiverId: partner?.id,
+            content: aiPrompt,
+            type: 'text',
+            timestamp: now,
+          };
+          setMessages(prev => {
+            const next = [...prev, userMsg];
+            messagesRef.current = next;
+            return next;
+          });
           handleBotResponse(aiPrompt);
         } else {
-          setInput(aiPrompt);
-          // If in split view, maybe just leave it as input or auto-send?
-          // For now, let's auto-send if it's a specific action
           sendMessage(undefined, aiPrompt);
         }
       }
