@@ -13,6 +13,8 @@ export default function Dashboard() {
   const [connections, setConnections] = useState<any[]>([]);
   const location = useLocation();
   const isChat = location.pathname.startsWith('/dashboard/c/');
+  const isPersonal = location.pathname === '/dashboard/personal';
+  const hideSidebarOnMobile = isChat || isPersonal;
   const { user } = useAuthStore();
 
   const fetchConnections = async () => {
@@ -71,8 +73,8 @@ export default function Dashboard() {
       <GlobalNotificationListener />
       {/* height: 100% inherits the browser-resized viewport when keyboard opens */}
       <div className="flex w-full bg-aura-navy overflow-hidden" style={{ height: '100%' }}>
-        <Sidebar connections={connections} onRefresh={fetchConnections} className={isChat ? "hidden md:flex" : "flex"} />
-        <main className={clsx("flex-1 min-h-0 overflow-hidden bg-[#151525]", isChat || location.pathname === '/dashboard/personal' ? "flex" : "hidden md:flex")}>
+        <Sidebar connections={connections} onRefresh={fetchConnections} className={hideSidebarOnMobile ? "hidden md:flex" : "flex"} />
+        <main className={clsx("flex-1 min-h-0 overflow-hidden bg-[#151525]", hideSidebarOnMobile ? "flex" : "hidden md:flex")}>
           <Routes>
             <Route path="/" element={<div className="flex-1 flex items-center justify-center text-aura-lavender/50 text-center px-4">Select a connection or your personal workspace to start</div>} />
             <Route path="/c/:id" element={<ChatWorkspace connections={connections} />} />

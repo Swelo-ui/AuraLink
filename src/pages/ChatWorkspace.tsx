@@ -12,6 +12,7 @@ import ActionMojiAvatar from '../components/ActionMojiAvatar';
 import { supabase } from '../lib/supabaseClient';
 import { getAuraBotResponse } from '../lib/aurabot';
 import { playPopSound, playReceiveSound } from '../lib/audio';
+import { tgUploadFile, tgGetFileUrl } from '../lib/telegram';
 export interface Message {
   id?: string;
   sender_id?: string;
@@ -492,14 +493,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     if (!file || !user?.id || !partner) return;
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, file);
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
+      // Use Telegram Cloud for all file uploads to save Supabase Storage quota
+      const { file_id, message_id } = await tgUploadFile(file);
+      const publicUrl = await tgGetFileUrl(file_id);
 
       if (isVirtualBot) {
         // Local preview for bot chat
@@ -514,6 +510,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         };
         setMessages(prev => [...prev, userMsg]);
         
+        // Also manually add to vault_items since AuraBot messages aren't saved to DB
+        await supabase.from('vault_items').insert([{
+          user_id: user.id,
+          name: file.name,
+          content: file.name,
+          type: 'file',
+          telegram_file_id: file_id,
+          telegram_msg_id: message_id,
+          file_size: file.size,
+          folder_id: null,
+          is_chat_file: true
+        }]);
+
         // Convert to base64 if image for LLM analysis
         let imageBase64: string | undefined;
         if (file.type.startsWith('image/')) {
@@ -531,7 +540,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           receiver_id: partner.id,
           content: file.name,
           type: 'file',
-          file_url: publicUrl
+          file_url: publicUrl,
+          telegram_file_id: file_id,
+          telegram_msg_id: message_id
         }]).select().single();
 
         if (data) {
@@ -550,6 +561,8 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     } catch (err) {
       console.error('[Upload Error]', err);
     }
+    // reset input
+    if (e.target) e.target.value = '';
   };
 
   const acceptFriend = async () => {

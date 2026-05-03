@@ -72,40 +72,49 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   };
 
   const toggleNotifications = async () => {
-    if (!notificationsEnabled && 'Notification' in window) {
-      if (Notification.permission !== 'granted') {
-        const perm = await Notification.requestPermission();
-        if (perm !== 'granted') return;
+    const newVal = !notificationsEnabled;
+    
+    // Optimistically update UI
+    setNotificationsEnabled(newVal);
+    localStorage.setItem('aura_notifications', newVal.toString());
+
+    if (newVal && 'Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        await Notification.requestPermission();
+      }
+      
+      if (Notification.permission === 'denied') {
+        alert('Notifications are blocked by your browser. Please allow them in site settings to receive background alerts.');
+        return; // Don't try to subscribe to push
       }
       
       // Subscribe to Web Push
       try {
-        const registration = await navigator.serviceWorker.ready;
-        let subscription = await registration.pushManager.getSubscription();
-        if (!subscription) {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
-          });
-        }
-        
-        // Save to DB
-        const subData = subscription.toJSON();
-        if (user?.id) {
-          await supabase.from('push_subscriptions').upsert({
-            user_id: user.id,
-            endpoint: subData.endpoint,
-            auth: subData.keys?.auth,
-            p256dh: subData.keys?.p256dh,
-          }, { onConflict: 'endpoint' });
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          let subscription = await registration.pushManager.getSubscription();
+          if (!subscription && import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
+            });
+          }
+          
+          // Save to DB
+          if (subscription && user?.id) {
+            const subData = subscription.toJSON();
+            await supabase.from('push_subscriptions').upsert({
+              user_id: user.id,
+              endpoint: subData.endpoint,
+              auth: subData.keys?.auth,
+              p256dh: subData.keys?.p256dh,
+            }, { onConflict: 'endpoint' });
+          }
         }
       } catch (e) {
         console.error('Push subscription failed:', e);
       }
     }
-    const newVal = !notificationsEnabled;
-    setNotificationsEnabled(newVal);
-    localStorage.setItem('aura_notifications', newVal.toString());
   };
 
   const toggleFocusMode = () => {

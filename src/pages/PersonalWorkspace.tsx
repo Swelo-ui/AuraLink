@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { FileText, Calendar, Lock } from 'lucide-react';
+import { FileText, Calendar, Lock, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import SyncNotes from '../components/SyncNotes';
 import SharedTimetable from '../components/SharedTimetable';
@@ -8,13 +9,22 @@ import SmartVault from '../components/SmartVault';
 
 export default function PersonalWorkspace() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'notes' | 'vault' | 'timetable'>('notes');
 
   if (!user) return null;
 
   return (
     <div className="flex-1 flex flex-col h-full relative">
-      <div className="p-4 border-b border-aura-border bg-aura-panel flex items-center justify-between shadow-sm relative z-10 shrink-0">
+      <div className="p-4 border-b border-aura-border bg-aura-panel flex items-center gap-3 shadow-sm relative z-10 shrink-0">
+        <button 
+          onClick={() => navigate('/dashboard')} 
+          className="md:hidden p-2 -ml-2 text-aura-lavender hover:text-white transition-colors"
+          title="Back to Chats"
+        >
+          <ArrowLeft size={22} />
+        </button>
+        
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-aura-primary flex items-center justify-center text-white font-bold text-lg shadow-inner">
             {user.username[0].toUpperCase()}
