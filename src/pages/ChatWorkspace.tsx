@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { Send, FileText, Paperclip, Calendar, X, Mic, MicOff, Settings as SettingsIcon, Volume2, VolumeX, EyeOff, Clock } from 'lucide-react';
 import clsx from 'clsx';
 import SyncNotes from '../components/SyncNotes';
-import SmartVault from '../components/SmartVault';
+import SmartVault, { FileIcon, getFileType } from '../components/SmartVault';
 import SharedTimetable from '../components/SharedTimetable';
 import { motion, AnimatePresence } from 'motion/react';
 import ActionMojiAvatar from '../components/ActionMojiAvatar';
@@ -58,6 +58,7 @@ const STATUS_LABELS: Record<string, string> = {
   celebrating: '🎊 Celebrating!',
   playing_games: '🎮 Playing games',
   listening_music: '🎵 Listening to music',
+  sleepy: '😴 Sleepy',
 };
 
 function getStatusLabel(status: string) {
@@ -67,21 +68,20 @@ function getStatusLabel(status: string) {
 
 // ── Sentiment keywords ──────────────────────────────────────────────────
 const SENTIMENT_MAP: { states: string[]; keywords: string[] }[] = [
-  { states: ['searching'],  keywords: ['search', 'find', 'looking', 'dhund', 'dhundh', 'kahan', 'kidhar', 'talash', 'khoj', 'mil nahi', 'pata karo'] },
-  { states: ['writing_code'], keywords: ['code', 'debug', 'error', 'bug', 'coding', 'script', 'logic', 'fix', 'build', 'program', 'run kar', 'chalao', 'developer'] },
-  { states: ['uploading'],  keywords: ['upload', 'send file', 'attachment', 'bhej', 'bheja', 'lelo', 'document', 'share', 'daal raha', 'receive', 'photo', 'video'] },
-  { states: ['reading_book'], keywords: ['read', 'study', 'learn', 'book', 'padhai', 'padh', 'seekh', 'notes', 'exam', 'revision', 'kitaab', 'paper', 'homework'] },
-  { states: ['celebrating'],keywords: ['congratulations', 'yay', 'party', 'mubarak', 'badhai', 'kamaal', 'badiya', 'jeeta', 'op', 'gg', 'booyah', 'shabaash', 'party do', 'daaru', 'masti'] },
-  { states: ['playing_games'], keywords: ['play', 'game', 'khel', 'pubg', 'bgmi', 'valorant', 'minecraft', 'match', 'lobby', 'push kar', 'kill', 'winner', 'chicken dinner'] },
-  { states: ['listening_music'], keywords: ['music', 'song', 'listen', 'gaana', 'sun', 'spotify', 'playlist', 'vibe', 'beat', 'lyrics', 'singer', 'voice note', 'audio'] },
-  { states: ['angry'],    keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'mad', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas', 'dimag kharab', 'hatt', 'bak', 'chup', 'ghatiya', 'sharam', 'bewakoof', 'gadha'] },
-  { states: ['sad'],      keywords: ['sad', 'depressed', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'sorry', 'regret', 'fail', 'bad', 'dukhi', 'rona', 'akela', 'bura', 'udas', 'pareshan', 'ro mat', 'tension', 'dard', 'kyu kiya', 'bechara'] },
-  { states: ['confused'], keywords: ['confused', 'what', 'huh', 'idk', 'unclear', 'weird', 'strange', 'why', 'how', 'lost', 'really?', '??', 'kya', 'samajh nahi', 'kaise', 'kyu', 'pata nahi', 'kuch bhi', 'hein', 'matlab'] },
-  { states: ['surprised'],keywords: ['wow', 'omg', 'whoa', 'no way', 'seriously', 'really', 'shocking', 'unexpected', 'wait what', 'sachme', 'are waah', 'kya baat', 'gazab', 'dhamaal', 'bhayanak', 'baap re', 'hey bhagwan'] },
-  { states: ['happy'],    keywords: ['happy', 'great', 'awesome', 'love', 'haha', 'lol', 'fun', 'nice', 'good', 'cool', 'yes!', 'yay', 'excited', 'amazing', 'perfect', 'thanks', 'thank you', 'khush', 'acha', 'mast', 'badiya', 'sahi', 'maza', 'wah', 'super', 'ji'] },
-  { states: ['thinking'], keywords: ['hmm', 'think', 'maybe', 'perhaps', 'possibly', 'let me', 'well...', 'soch', 'dimag', 'idea', 'plan', 'batata hoon', 'wait', 'ek min', 'sochne de'] },
-  { states: ['heart_eyes'],keywords: ['love you', 'adore', 'crush', 'beautiful', 'gorgeous', 'cute', 'sundar', 'pyar', 'khoobsurat', 'mast lag', 'jaan', 'shona', 'babu', 'pyaara', 'sweet', 'mohabat', 'ishq'] },
-  { states: ['sleepy'], keywords: ['sleep', 'good night', 'gn', 'so jao', 'so raha', 'bye', 'tata', 'shubh ratri', 'nini', 'neend', 'thak gaya', 'rest', 'dream', 'sapne'] },
+  { states: ['searching'],  keywords: ['search', 'find', 'looking', 'dhund', 'dhundh', 'kahan', 'kidhar', 'talash', 'khoj', 'mil nahi', 'pata karo', 'dhundo', 'check'] },
+  { states: ['writing_code'], keywords: ['code', 'debug', 'error', 'bug', 'coding', 'script', 'logic', 'fix', 'build', 'program', 'run kar', 'chalao', 'developer', 'hacker', 'vscode', 'terminal', 'cmd'] },
+  { states: ['uploading'],  keywords: ['upload', 'send file', 'attachment', 'bhej', 'bheja', 'lelo', 'document', 'share', 'daal raha', 'receive', 'photo', 'video', 'file bhej', 'pdf', 'image'] },
+  { states: ['reading_book'], keywords: ['read', 'study', 'learn', 'book', 'padhai', 'padh', 'seekh', 'notes', 'exam', 'revision', 'kitaab', 'paper', 'homework', 'padhlo', 'shlok', 'gyaan'] },
+  { states: ['celebrating'],keywords: ['congratulations', 'yay', 'party', 'mubarak', 'badhai', 'kamaal', 'badiya', 'jeeta', 'op', 'gg', 'booyah', 'shabaash', 'party do', 'daaru', 'masti', 'shava', 'chakde'] },
+  { states: ['playing_games'], keywords: ['play', 'game', 'khel', 'pubg', 'bgmi', 'valorant', 'minecraft', 'match', 'lobby', 'push kar', 'kill', 'winner', 'chicken dinner', 'game khel', 'pc'] },
+  { states: ['listening_music'], keywords: ['music', 'song', 'listen', 'gaana', 'sun', 'spotify', 'playlist', 'vibe', 'beat', 'lyrics', 'singer', 'voice note', 'audio', 'earphone', 'headphone'] },
+  { states: ['angry'],    keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'mad', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas', 'dimag kharab', 'hatt', 'bak', 'chup', 'ghatiya', 'sharam', 'bewakoof', 'gadha', 'badtameez', 'haramkhor', 'bewajah'] },
+  { states: ['sad'],      keywords: ['sad', 'depressed', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'sorry', 'regret', 'fail', 'bad', 'dukhi', 'rona', 'akela', 'bura', 'udas', 'pareshan', 'ro mat', 'tension', 'dard', 'kyu kiya', 'bechara', 'afsos', 'rondu'] },
+  { states: ['confused'], keywords: ['confused', 'what', 'huh', 'idk', 'unclear', 'weird', 'strange', 'why', 'how', 'lost', 'really?', '??', 'kya', 'samajh nahi', 'kaise', 'kyu', 'pata nahi', 'kuch bhi', 'hein', 'matlab', 'ye kya', 'kya hai'] },
+  { states: ['surprised'],keywords: ['wow', 'omg', 'whoa', 'no way', 'seriously', 'really', 'shocking', 'unexpected', 'wait what', 'sachme', 'are waah', 'kya baat', 'gazab', 'dhamaal', 'bhayanak', 'baap re', 'hey bhagwan', 'shakal', 'look at that'] },
+  { states: ['happy'],    keywords: ['happy', 'great', 'awesome', 'love', 'haha', 'lol', 'fun', 'nice', 'good', 'cool', 'yes!', 'yay', 'excited', 'amazing', 'perfect', 'thanks', 'thank you', 'khush', 'acha', 'mast', 'badiya', 'sahi', 'maza', 'wah', 'super', 'ji', 'hnji', 'shukriya', 'mubarak'] },
+  { states: ['heart_eyes'],keywords: ['love you', 'adore', 'crush', 'beautiful', 'gorgeous', 'cute', 'sundar', 'pyar', 'khoobsurat', 'mast lag', 'jaan', 'shona', 'babu', 'pyaara', 'sweet', 'mohabat', 'ishq', 'dil', 'i love', 'ily'] },
+  { states: ['sleepy'], keywords: ['sleep', 'good night', 'gn', 'so jao', 'so raha', 'bye', 'tata', 'shubh ratri', 'nini', 'neend', 'thak gaya', 'rest', 'dream', 'sapne', 'so gaya', 'goodnight', 'sd'] },
 ];
 
 function deriveMoodFromString(text: string): string | null {
@@ -218,15 +218,18 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         .order('timestamp', { ascending: true });
 
       if (data) {
-        setMessages(data.map(m => ({
+        const mapped = data.map(m => ({
           id: m.id,
           senderId: m.sender_id,
           receiverId: m.receiver_id,
           content: m.content,
           type: m.type,
           fileUrl: m.file_url,
-          timestamp: m.timestamp
-        })));
+          timestamp: m.timestamp,
+          telegram_file_id: m.telegram_file_id,
+          telegram_msg_id: m.telegram_msg_id
+        }));
+        setMessages(mapped);
       }
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
@@ -245,19 +248,21 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           (m.sender_id === partner.id && m.receiver_id === user.id)
         ) {
           setMessages(prev => {
-             if (prev.some(p => p.id === m.id)) return prev;
-             if (m.sender_id === partner.id && chatSettingsRef.current.receiveSound) {
-               playReceiveSound();
-             }
-             return [...prev, {
-                id: m.id,
-                senderId: m.sender_id,
-                receiverId: m.receiver_id,
-                content: m.content,
-                type: m.type,
-                fileUrl: m.file_url,
-                timestamp: m.timestamp
-             }];
+            if (prev.some(p => p.id === m.id)) return prev;
+            if (m.sender_id === partner.id && chatSettingsRef.current.receiveSound) {
+              playReceiveSound();
+            }
+            return [...prev, {
+              id: m.id,
+              senderId: m.sender_id,
+              receiverId: m.receiver_id,
+              content: m.content,
+              type: m.type,
+              fileUrl: m.file_url,
+              timestamp: m.timestamp,
+              telegram_file_id: m.telegram_file_id,
+              telegram_msg_id: m.telegram_msg_id
+            }];
           });
           setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
@@ -552,7 +557,9 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             content: data.content,
             type: data.type,
             fileUrl: data.file_url,
-            timestamp: data.timestamp
+            timestamp: data.timestamp,
+            telegram_file_id: data.telegram_file_id,
+            telegram_msg_id: data.telegram_msg_id
           }]);
         }
       }
@@ -671,13 +678,14 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             >
               {/* Removed key and AnimatePresence to allow smooth internal ActionMoji state transitions */}
               <div className="w-[80px] h-[80px] scale-[0.45] sm:scale-[0.6] origin-center">
-                <ActionMojiAvatar 
-                  state={avatarMood} 
-                  username={partner.username} 
-                  showStatusRing={false}
-                  showStatus={false}
-                />
-              </div>
+              <ActionMojiAvatar 
+                state={avatarMood} 
+                username={partner?.username || 'User'} 
+                avatarUrl={partner?.avatar_url || partner?.avatarUrl}
+                showStatusRing={false}
+                showStatus={false}
+              />
+            </div>
             </motion.div>
 
             {/* Tool Toggles */}
@@ -726,7 +734,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                   {m.type === 'file' && (
                     <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity py-1">
                       <div className="p-2 bg-white/10 rounded-lg">
-                        <Paperclip size={18} />
+                        <FileIcon name={m.content} size={18} className="text-white" />
                       </div>
                       <span className="text-sm font-medium truncate max-w-[150px] sm:max-w-xs">{m.content}</span>
                     </a>

@@ -149,19 +149,42 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     }
   };
 
-  const girlAvatars = ['Lily', 'Zoe', 'Mia', 'Ella', 'Ava', 'Chloe', 'Ruby', 'Luna', 'Sophie', 'Emily'].map(s => `https://api.dicebear.com/7.x/adventurer/svg?seed=${s}`);
-  const boyAvatars = ['Jack', 'Leo', 'Oliver', 'Milo', 'Finn', 'Noah', 'Charlie', 'Toby', 'Sam', 'Felix'].map(s => `https://api.dicebear.com/7.x/adventurer/svg?seed=${s}`);
+  const girlAvatars = [
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Aria&hairColor=9a3300',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Luna&hairColor=2c1b18',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Zoe&hairColor=4a312c',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Maya&hairColor=724133',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Elena&hairColor=d1ad70',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Chloe&hairColor=e8d1a1',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Sofia&hairColor=4a312c',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Ivy&hairColor=241c11',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Ruby&hairColor=9a3300',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Lily&hairColor=f1ff5e'
+  ];
+  const boyAvatars = [
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Leo&hairColor=2c1b18',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Max&hairColor=4a312c',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Finn&hairColor=724133',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Sam&hairColor=d1ad70',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Noah&hairColor=241c11',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Jake&hairColor=9a3300',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Toby&hairColor=2c1b18',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Milo&hairColor=4a312c',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Luke&hairColor=724133',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Alex&hairColor=d1ad70'
+  ];
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!search) return setResults([]);
+    const query = search.trim();
+    if (!query) return setResults([]);
     
     const { data, error } = await supabase
       .from('users')
       .select('id, username, avatar_url')
-      .ilike('username', `%${search}%`)
+      .ilike('username', `%${query}%`)
       .neq('id', user?.id)
-      .limit(10);
+      .limit(15);
       
     if (data) setResults(data);
   };
@@ -268,8 +291,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
           <input 
             type="text" 
             name={`aura_search_${Math.random().toString(36).substring(7)}`}
-            placeholder="Search connections..." 
-            className="w-full bg-aura-navy border border-aura-border rounded-lg pl-10 pr-4 py-2 flex-1 text-sm text-white focus:outline-none focus:border-aura-primary transition-colors"
+            placeholder="Search users..." 
+            className="w-full bg-aura-navy border border-aura-border rounded-xl pl-10 pr-10 py-2.5 flex-1 text-sm text-white focus:outline-none focus:border-aura-primary transition-all shadow-inner"
             value={search}
             onChange={e => setSearch(e.target.value)}
             autoComplete="new-password"
@@ -280,21 +303,41 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             data-1p-ignore="true"
             data-form-type="other"
           />
-          <Search size={16} className="absolute left-3 top-2.5 text-aura-lavender/40" />
+          <Search size={16} className="absolute left-3 top-3 text-aura-lavender/40" />
+          {search && (
+            <button 
+              type="button" 
+              onClick={() => { setSearch(''); setResults([]); }}
+              className="absolute right-3 top-3 text-aura-lavender/40 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          )}
         </form>
       </div>
 
       {results.length > 0 && (
-        <div className="mx-4 mb-4 bg-aura-navy rounded-lg p-2 flex flex-col gap-2 border border-aura-border">
-          <p className="text-xs text-aura-lavender/40 uppercase tracking-widest px-2 font-semibold">Search Results</p>
-          {results.map(r => (
-            <div key={r.id} className="flex items-center justify-between p-2 hover:bg-aura-border rounded-md transition-colors">
-              <span className="text-sm font-medium text-white">{r.username}</span>
-              <button onClick={() => addFriend(r.id)} className="text-aura-primary hover:text-white p-1">
-                <UserPlus size={16} />
-              </button>
-            </div>
-          ))}
+        <div className="mx-4 mb-4 bg-aura-navy/80 backdrop-blur-sm rounded-xl p-3 flex flex-col gap-2 border border-aura-primary/20 shadow-xl animate-in zoom-in-95 duration-200">
+          <p className="text-[10px] text-aura-primary uppercase tracking-widest px-1 font-black">Found on AuraLink</p>
+          <div className="max-h-48 overflow-y-auto space-y-2">
+            {results.map(r => (
+              <div key={r.id} className="flex items-center justify-between p-2 hover:bg-aura-primary/10 rounded-lg transition-colors border border-transparent hover:border-aura-primary/10 group">
+                <div className="flex items-center gap-2">
+                  <ActionMojiAvatar 
+                    state="idle" 
+                    username={r.username} 
+                    avatarUrl={r.avatar_url} 
+                    size="xs" 
+                    showStatusRing={false}
+                  />
+                  <span className="text-sm font-semibold text-white group-hover:text-aura-primary transition-colors">{r.username}</span>
+                </div>
+                <button onClick={() => addFriend(r.id)} className="bg-aura-primary text-white p-1.5 rounded-lg shadow-lg shadow-aura-primary/20 hover:scale-110 active:scale-95 transition-all">
+                  <UserPlus size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -332,9 +375,13 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                 return (
                   <div key={conn.id} className="flex items-center justify-between p-3 bg-aura-primary/5 rounded-xl border border-aura-primary/20">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-aura-primary flex items-center justify-center text-white text-xs font-bold">
-                        {partner?.username?.[0]?.toUpperCase()}
-                      </div>
+                      <ActionMojiAvatar
+                        state="offline"
+                        username={partner?.username || 'User'}
+                        avatarUrl={partner?.avatarUrl || partner?.avatar_url}
+                        size="xs"
+                        showStatusRing={false}
+                      />
                       <span className="text-sm font-medium text-white">{partner?.username}</span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -372,11 +419,12 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <div className="shrink-0 scale-[0.5] -mx-4">
+                  <div className="shrink-0">
                     <ActionMojiAvatar 
                       state={isPending ? 'offline' : status} 
                       username={partner.username} 
-                      size="lg" 
+                      avatarUrl={partner.avatarUrl || partner.avatar_url}
+                      size="sm" 
                       showStatusRing={!isPending && status !== 'offline'}
                     />
                   </div>
@@ -417,9 +465,24 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                   )}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
+
+        {/* Discover More Card */}
+        {connections.length < 5 && !search && (
+          <div className="mx-4 mt-6 p-4 rounded-2xl bg-gradient-to-br from-aura-primary/20 to-aura-pink/20 border border-white/10 relative overflow-hidden group">
+            <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-all" />
+            <h4 className="text-white font-bold text-sm mb-1 relative z-10">Expand your Aura</h4>
+            <p className="text-aura-lavender/60 text-[11px] mb-3 relative z-10">Connect with other people on the ecosystem.</p>
+            <button 
+              onClick={fetchDiscoverUsers}
+              className="w-full py-2 bg-white text-aura-navy rounded-xl text-xs font-black shadow-lg hover:shadow-white/20 active:scale-95 transition-all relative z-10"
+            >
+              EXPLORE PEOPLE
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Settings Modal */}
@@ -543,9 +606,13 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                   return (
                     <div key={u.id} className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-aura-primary/20 flex items-center justify-center text-aura-primary font-bold">
-                          {u.username[0].toUpperCase()}
-                        </div>
+                        <ActionMojiAvatar
+                          state="offline"
+                          username={u.username}
+                          avatarUrl={u.avatarUrl || u.avatar_url}
+                          size="xs"
+                          showStatusRing={false}
+                        />
                         <span className="text-white font-medium">{u.username}</span>
                       </div>
                       {existingConn ? (

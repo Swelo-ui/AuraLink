@@ -13,6 +13,7 @@ export type ActionMojiState =
 interface ActionMojiProps {
   state: ActionMojiState | string;
   username: string;
+  avatarUrl?: string;
   size?: AvatarSize;
   showStatus?: boolean;
   showStatusRing?: boolean;
@@ -297,6 +298,24 @@ function FaceSVG({ state, vx, vy, mOpen, blinking, lidColor }: any) {
         <path d="M17,16 Q28,22 39,18" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>
         <path d="M61,14 Q72,10 83,14" fill="none" stroke="#0e0420" strokeWidth={2.8} strokeLinecap="round"/>
       </>;
+      mouth=<path d="M42,58 Q50,55 58,58" fill="none" stroke="#0e0420" strokeWidth={2.6} strokeLinecap="round"/>;
+      break;
+    case "listening_music":
+      le=eArch(lx,ly); re=eArch(rx,ry);
+      brows=<>
+        <path d="M17,18 Q28,15 39,18" fill="none" stroke="#0e0420" strokeWidth={2.4} strokeLinecap="round"/>
+        <path d="M61,18 Q72,15 83,18" fill="none" stroke="#0e0420" strokeWidth={2.4} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M40,58 Q50,65 60,58" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>;
+      break;
+    case "playing_games":
+      le=eNormal(lx,ly,ER-2); re=eNormal(rx,ry,ER-2);
+      brows=<>
+        <line x1={18} y1={18} x2={38} y2={22} stroke="#0e0420" strokeWidth={3.5} strokeLinecap="round"/>
+        <line x1={62} y1={22} x2={82} y2={18} stroke="#0e0420" strokeWidth={3.5} strokeLinecap="round"/>
+      </>;
+      mouth=<path d="M40,58 Q50,64 60,58" fill="none" stroke="#0e0420" strokeWidth={3} strokeLinecap="round"/>;
+      break;
       mouth=<path d="M38,62 Q50,58 62,62" fill="none" stroke="#0e0420" strokeWidth={3.2} strokeLinecap="round"/>;
       break;
     case "partying":
@@ -339,10 +358,11 @@ function HeartDeco({ x, y, delay, sz }: any) {
 }
 
 // --- Main ActionMojiAvatar Component ---
-export default function ActionMojiAvatar({
-  state,
-  username,
-  size = 'lg',
+export default function ActionMojiAvatar({ 
+  state, 
+  username = 'User', 
+  avatarUrl,
+  size = 'md',
   showStatus = false,
   showStatusRing = true,
   onClick,
@@ -565,16 +585,23 @@ export default function ActionMojiAvatar({
             width:s,
             height:s,
             zIndex:1,
-            borderRadius: isBot ? "50% 50% 50% 43% / 50% 50% 47% 44%" : "24px",
+            borderRadius: "50%",
+            WebkitMaskImage: "-webkit-radial-gradient(white, black)",
             background:"radial-gradient(circle at 64% 26%, "+T.m+" 0%, "+T.d+" 100%)",
             boxShadow:"0 "+fp(s*.03)+" "+fp(s*.08)+" rgba(0,0,40,.4), inset -"+fp(s*.01)+" -"+fp(s*.015)+" "+fp(s*.03)+" rgba(0,0,100,.15)",
             filter: isOffline ? "grayscale(1) opacity(0.8)" : "none",
             overflow:"hidden",
             transition:"background .4s ease, box-shadow .4s ease, border-radius .4s ease, filter .4s ease"
           }}>
-            <div style={{position:"absolute",top:"-7%",right:"5%",width:"55%",height:"45%",borderRadius:"50%",background:"radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
-            <div style={{position:"absolute",top:"13%",left:"18%",width:"16%",height:"12%",borderRadius:"50%",background:"radial-gradient(ellipse, rgba(255,255,255,.88) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
-            <FaceSVG state={activeState} vx={vx} vy={vy} mOpen={mOpen} blinking={blinking} lidColor={T.m}/>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={username} className="w-full h-full object-cover" />
+            ) : (
+              <>
+                <div style={{position:"absolute",top:"-7%",right:"5%",width:"55%",height:"45%",borderRadius:"50%",background:"radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+                <div style={{position:"absolute",top:"13%",left:"18%",width:"16%",height:"12%",borderRadius:"50%",background:"radial-gradient(ellipse, rgba(255,255,255,.88) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+                <FaceSVG state={activeState} vx={vx} vy={vy} mOpen={mOpen} blinking={blinking} lidColor={T.m}/>
+              </>
+            )}
           </div>
         </div>
 

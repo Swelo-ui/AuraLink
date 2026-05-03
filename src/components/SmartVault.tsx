@@ -1,6 +1,6 @@
 import {
   Download, File, Image as ImageIcon, FileText, Upload,
-  Plus, X, Lock, Trash2, Presentation, Loader2, AlertCircle, Folder, FolderPlus, ArrowLeft, Filter
+  Plus, X, Lock, Trash2, Presentation, Loader2, AlertCircle, Folder, FolderPlus, ArrowLeft, Filter, Film, PlayCircle
 } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useSocket } from './SocketProvider';
@@ -27,34 +27,40 @@ interface VaultFile {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function getFileType(name: string) {
-  const ext = name.split('.').pop()?.toLowerCase() || '';
+export function getFileType(name: string) {
+  if (!name) return 'other';
+  // Handle cases with multiple dots or no dots
+  const parts = name.split('.');
+  if (parts.length < 2) return 'other';
+  const ext = parts.pop()?.toLowerCase() || '';
+
   if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return 'image';
   if (ext === 'pdf')                                          return 'pdf';
-  if (['doc','docx'].includes(ext))                          return 'doc';
+  if (['doc','docx','txt','rtf'].includes(ext))               return 'doc';
   if (['ppt','pptx'].includes(ext))                          return 'ppt';
   if (['xls','xlsx','csv'].includes(ext))                    return 'sheet';
-  if (['mp4','webm','mov'].includes(ext))                    return 'video';
+  if (['mp4','webm','mov','m4v','mkv','avi','flv','wmv','3gp'].includes(ext)) return 'video';
+  if (['zip','rar','7z','tar','gz'].includes(ext))           return 'archive';
   return 'other';
 }
 
-function FileIcon({ name, size = 24, isFolder = false }: { name: string; size?: number; isFolder?: boolean }) {
-  if (isFolder) return <Folder size={size} className="text-aura-primary fill-aura-primary/20" />;
+export function FileIcon({ name, size = 24, isFolder = false, className }: { name: string; size?: number; isFolder?: boolean; className?: string }) {
+  if (isFolder) return <Folder size={size} className={className || "text-aura-primary fill-aura-primary/20"} />;
   const type = getFileType(name);
-  if (type === 'image')  return <ImageIcon      size={size} className="text-pink-400" />;
-  if (type === 'pdf')    return <FileText        size={size} className="text-red-400" />;
-  if (type === 'doc')    return <FileText        size={size} className="text-blue-400" />;
-  if (type === 'ppt')    return <Presentation   size={size} className="text-orange-400" />;
-  if (type === 'sheet')  return <FileText        size={size} className="text-green-400" />;
-  if (type === 'video')  return <File            size={size} className="text-purple-400" />;
-  return <File size={size} className="text-aura-lavender/60" />;
+  if (type === 'image')  return <ImageIcon      size={size} className={className || "text-pink-400"} />;
+  if (type === 'pdf')    return <FileText        size={size} className={className || "text-red-400"} />;
+  if (type === 'doc')    return <FileText        size={size} className={className || "text-blue-400"} />;
+  if (type === 'ppt')    return <Presentation   size={size} className={className || "text-orange-400"} />;
+  if (type === 'sheet')  return <FileText        size={size} className={className || "text-green-400"} />;
+  if (type === 'video')  return <Film            size={size} className={className || "text-purple-400"} />;
+  return <File size={size} className={className || "text-aura-lavender/60"} />;
 }
 
 function formatBytes(bytes: number) {
   if (!bytes) return '';
   if (bytes < 1024)        return `${bytes} B`;
   if (bytes < 1024 ** 2)   return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 2)   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  if (bytes < 1024 ** 3)   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
@@ -95,11 +101,13 @@ export default function SmartVault({
   const [deletingId,    setDeletingId]    = useState<string | null>(null);
 
   // ── Build display list ────────────────────────────────────────────────────
-  const rawFiles: VaultFile[] = [
-    ...vaultItems.map(item => ({
+  // ── Build display list ────────────────────────────────────────────────────
+  const rawFiles = (() => {
+    // 1. Start with vault items from the DB
+    const list: VaultFile[] = vaultItems.map(item => ({
       id:                item.id,
       content:           item.content || (item as any).name,
-      fileUrl:           '',
+      fileUrl:           item.fileUrl || item.file_url || '',
       telegram_file_id:  item.telegram_file_id,
       telegram_msg_id:   item.telegram_msg_id,
       file_size:         item.file_size,
@@ -107,21 +115,60 @@ export default function SmartVault({
       timestamp:         item.created_at || (item as any).timestamp,
       folder_id:         item.folder_id,
       is_chat_file:      item.is_chat_file
-    })),
-    // Local messages that might not be in DB yet
-    ...messages.filter(m => m.type === 'file' && !vaultItems.find(v => v.telegram_file_id === m.telegram_file_id)).map(m => ({
-      id:                m.id || `local-${Date.now()}`,
-      content:           m.content,
-      fileUrl:           m.fileUrl || m.file_url || '',
-      telegram_file_id:  m.telegram_file_id,
-      telegram_msg_id:   m.telegram_msg_id,
-      file_size:         null,
-      type:              'file',
-      timestamp:         m.timestamp,
-      folder_id:         null,
-      is_chat_file:      true
-    }))
-  ];
+    }));
+
+    // 2. Add files from the current conversation (messages prop)
+    // ONLY if they aren't already in the vault list
+    const chatFiles = messages
+      .filter(m => m.type === 'file')
+      .map(m => {
+        // Find if this file is already in vaultItems by telegram_file_id
+        const existing = list.find(v => 
+          (v.telegram_file_id && v.telegram_file_id === m.telegram_file_id) || 
+          (v.id === m.id)
+        );
+        
+        if (existing) return null;
+
+        return {
+          id:                m.id || `msg-${m.telegram_msg_id || Date.now()}`,
+          content:           m.content,
+          fileUrl:           m.fileUrl || m.file_url || '',
+          telegram_file_id:  m.telegram_file_id,
+          telegram_msg_id:   m.telegram_msg_id,
+          file_size:         null,
+          type:              'file',
+          timestamp:         m.timestamp,
+          folder_id:         null,
+          is_chat_file:      true
+        };
+      })
+      .filter(Boolean) as VaultFile[];
+
+    // 3. Filter based on context
+    if (isPersonal) {
+      // In personal vault, show everything we've fetched
+      return [...list, ...chatFiles];
+    } else {
+      // In a shared vault/chat context, ONLY show files from the messages prop
+      // or vault items specifically linked to this connection (if we had connection_id in vault_items)
+      // For now, we only show files from the current chat history passed via messages prop
+      return messages
+        .filter(m => m.type === 'file')
+        .map(m => ({
+          id:                m.id || `msg-${m.telegram_msg_id}`,
+          content:           m.content,
+          fileUrl:           m.fileUrl || m.file_url || '',
+          telegram_file_id:  m.telegram_file_id,
+          telegram_msg_id:   m.telegram_msg_id,
+          file_size:         null,
+          type:              'file',
+          timestamp:         m.timestamp,
+          folder_id:         null,
+          is_chat_file:      true
+        }));
+    }
+  })();
 
   // Apply filters and folder navigation
   let displayFiles = rawFiles;
@@ -189,8 +236,13 @@ export default function SmartVault({
   }, [user?.id]);
 
   useEffect(() => {
-    fetchPersonalVault();
-  }, [fetchPersonalVault]);
+    if (isPersonal) {
+      fetchPersonalVault();
+    } else {
+      // In shared mode, we don't fetch personal vault items
+      setVaultItems([]);
+    }
+  }, [isPersonal, fetchPersonalVault]);
 
   // ── Resolve Telegram download URLs ──────────────────────────────────────────
   useEffect(() => {
@@ -479,8 +531,8 @@ export default function SmartVault({
 
               return (
                 <div
-                  key={f.id || i}
-                  className="bg-aura-panel/50 border border-aura-border rounded-2xl p-3.5 flex flex-col gap-3 hover:border-aura-primary/40 transition-all group"
+                  key={f.id}
+                  className="bg-aura-panel/50 border border-aura-border rounded-2xl p-3.5 flex flex-col gap-3 hover:border-aura-primary/40 transition-all group animate-in fade-in slide-in-from-bottom-2 duration-300"
                 >
                   <div className="flex items-center gap-3">
                     <div 
