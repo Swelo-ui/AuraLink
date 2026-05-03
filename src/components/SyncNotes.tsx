@@ -10,11 +10,28 @@ import { useSocket } from './SocketProvider';
 import clsx from 'clsx';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
+import Blockquote from '@tiptap/extension-blockquote';
+
+// Custom Blockquote with color support
+const CustomBlockquote = Blockquote.extend({
+  addAttributes() {
+    return {
+      color: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-color'),
+        renderHTML: attributes => {
+          if (!attributes.color) return {};
+          return { 'data-color': attributes.color, style: `--quote-color: ${attributes.color}` };
+        },
+      },
+    };
+  },
+});
 import { 
   Bold, Italic, List, Link as LinkIcon, Trash2, 
   CheckCircle2, RefreshCw, Heading1, Heading2, 
   Quote, Code, Highlighter, Download, Sparkles,
-  Clock, Hash, Send
+  Clock, Hash, Send, X, Palette
 } from 'lucide-react';
 
 export default function SyncNotes({ connectionId, partner }: { connectionId?: string, partner?: any }) {
@@ -29,6 +46,12 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
       StarterKit.configure({
         bulletList: { keepMarks: true, keepAttributes: false },
         orderedList: { keepMarks: true, keepAttributes: false },
+        blockquote: false, // Turn off default blockquote to use our custom one
+      }),
+      CustomBlockquote.configure({
+        HTMLAttributes: {
+          class: 'aura-quote',
+        },
       }),
       Placeholder.configure({
         placeholder: 'Capture your thoughts, ideas, or shared insights...',
@@ -49,7 +72,7 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose prose-invert prose-sm sm:prose-base focus:outline-none max-w-none p-8 min-h-full selection:bg-aura-primary/30'
+        class: 'prose prose-invert prose-sm sm:prose-base focus:outline-none max-w-none p-8 min-h-full selection:bg-aura-primary/30 aura-editor'
       }
     },
     onUpdate: async ({ editor }) => {
@@ -91,25 +114,29 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
 
   useEffect(() => {
     const fetchNote = async () => {
+      if (!user?.id || !editor) return;
       try {
-        if (!user?.id) return;
         let query = supabase.from('notes').select('content');
         if (connectionId) {
           query = query.eq('connection_id', connectionId);
         } else {
           query = query.is('connection_id', null).eq('user_id', user.id);
         }
-        const { data } = await query.maybeSingle();
-        if (data && editor && data.content) {
+        
+        const { data, error } = await query.maybeSingle();
+        if (error) throw error;
+
+        if (data && data.content !== undefined) {
           isUpdatingRef.current = true;
           editor.commands.setContent(data.content);
-          isUpdatingRef.current = false;
+          // Set timeout to ensure the ref is cleared after the editor stabilizes
+          setTimeout(() => { isUpdatingRef.current = false; }, 50);
         }
       } catch (err) {
-        console.error('Failed to load note', err);
+        console.error('[Fetch Note Error]', err);
       }
     };
-    if (editor) fetchNote();
+    fetchNote();
   }, [connectionId, editor, user?.id]);
 
   useEffect(() => {
@@ -147,6 +174,7 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
   }, [editor?.getText()]);
 
   const [showAiMenu, setShowAiMenu] = useState(false);
+  const [showColorMenu, setShowColorMenu] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
 
   const runAiCommand = (type: string, custom?: string) => {
@@ -189,7 +217,7 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
   };
 
   return (
-    <div className="flex flex-col h-full bg-aura-navy overflow-hidden relative selection:bg-aura-primary/30">
+    <div className="flex flex-col h-full bg-aura-navy overflow-visible relative selection:bg-aura-primary/30">
       <div className={clsx("absolute top-0 left-0 h-[2.5px] bg-gradient-to-r from-aura-primary to-aura-pink z-50 transition-all duration-700", isSaving ? "w-full opacity-100" : "w-0 opacity-0")}/>
 
       <div className="h-14 bg-aura-panel/95 backdrop-blur-xl border-b border-aura-border flex items-center px-4 justify-between shrink-0 z-40 shadow-lg relative">
@@ -204,9 +232,70 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
             </div>
             <div className="flex items-center bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50">
               <ToolbarButton active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} icon={<List size={15} />} />
-              <ToolbarButton active={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()} icon={<Quote size={15} />} />
+              
+              {/* Quote Menu */}
+              <div className="relative flex items-center bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50 ml-2">
+                <ToolbarButton 
+                  active={editor?.isActive('blockquote')} 
+                  onClick={() => editor?.chain().focus().toggleBlockquote().run()} 
+                  icon={<Quote size={15} />} 
+                />
+                <button 
+                  onClick={() => setShowColorMenu(!showColorMenu)}
+                  className="w-4 h-8 flex items-center justify-center hover:bg-white/5 rounded-md text-aura-lavender/30 transition-colors border-l border-aura-border/30 ml-1"
+                >
+                  <Palette size={10} />
+                </button>
+                
+                {showColorMenu && (
+                  <>
+                    <div className="fixed inset-0 z-[60]" onClick={() => setShowColorMenu(false)} />
+                    <div className="absolute left-0 top-full mt-2 p-2 bg-aura-panel border border-aura-border rounded-xl shadow-2xl z-[70] flex gap-1 animate-in zoom-in-95 duration-200">
+                       {[
+                         { color: '#a855f7', label: 'Purple' },
+                         { color: '#14b8a6', label: 'Teal' },
+                         { color: '#3b82f6', label: 'Blue' },
+                         { color: '#f97316', label: 'Orange' },
+                         { color: '#ec4899', label: 'Pink' },
+                       ].map((c) => (
+                         <button
+                           key={c.color}
+                           onClick={() => {
+                             // If not in blockquote, toggle it first
+                             if (!editor?.isActive('blockquote')) {
+                               editor?.chain().focus().toggleBlockquote().run();
+                             }
+                             // Update the attribute for the specific blockquote
+                             editor?.chain().focus().updateAttributes('blockquote', { color: c.color }).run();
+                             setShowColorMenu(false);
+                           }}
+                           className="w-6 h-6 rounded-full border border-white/20 hover:scale-110 transition-transform shadow-lg"
+                           style={{ backgroundColor: c.color }}
+                           title={c.label}
+                         />
+                       ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
               <ToolbarButton active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} icon={<Code size={15} />} />
-              <ToolbarButton active={editor?.isActive('highlight')} onClick={() => editor?.chain().focus().toggleHighlight().run()} icon={<Highlighter size={15} />} />
+              
+              {/* Standard Highlighter */}
+              <div className="flex items-center gap-1 bg-aura-navy/30 px-1 ml-1 rounded-lg">
+                <button 
+                  onClick={() => editor?.chain().focus().toggleHighlight({ color: '#facc15' }).run()}
+                  className={clsx("w-6 h-6 rounded flex items-center justify-center transition-all", editor?.isActive('highlight', { color: '#facc15' }) ? "bg-yellow-400 text-black" : "text-yellow-400/50 hover:text-yellow-400")}
+                >
+                  <Highlighter size={12} />
+                </button>
+                <button 
+                  onClick={() => editor?.chain().focus().toggleHighlight({ color: '#4ade80' }).run()}
+                  className={clsx("w-6 h-6 rounded flex items-center justify-center transition-all", editor?.isActive('highlight', { color: '#4ade80' }) ? "bg-green-400 text-black" : "text-green-400/50 hover:text-green-400")}
+                >
+                  <Highlighter size={12} />
+                </button>
+              </div>
             </div>
             <div className="w-px h-5 bg-aura-border mx-1 shrink-0" />
             <ToolbarButton onClick={addLink} icon={<LinkIcon size={15} />} active={editor?.isActive('link')} />
@@ -231,41 +320,51 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Aura AI</span>
              </button>
 
-             {showAiMenu && (
-               <>
-                 <div className="fixed inset-0 z-[60]" onClick={() => setShowAiMenu(false)} />
-                 <div className="absolute right-0 mt-2 w-56 bg-aura-panel border border-aura-border rounded-2xl shadow-2xl z-[70] overflow-hidden animate-in fade-in zoom-in-95 duration-200 backdrop-blur-2xl">
-                   <div className="p-3 border-b border-aura-border bg-white/5">
-                     <p className="text-[10px] font-black text-aura-primary uppercase tracking-[0.2em]">Aura Intelligence</p>
-                   </div>
-                   <div className="p-1 pb-2">
-                     <AiMenuButton icon={<Sparkles size={14}/>} label="Professionalize" onClick={() => runAiCommand('refine')} />
-                     <AiMenuButton icon={<List size={14}/>} label="Create Checklist" onClick={() => runAiCommand('todo')} />
-                     <AiMenuButton icon={<Hash size={14}/>} label="Summarize" onClick={() => runAiCommand('summarize')} />
-                     <AiMenuButton icon={<RefreshCw size={14}/>} label="Rewrite in Hinglish" onClick={() => runAiCommand('hinglish')} />
-                     
-                     <div className="mt-2 px-2 pb-1">
-                        <div className="relative group">
-                          <input 
-                            type="text" 
-                            placeholder="Custom request..."
-                            value={customPrompt}
-                            onChange={(e) => setCustomPrompt(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && runAiCommand('custom', customPrompt)}
-                            className="w-full bg-aura-navy/50 border border-aura-border rounded-xl px-3 py-2 text-[11px] text-white focus:outline-none focus:border-aura-primary/50 transition-all placeholder:text-aura-lavender/20"
-                          />
-                          <button 
-                            onClick={() => runAiCommand('custom', customPrompt)}
-                            className="absolute right-2 top-1.5 p-1 text-aura-primary hover:bg-aura-primary/20 rounded-md transition-all"
-                          >
-                            <Send size={12} />
-                          </button>
-                        </div>
-                     </div>
-                   </div>
-                 </div>
-               </>
-             )}
+              {showAiMenu && (
+                <>
+                  <div className="fixed inset-0 z-[60] bg-aura-navy/20 backdrop-blur-[2px] md:bg-transparent" onClick={() => setShowAiMenu(false)} />
+                  <div className="fixed bottom-0 inset-x-0 md:absolute md:bottom-auto md:top-full md:right-0 mt-0 md:mt-2 w-full md:w-64 bg-aura-panel border-t md:border border-aura-border rounded-t-3xl md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[70] overflow-hidden animate-in fade-in slide-in-from-bottom md:slide-in-from-top-2 duration-300 backdrop-blur-2xl">
+                    <div className="p-4 md:p-3 border-b border-aura-border bg-white/5 flex items-center justify-between">
+                      <p className="text-[10px] md:text-[9px] font-black text-aura-primary uppercase tracking-[0.2em]">Aura Intelligence</p>
+                      <button onClick={() => setShowAiMenu(false)} className="md:hidden text-aura-lavender/50"><X size={18} /></button>
+                    </div>
+                    <div className="p-2 md:p-1 pb-4 md:pb-2 max-h-[60vh] overflow-y-auto">
+                      <AiMenuButton icon={<Sparkles size={16}/>} label="Professionalize" onClick={() => runAiCommand('refine')} />
+                      <AiMenuButton icon={<List size={16}/>} label="Create Checklist" onClick={() => runAiCommand('todo')} />
+                      <AiMenuButton icon={<Hash size={16}/>} label="Summarize" onClick={() => runAiCommand('summarize')} />
+                      <AiMenuButton icon={<RefreshCw size={16}/>} label="Rewrite in Hinglish" onClick={() => runAiCommand('hinglish')} />
+                      
+                      <div className="mt-3 md:mt-2 px-3 md:px-2 pb-2">
+                         <div className="relative group">
+                           <input 
+                             type="text" 
+                             placeholder="Custom request..."
+                             className="w-full bg-aura-navy/50 border border-aura-border rounded-xl py-3 md:py-2 px-4 md:px-3 text-sm md:text-xs text-white placeholder:text-aura-lavender/30 focus:outline-none focus:border-aura-primary/50 transition-all"
+                             onKeyDown={(e) => {
+                               if (e.key === 'Enter') {
+                                 runAiCommand('custom', (e.target as HTMLInputElement).value);
+                                 (e.target as HTMLInputElement).value = '';
+                               }
+                             }}
+                           />
+                           <button 
+                             className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-aura-primary hover:text-white transition-colors"
+                             onClick={(e) => {
+                               const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                               if (input.value) {
+                                 runAiCommand('custom', input.value);
+                                 input.value = '';
+                               }
+                             }}
+                           >
+                             <Send size={16} />
+                           </button>
+                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
            </div>
              <button onClick={exportAsMarkdown} className="p-2 text-aura-lavender/40 hover:text-white hover:bg-white/5 rounded-lg transition-all" title="Export as Markdown"><Download size={18} /></button>
              <button onClick={() => confirm('Wipe all content?') && editor?.commands.setContent('')} className="p-2 text-red-400/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all" title="Clear All"><Trash2 size={18} /></button>
@@ -321,9 +420,22 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
         .prose blockquote {
           border-left: 3px solid #7c3aed;
           background: rgba(124, 58, 237, 0.05);
-          padding: 0.5rem 1rem;
+          padding: 0.75rem 1.25rem;
           font-style: italic;
-          border-radius: 0 8px 8px 0;
+          border-radius: 0 12px 12px 0;
+          transition: all 0.3s ease;
+          margin: 1.5rem 0;
+        }
+        /* Dynamic Quote Colors */
+        .prose blockquote[data-color] {
+          border-left-color: var(--quote-color);
+          background: color-mix(in srgb, var(--quote-color) 10%, transparent);
+        }
+        .aura-editor mark {
+          color: #000 !important;
+          font-weight: 500;
+          border-radius: 4px;
+          padding: 0 3px;
         }
       `}} />
     </div>
@@ -334,7 +446,7 @@ function AiMenuButton({ icon, label, onClick }: any) {
   return (
     <button 
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-aura-lavender/60 hover:text-white hover:bg-white/5 transition-all rounded-xl"
+      className="w-full flex items-center gap-4 md:gap-3 px-4 md:px-3 py-3.5 md:py-2.5 text-sm md:text-xs text-aura-lavender/60 hover:text-white hover:bg-white/5 transition-all rounded-2xl md:rounded-xl active:scale-[0.98]"
     >
       <span className="text-aura-primary">{icon}</span>
       <span className="font-semibold">{label}</span>

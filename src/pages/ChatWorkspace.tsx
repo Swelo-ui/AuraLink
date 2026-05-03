@@ -376,12 +376,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
     try {
+      // Format history for LLM
+      const history = messagesRef.current.slice(-15).map(m => ({
+        role: m.senderId === partner.id ? 'assistant' : 'user',
+        content: m.content
+      }));
+
       const llm = await getAuraBotResponse(
         user.id,
         partner.id,
         userText,
         imageBase64,
-        fileUrl
+        fileUrl,
+        history
       );
 
       // Step 1: show typing indicator with predicted mood
@@ -440,12 +447,13 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !user?.id || !partner) return;
+  const sendMessage = async (e?: React.FormEvent, overrideContent?: string) => {
+    if (e) e.preventDefault();
+    const contentToSend = overrideContent || input;
+    if (!contentToSend.trim() || !user?.id || !partner) return;
     
-    const msgContent = input;
-    setInput('');
+    const msgContent = contentToSend;
+    if (!overrideContent) setInput('');
 
     if (isVirtualBot) {
       const now = new Date().toISOString();
@@ -494,16 +502,39 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
   useEffect(() => {
     const handleAISuggest = (e: any) => {
-      if (e.detail?.prompt) {
-        setInput(e.detail.prompt);
-        // Scroll to chat if needed
-        const input = document.querySelector('textarea');
-        input?.focus();
+      const { type, content, custom, prompt } = e.detail || {};
+      
+      if (prompt) {
+        setInput(prompt);
+        return;
+      }
+
+      if (type && content) {
+        let aiPrompt = "";
+        switch(type) {
+          case 'refine': aiPrompt = `Please professionalize and refine this text:\n\n"${content}"`; break;
+          case 'todo': aiPrompt = `Create a clear checklist/todo list based on this content:\n\n"${content}"`; break;
+          case 'summarize': aiPrompt = `Summarize this text concisely:\n\n"${content}"`; break;
+          case 'hinglish': aiPrompt = `Rewrite this content in natural Hinglish (Hindi + English) while keeping the professional tone:\n\n"${content}"`; break;
+          case 'expand': aiPrompt = `Expand on these ideas and provide more detail:\n\n"${content}"`; break;
+          case 'custom': aiPrompt = `${custom}\n\nContext from my notes:\n"${content}"`; break;
+          default: aiPrompt = `Help me with this from my notes:\n\n"${content}"`;
+        }
+        
+        // Auto-send to AuraBot
+        if (isVirtualBot) {
+          handleBotResponse(aiPrompt);
+        } else {
+          setInput(aiPrompt);
+          // If in split view, maybe just leave it as input or auto-send?
+          // For now, let's auto-send if it's a specific action
+          sendMessage(undefined, aiPrompt);
+        }
       }
     };
     window.addEventListener('aura_ai_suggest', handleAISuggest);
     return () => window.removeEventListener('aura_ai_suggest', handleAISuggest);
-  }, []);
+  }, [isVirtualBot, partner, connectionId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -943,7 +974,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                 <X size={22} />
               </button>
             </div>
-            <div className="flex-1 overflow-hidden relative bg-aura-navy/20">
+            <div className="flex-1 overflow-visible relative bg-aura-navy/20">
               {toolTab === 'notes' && (
                 <SyncNotes connectionId={isVirtualBot ? undefined : connectionId} partner={isVirtualBot ? undefined : partner} />
               )}

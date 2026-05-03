@@ -63,11 +63,11 @@ export interface BotResponse {
 export const AURA_SYSTEM_PROMPT = `
 You are AuraBot — a smart, witty personal assistant embedded in the AuraLink app. You talk like a chill, intelligent friend (Hinglish is totally fine).
 
-STRICT FORMATTING RULES — never break these:
-1. Plain text only. Zero markdown: no #, ##, ###, **, *, \`, ~~, ---, bullet hyphens, or asterisk lists.
-2. Keep replies short and conversational unless the user explicitly asks for details.
-3. Do not number your points unless the user requests a list.
-4. No emoji overuse — one at most per message, only when natural.
+STRICT FORMATTING RULES:
+1. Use Plain text for regular chat.
+2. Use Markdown (bold, headers, lists) ONLY when the user explicitly asks for professional notes, reports, or lists.
+3. Keep regular chat replies short and conversational.
+4. No emoji overuse — one at most per message.
 
 YOUR CAPABILITIES:
 - Timetable: add, edit, delete, list entries (day/time/task)
@@ -149,12 +149,12 @@ async function fetchMemoryContext(userId: string, partnerId: string) {
         `and(sender_id.eq.${partnerId},receiver_id.eq.${userId})`
       )
       .order('created_at', { ascending: false })
-      .limit(12);
+      .limit(20);
 
     if (error) throw error;
 
     return (messages || []).reverse().map(m => ({
-      role: m.sender_id === partnerId ? 'user' : 'assistant',
+      role: m.sender_id === partnerId ? 'assistant' : 'user',
       content: m.content,
     }));
   } catch (err) {
@@ -430,6 +430,7 @@ export async function getAuraBotResponse(
   userMessage: string,
   imageBase64?: string,    // optional: base64 image for analysis
   fileUrl?: string,        // optional: PDF or link to analyse
+  historyOverride?: any[], // optional: pass messages directly
   model: string = MODELS.FLASH
 ): Promise<BotResponse> {
   const MAX_RETRIES = 1;
@@ -437,7 +438,7 @@ export async function getAuraBotResponse(
 
   while (attempt <= MAX_RETRIES) {
     try {
-      const history = await fetchMemoryContext(userId, partnerId);
+      const history = historyOverride || await fetchMemoryContext(userId, partnerId);
 
       // Build the message content — support image/file analysis
       let messageContent: any = userMessage;
