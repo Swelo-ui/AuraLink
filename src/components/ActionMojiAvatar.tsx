@@ -593,15 +593,9 @@ export default function ActionMojiAvatar({
             overflow:"hidden",
             transition:"background .4s ease, box-shadow .4s ease, border-radius .4s ease, filter .4s ease"
           }}>
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={username} className="w-full h-full object-cover" />
-            ) : (
-              <>
-                <div style={{position:"absolute",top:"-7%",right:"5%",width:"55%",height:"45%",borderRadius:"50%",background:"radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
-                <div style={{position:"absolute",top:"13%",left:"18%",width:"16%",height:"12%",borderRadius:"50%",background:"radial-gradient(ellipse, rgba(255,255,255,.88) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
-                <FaceSVG state={activeState} vx={vx} vy={vy} mOpen={mOpen} blinking={blinking} lidColor={T.m}/>
-              </>
-            )}
+            <div style={{position:"absolute",top:"-7%",right:"5%",width:"55%",height:"45%",borderRadius:"50%",background:"radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+            <div style={{position:"absolute",top:"13%",left:"18%",width:"16%",height:"12%",borderRadius:"50%",background:"radial-gradient(ellipse, rgba(255,255,255,.88) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+            <FaceSVG state={activeState} vx={vx} vy={vy} mOpen={mOpen} blinking={blinking} lidColor={T.m}/>
           </div>
         </div>
 
