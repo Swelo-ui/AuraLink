@@ -331,13 +331,24 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     if (!socket || !partner) return;
 
     let timeout: NodeJS.Timeout;
+    let lastTrackedState = '';
+
     const updateStatus = async (state: string) => {
+      if (state === lastTrackedState) return; // Prevent websocket spam and rate limits
+      lastTrackedState = state;
       try {
         await socket.track({ status: state });
       } catch (e) {}
     };
 
+    let throttleTimer: any = null;
     const handleInteraction = () => {
+      if (throttleTimer) return;
+      
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+      }, 2000); // Throttle checks to every 2s
+
       clearTimeout(timeout);
       let state = 'online';
       
@@ -354,17 +365,26 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
       timeout = setTimeout(() => {
         updateStatus('idle');
-      }, 60000);
+      }, 60000); // Idle after 60s of no interaction
     };
 
+    // Include mobile touch and scroll events
     window.addEventListener('mousemove', handleInteraction);
     window.addEventListener('keydown', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+    window.addEventListener('scroll', handleInteraction);
+    
+    // Initial status
+    updateStatus('online');
     handleInteraction();
 
     return () => {
       window.removeEventListener('mousemove', handleInteraction);
       window.removeEventListener('keydown', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      window.removeEventListener('scroll', handleInteraction);
       clearTimeout(timeout);
+      if (throttleTimer) clearTimeout(throttleTimer);
     };
   }, [socket, partner?.id, partner?.username, input, toolTab]);
 

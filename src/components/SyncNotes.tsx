@@ -264,7 +264,7 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
             {showColorMenu && (
               <>
                 <div className="fixed inset-0 z-[60]" onClick={() => setShowColorMenu(false)} />
-                <div className="absolute left-[-80px] top-full mt-2 p-2 bg-aura-panel border border-aura-border rounded-xl shadow-2xl z-[70] flex gap-1.5 animate-in zoom-in-95 duration-200">
+                <div className="absolute right-0 top-full mt-2 p-2 bg-aura-panel border border-aura-border rounded-xl shadow-2xl z-[70] flex gap-1.5 animate-in zoom-in-95 duration-200">
                   {[
                     { color: '#a855f7', label: 'Purple' },
                     { color: '#14b8a6', label: 'Teal' },
@@ -313,40 +313,40 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
               </button>
               {showAiMenu && (
                 <>
-                  <div className="fixed inset-0 z-[60] bg-aura-navy/20 backdrop-blur-[2px] md:bg-transparent" onClick={() => setShowAiMenu(false)} />
-                  <div className="fixed bottom-0 inset-x-0 md:absolute md:bottom-auto md:top-full md:right-0 mt-0 md:mt-2 w-full md:w-72 bg-aura-panel border-t md:border border-aura-border rounded-t-3xl md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[70] overflow-hidden animate-in fade-in slide-in-from-bottom md:slide-in-from-top-2 duration-300 backdrop-blur-2xl">
-                    <div className="p-4 md:p-3 border-b border-aura-border bg-white/5 flex items-center justify-between">
+                  <div className="fixed inset-0 z-[60] bg-aura-navy/40 backdrop-blur-sm md:bg-transparent" onClick={() => setShowAiMenu(false)} />
+                  <div className="fixed bottom-0 inset-x-0 md:absolute md:bottom-auto md:top-full md:right-0 mt-0 md:mt-2 w-full md:w-72 bg-aura-panel border-t md:border border-aura-border rounded-t-3xl md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[70] overflow-hidden animate-in fade-in slide-in-from-bottom md:slide-in-from-top-2 duration-300 backdrop-blur-2xl flex flex-col max-h-[85dvh] md:max-h-[60vh]">
+                    <div className="p-4 md:p-3 border-b border-aura-border bg-white/5 flex items-center justify-between shrink-0">
                       <p className="text-[10px] md:text-[9px] font-black text-aura-primary uppercase tracking-[0.2em]">Aura Intelligence</p>
-                      <button onClick={() => setShowAiMenu(false)} className="md:hidden text-aura-lavender/50"><X size={18} /></button>
+                      <button onClick={() => setShowAiMenu(false)} className="md:hidden p-1 bg-white/5 rounded-full text-aura-lavender/70 hover:text-white"><X size={16} /></button>
                     </div>
-                    <div className="p-2 md:p-1 pb-4 md:pb-2 max-h-[60vh] overflow-y-auto">
+                    <div className="p-2 md:p-1 overflow-y-auto flex-1 overscroll-contain">
                       <AiMenuButton icon={<Sparkles size={16}/>} label="Professionalize" onClick={() => runAiCommand('refine')} />
                       <AiMenuButton icon={<List size={16}/>} label="Create Checklist" onClick={() => runAiCommand('todo')} />
                       <AiMenuButton icon={<Hash size={16}/>} label="Summarize" onClick={() => runAiCommand('summarize')} />
                       <AiMenuButton icon={<RefreshCw size={16}/>} label="Rewrite in Hinglish" onClick={() => runAiCommand('hinglish')} />
-                      <div className="mt-3 md:mt-2 px-3 md:px-2 pb-2">
-                        <div className="relative group">
-                          <input
-                            type="text"
-                            placeholder="Custom request..."
-                            className="w-full bg-aura-navy/50 border border-aura-border rounded-xl py-3 md:py-2 px-4 md:px-3 text-sm md:text-xs text-white placeholder:text-aura-lavender/30 focus:outline-none focus:border-aura-primary/50 transition-all"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                runAiCommand('custom', (e.target as HTMLInputElement).value);
-                                (e.target as HTMLInputElement).value = '';
-                              }
-                            }}
-                          />
-                          <button
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-aura-primary hover:text-white transition-colors"
-                            onClick={(e) => {
-                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                              if (input.value) { runAiCommand('custom', input.value); input.value = ''; }
-                            }}
-                          >
-                            <Send size={16} />
-                          </button>
-                        </div>
+                    </div>
+                    <div className="p-3 md:p-2 border-t border-aura-border/50 bg-aura-panel shrink-0 pb-[max(12px,env(safe-area-inset-bottom))]">
+                      <div className="relative group">
+                        <input
+                          type="text"
+                          placeholder="Custom request..."
+                          className="w-full bg-aura-navy border border-aura-border rounded-xl py-3 md:py-2 px-4 md:px-3 text-[15px] md:text-xs text-white placeholder:text-aura-lavender/30 focus:outline-none focus:border-aura-primary/50 transition-all shadow-inner"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              runAiCommand('custom', (e.target as HTMLInputElement).value);
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                        <button
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-aura-primary hover:text-white hover:bg-aura-primary/20 rounded-lg transition-colors"
+                          onClick={(e) => {
+                            const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                            if (input.value) { runAiCommand('custom', input.value); input.value = ''; }
+                          }}
+                        >
+                          <Send size={16} />
+                        </button>
                       </div>
                     </div>
                   </div>

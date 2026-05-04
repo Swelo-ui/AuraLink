@@ -38,14 +38,27 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     channel.on('presence', { event: 'sync' }, () => {
       const newState = channel.presenceState();
-      const newStatusMap: any = {};
-      for (const [key, stateArray] of Object.entries(newState)) {
-        if (stateArray.length > 0) {
-          const latest: any = stateArray[0];
-          newStatusMap[key] = latest.status || 'online';
+      
+      setPartnerStatusMap(prev => {
+        const nextMap: { [userId: string]: string } = { ...prev };
+        
+        // Mark all currently present users with their latest status
+        for (const [key, stateArray] of Object.entries(newState)) {
+          if (stateArray.length > 0) {
+            const latest: any = stateArray[0];
+            nextMap[key] = latest.status || 'online';
+          }
         }
-      }
-      setPartnerStatusMap(prev => ({ ...prev, ...newStatusMap }));
+        
+        // If a user was previously tracked but is no longer in presence state, mark them offline
+        for (const key of Object.keys(prev)) {
+          if (!newState[key]) {
+            nextMap[key] = 'offline';
+          }
+        }
+        
+        return nextMap;
+      });
     });
 
     channel.subscribe(async (status) => {
