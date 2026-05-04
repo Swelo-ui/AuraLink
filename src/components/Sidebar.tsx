@@ -149,29 +149,29 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     }
   };
 
-  const girlAvatars = [
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Aria&hairColor=9a3300',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Luna&hairColor=2c1b18',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Zoe&hairColor=4a312c',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Maya&hairColor=724133',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Elena&hairColor=d1ad70',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Chloe&hairColor=e8d1a1',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Sofia&hairColor=4a312c',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Ivy&hairColor=241c11',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Ruby&hairColor=9a3300',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Lily&hairColor=f1ff5e'
+  const marvelAvatars = [
+    '/avatars/ironman.png',
+    '/avatars/spiderman.png',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=CaptainAmerica&top=shortHair&hairColor=blonde&clothing=graphicShirt&clothingColor=blue03',
+    'https://api.dicebear.com/7.x/bottts/svg?seed=Hulk&backgroundColor=2ecc71',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Thor&top=longHair&hairColor=blonde&clothing=graphicShirt&clothingColor=gray01',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=BlackWidow&top=longHair&hairColor=red&clothing=graphicShirt&clothingColor=black',
+    'https://api.dicebear.com/7.x/bottts/svg?seed=BlackPanther&backgroundColor=34495e',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=ScarletWitch&top=longHair&hairColor=red&clothing=graphicShirt&clothingColor=red',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=DoctorStrange&top=shortHair&hairColor=black&clothing=graphicShirt&clothingColor=blue03',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Wolverine&top=shortHair&hairColor=black&facialHair=beardLight'
   ];
-  const boyAvatars = [
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Leo&hairColor=2c1b18',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Max&hairColor=4a312c',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Finn&hairColor=724133',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Sam&hairColor=d1ad70',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Noah&hairColor=241c11',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Jake&hairColor=9a3300',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Toby&hairColor=2c1b18',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Milo&hairColor=4a312c',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Luke&hairColor=724133',
-    'https://api.dicebear.com/7.x/adventurer/svg?seed=Alex&hairColor=d1ad70'
+  const animeAvatars = [
+    '/avatars/naruto.png',
+    '/avatars/goku.png',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Luffy&hair=short&hairColor=2c3e50',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Zoro&hair=short&hairColor=2ecc71',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Nezuko&hair=long&hairColor=2c3e50',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Tanjiro&hair=short&hairColor=4a312c',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Saitama&hair=bald',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Deku&hair=curly&hairColor=27ae60',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Mikasa&hair=short&hairColor=2c3e50',
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=Levi&hair=short&hairColor=2c3e50'
   ];
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -512,8 +512,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                     </div>
                     <div>
                       <label className="text-[10px] text-aura-lavender/50 uppercase mb-2 block">Choose Avatar</label>
-                      <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-1">
-                        {[...girlAvatars, ...boyAvatars].map((url, i) => (
+                      <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-1 scrollbar-none">
+                        {[...marvelAvatars, ...animeAvatars].map((url, i) => (
                           <button 
                             key={i} 
                             onClick={() => setNewAvatar(url)}
