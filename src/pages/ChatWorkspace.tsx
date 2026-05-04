@@ -95,6 +95,12 @@ function deriveMoodFromString(text: string): string | null {
   return null;
 }
 
+const SLASH_COMMANDS = [
+  { cmd: '/rename-note', desc: 'Rename a note (e.g. /rename-note old to new)', icon: <FileText size={14} /> },
+  { cmd: '/rename-file', desc: 'Rename vault file (e.g. /rename-file old to new)', icon: <Paperclip size={14} /> },
+  { cmd: '/analyze-file', desc: 'Analyse a specific file/note', icon: <Sparkles size={14} /> },
+];
+
 function deriveAvatarMoodFromMessages(msgs: any[]): string | null {
   if (msgs.length === 0) return null;
   const lastMsg = msgs[msgs.length - 1];
@@ -103,6 +109,8 @@ function deriveAvatarMoodFromMessages(msgs: any[]): string | null {
 
 export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const { id: connectionId } = useParams();
+  const [isEditing, setIsEditing] = useState(false);
+  const [showCommands, setShowCommands] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { socket, partnerStatus, setPartnerStatus } = useSocket();
@@ -947,7 +955,11 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               name={`aura_msg_${Math.floor(Date.now() / 1000)}`}
               placeholder="Message..."
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                setInput(val);
+                setShowCommands(val === '/');
+              }}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
@@ -958,6 +970,32 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               inputMode="text"
               className="flex-1 min-w-0 bg-aura-navy border border-aura-border rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-aura-primary transition-colors text-[15px]"
             />
+            {showCommands && (
+              <div className="absolute bottom-full left-0 mb-2 w-64 bg-aura-panel border border-aura-border rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+                <div className="p-2 border-b border-aura-border bg-aura-navy/50">
+                  <span className="text-[10px] font-black uppercase text-aura-lavender/50 tracking-widest px-2">Aura Commands</span>
+                </div>
+                {SLASH_COMMANDS.map((c, i) => (
+                  <button 
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setInput(c.cmd + ' ');
+                      setShowCommands(false);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors border-b border-aura-border/50 last:border-0 text-left group"
+                  >
+                    <div className="p-1.5 bg-aura-primary/10 rounded-lg text-aura-primary group-hover:bg-aura-primary group-hover:text-white transition-all">
+                      {c.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white">{c.cmd}</p>
+                      <p className="text-[9px] text-aura-lavender/50 truncate">{c.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               type="button"
               onClick={toggleListening}

@@ -24,10 +24,12 @@ export type ActionType =
   | 'timetable_list'
   | 'note_add'
   | 'note_edit'
+  | 'note_rename'
   | 'note_delete'
   | 'note_read'
   | 'vault_add'
   | 'vault_edit'
+  | 'vault_rename'
   | 'vault_delete'
   | 'vault_read'
   | 'clarify'; // bot wants to ask a question before acting
@@ -39,6 +41,7 @@ export interface BotAction {
   time?: string;
   day?: string;
   id?: string;
+  newTitle?: string; // used for renaming
   question?: string; // used when type === 'clarify'
 }
 
@@ -80,7 +83,19 @@ ACTION SYSTEM:
 When you need to perform a data action, output a JSON block at the END of your reply, on its own line, like this:
 [ACTION: {"type":"timetable_add","title":"Morning Run","time":"07:00","day":"Monday"}]
 
-Supported action types: timetable_add, timetable_edit, timetable_delete, timetable_list, note_add, note_edit, note_delete, note_read, vault_add, vault_edit, vault_delete, vault_read
+Supported action types: 
+- timetable_add, timetable_edit, timetable_delete, timetable_list
+- note_add, note_edit, note_rename, note_delete, note_read
+- vault_add, vault_edit, vault_rename, vault_delete, vault_read
+
+SPECIFIC COMMANDS:
+Users can use these shortcuts for better accuracy:
+- "/rename-note [old_name] to [new_name]" -> triggers note_rename
+- "/rename-file [old_name] to [new_name]" -> triggers vault_rename
+- "/analyze-file [name]" -> triggers deep analysis of a vault file or note
+
+When you see these patterns, immediately prioritize the corresponding ACTION.
+For renaming, always use {"type":"note_rename","title":"Old Name","newTitle":"New Name"}.
 
 CRITICAL ACTION RULES:
 - Only emit an action when you are 100% sure about all required fields.
@@ -236,7 +251,7 @@ async function executeTimetableAction(action: BotAction, userId: string): Promis
 // ─── Notes Operations ──────────────────────────────────────────────────────────
 
 async function executeNoteAction(action: BotAction, userId: string): Promise<string | null> {
-  const { type, title, content, id } = action;
+  const { type, title, content, id, newTitle } = action;
 
   try {
     if (type === 'note_add') {
@@ -260,6 +275,17 @@ async function executeNoteAction(action: BotAction, userId: string): Promise<str
         .ilike('title', `%${title}%`);
       if (error) throw error;
       return `Note "${title}" updated.`;
+    }
+
+    if (type === 'note_rename') {
+      if (!title || !newTitle) return null;
+      const { error } = await supabase
+        .from('notes')
+        .update({ title: newTitle.trim(), updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .ilike('title', `%${title}%`);
+      if (error) throw error;
+      return `Note "${title}" has been renamed to "${newTitle}".`;
     }
 
     if (type === 'note_delete') {
@@ -290,7 +316,7 @@ async function executeNoteAction(action: BotAction, userId: string): Promise<str
 // ─── Vault Operations ──────────────────────────────────────────────────────────
 
 async function executeVaultAction(action: BotAction, userId: string): Promise<string | null> {
-  const { type, title, content, id } = action;
+  const { type, title, content, id, newTitle } = action;
 
   try {
     if (type === 'vault_add') {
@@ -314,6 +340,17 @@ async function executeVaultAction(action: BotAction, userId: string): Promise<st
         .ilike('title', `%${title}%`);
       if (error) throw error;
       return `Vault entry "${title}" updated.`;
+    }
+
+    if (type === 'vault_rename') {
+      if (!title || !newTitle) return null;
+      const { error } = await supabase
+        .from('vault')
+        .update({ title: newTitle.trim() })
+        .eq('user_id', userId)
+        .ilike('title', `%${title}%`);
+      if (error) throw error;
+      return `Vault entry "${title}" has been renamed to "${newTitle}".`;
     }
 
     if (type === 'vault_delete') {
