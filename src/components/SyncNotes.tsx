@@ -220,110 +220,101 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
     <div className="flex flex-col h-full bg-aura-navy overflow-visible relative selection:bg-aura-primary/30">
       <div className={clsx("absolute top-0 left-0 h-[2.5px] bg-gradient-to-r from-aura-primary to-aura-pink z-50 transition-all duration-700", isSaving ? "w-full opacity-100" : "w-0 opacity-0")}/>
 
-      <div className="h-14 bg-aura-panel/95 backdrop-blur-xl border-b border-aura-border flex items-center px-4 justify-between shrink-0 z-40 shadow-lg relative">
-         <div className="flex items-center gap-1 sm:gap-2">
-            <div className="flex items-center bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50 mr-2">
-              <ToolbarButton active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} icon={<Bold size={15} />} />
-              <ToolbarButton active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} icon={<Italic size={15} />} />
-            </div>
-            <div className="flex items-center bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50 mr-2">
-              <ToolbarButton active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} icon={<Heading1 size={15} />} />
-              <ToolbarButton active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} icon={<Heading2 size={15} />} />
-            </div>
-            <div className="flex items-center bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50">
-              <ToolbarButton active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} icon={<List size={15} />} />
-              
-              {/* Quote Menu */}
-              <div className="relative flex items-center bg-aura-navy/50 p-1 rounded-xl border border-aura-border/50 ml-2">
-                <ToolbarButton 
-                  active={editor?.isActive('blockquote')} 
-                  onClick={() => editor?.chain().focus().toggleBlockquote().run()} 
-                  icon={<Quote size={15} />} 
-                />
-                <button 
-                  onClick={() => setShowColorMenu(!showColorMenu)}
-                  className="w-4 h-8 flex items-center justify-center hover:bg-white/5 rounded-md text-aura-lavender/30 transition-colors border-l border-aura-border/30 ml-1"
-                >
-                  <Palette size={10} />
-                </button>
-                
-                {showColorMenu && (
-                  <>
-                    <div className="fixed inset-0 z-[60]" onClick={() => setShowColorMenu(false)} />
-                    <div className="absolute left-0 top-full mt-2 p-2 bg-aura-panel border border-aura-border rounded-xl shadow-2xl z-[70] flex gap-1 animate-in zoom-in-95 duration-200">
-                       {[
-                         { color: '#a855f7', label: 'Purple' },
-                         { color: '#14b8a6', label: 'Teal' },
-                         { color: '#3b82f6', label: 'Blue' },
-                         { color: '#f97316', label: 'Orange' },
-                         { color: '#ec4899', label: 'Pink' },
-                       ].map((c) => (
-                         <button
-                           key={c.color}
-                           onClick={() => {
-                             // If not in blockquote, toggle it first
-                             if (!editor?.isActive('blockquote')) {
-                               editor?.chain().focus().toggleBlockquote().run();
-                             }
-                             // Update the attribute for the specific blockquote
-                             editor?.chain().focus().updateAttributes('blockquote', { color: c.color }).run();
-                             setShowColorMenu(false);
-                           }}
-                           className="w-6 h-6 rounded-full border border-white/20 hover:scale-110 transition-transform shadow-lg"
-                           style={{ backgroundColor: c.color }}
-                           title={c.label}
-                         />
-                       ))}
-                    </div>
-                  </>
+
+      {/* ── Toolbar: 2 fixed rows, no scroll ── */}
+      <div className="bg-aura-panel/95 backdrop-blur-xl border-b border-aura-border shrink-0 z-40 shadow-lg">
+
+        {/* Row 1 — Formatting buttons spread evenly */}
+        <div className="flex items-center justify-between px-2 py-1.5 border-b border-aura-border/30">
+          <ToolbarButton size="sm" active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} icon={<Bold size={14} />} label="Bold" />
+          <ToolbarButton size="sm" active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} icon={<Italic size={14} />} label="Italic" />
+          <div className="w-px h-5 bg-aura-border/40 shrink-0" />
+          <ToolbarButton size="sm" active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} icon={<Heading1 size={14} />} label="H1" />
+          <ToolbarButton size="sm" active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} icon={<Heading2 size={14} />} label="H2" />
+          <div className="w-px h-5 bg-aura-border/40 shrink-0" />
+          <ToolbarButton size="sm" active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} icon={<List size={14} />} label="List" />
+          <ToolbarButton size="sm" active={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()} icon={<Quote size={14} />} label="Quote" />
+          <ToolbarButton size="sm" active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} icon={<Code size={14} />} label="Code" />
+          <div className="w-px h-5 bg-aura-border/40 shrink-0" />
+          <button
+            onClick={() => editor?.chain().focus().toggleHighlight({ color: '#facc15' }).run()}
+            className={clsx("w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 shrink-0", editor?.isActive('highlight', { color: '#facc15' }) ? "bg-yellow-400 text-black shadow-lg shadow-yellow-400/20" : "text-yellow-400/60 hover:text-yellow-400 hover:bg-yellow-400/10")}
+            title="Yellow Highlight"
+          >
+            <Highlighter size={13} />
+          </button>
+          <button
+            onClick={() => editor?.chain().focus().toggleHighlight({ color: '#4ade80' }).run()}
+            className={clsx("w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 shrink-0", editor?.isActive('highlight', { color: '#4ade80' }) ? "bg-green-400 text-black shadow-lg shadow-green-400/20" : "text-green-400/60 hover:text-green-400 hover:bg-green-400/10")}
+            title="Green Highlight"
+          >
+            <Highlighter size={13} />
+          </button>
+          <div className="w-px h-5 bg-aura-border/40 shrink-0" />
+          <ToolbarButton size="sm" onClick={addLink} icon={<LinkIcon size={14} />} active={editor?.isActive('link')} label="Link" />
+          {/* Quote color picker */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setShowColorMenu(!showColorMenu)}
+              className="w-8 h-8 flex items-center justify-center hover:bg-white/5 rounded-lg text-aura-lavender/50 hover:text-aura-lavender transition-all active:scale-90"
+              title="Quote Color"
+            >
+              <Palette size={13} />
+            </button>
+            {showColorMenu && (
+              <>
+                <div className="fixed inset-0 z-[60]" onClick={() => setShowColorMenu(false)} />
+                <div className="absolute left-[-80px] top-full mt-2 p-2 bg-aura-panel border border-aura-border rounded-xl shadow-2xl z-[70] flex gap-1.5 animate-in zoom-in-95 duration-200">
+                  {[
+                    { color: '#a855f7', label: 'Purple' },
+                    { color: '#14b8a6', label: 'Teal' },
+                    { color: '#3b82f6', label: 'Blue' },
+                    { color: '#f97316', label: 'Orange' },
+                    { color: '#ec4899', label: 'Pink' },
+                  ].map((c) => (
+                    <button
+                      key={c.color}
+                      onClick={() => {
+                        if (!editor?.isActive('blockquote')) editor?.chain().focus().toggleBlockquote().run();
+                        editor?.chain().focus().updateAttributes('blockquote', { color: c.color }).run();
+                        setShowColorMenu(false);
+                      }}
+                      className="w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition-transform shadow-lg"
+                      style={{ backgroundColor: c.color }}
+                      title={c.label}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2 — Sync status + Actions */}
+        <div className="flex items-center justify-between px-3 py-1">
+          {/* Left: sync status */}
+          <div className="flex items-center gap-1.5">
+            {isSaving ? <RefreshCw size={10} className="animate-spin text-aura-teal" /> : <CheckCircle2 size={10} className="text-aura-teal" />}
+            <span className="text-[9px] font-black uppercase tracking-wider text-aura-teal">{syncedStatus}</span>
+          </div>
+          {/* Right: action buttons */}
+          <div className="flex items-center gap-1">
+            <div className="relative">
+              <button
+                onClick={() => setShowAiMenu(!showAiMenu)}
+                className={clsx(
+                  "h-7 px-3 rounded-lg transition-all flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider",
+                  showAiMenu ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-primary/70 hover:text-aura-primary hover:bg-aura-primary/10"
                 )}
-              </div>
-
-              <ToolbarButton active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} icon={<Code size={15} />} />
-              
-              {/* Standard Highlighter */}
-              <div className="flex items-center gap-1 bg-aura-navy/30 px-1 ml-1 rounded-lg">
-                <button 
-                  onClick={() => editor?.chain().focus().toggleHighlight({ color: '#facc15' }).run()}
-                  className={clsx("w-6 h-6 rounded flex items-center justify-center transition-all", editor?.isActive('highlight', { color: '#facc15' }) ? "bg-yellow-400 text-black" : "text-yellow-400/50 hover:text-yellow-400")}
-                >
-                  <Highlighter size={12} />
-                </button>
-                <button 
-                  onClick={() => editor?.chain().focus().toggleHighlight({ color: '#4ade80' }).run()}
-                  className={clsx("w-6 h-6 rounded flex items-center justify-center transition-all", editor?.isActive('highlight', { color: '#4ade80' }) ? "bg-green-400 text-black" : "text-green-400/50 hover:text-green-400")}
-                >
-                  <Highlighter size={12} />
-                </button>
-              </div>
-            </div>
-            <div className="w-px h-5 bg-aura-border mx-1 shrink-0" />
-            <ToolbarButton onClick={addLink} icon={<LinkIcon size={15} />} active={editor?.isActive('link')} />
-         </div>
-
-         <div className="flex items-center gap-3 shrink-0">
-           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-aura-teal/5 border border-aura-teal/20 rounded-full">
-              {isSaving ? <RefreshCw size={12} className="animate-spin text-aura-teal" /> : <CheckCircle2 size={12} className="text-aura-teal" />}
-              <span className="text-[10px] font-black uppercase tracking-wider text-aura-teal">{syncedStatus}</span>
-           </div>
-           <div className="flex items-center gap-1">
-           <div className="relative">
-             <button 
-               onClick={() => setShowAiMenu(!showAiMenu)}
-               className={clsx(
-                 "p-2 rounded-lg transition-all flex items-center gap-2",
-                 showAiMenu ? "bg-aura-primary text-white shadow-lg" : "text-aura-primary/50 hover:text-aura-primary hover:bg-aura-primary/10"
-               )}
-               title="Aura Intelligence"
-             >
-               <Sparkles size={18} />
-               <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Aura AI</span>
-             </button>
-
+                title="Aura Intelligence"
+              >
+                <Sparkles size={13} />
+                AI
+              </button>
               {showAiMenu && (
                 <>
                   <div className="fixed inset-0 z-[60] bg-aura-navy/20 backdrop-blur-[2px] md:bg-transparent" onClick={() => setShowAiMenu(false)} />
-                  <div className="fixed bottom-0 inset-x-0 md:absolute md:bottom-auto md:top-full md:right-4 md:mr-2 mt-0 md:mt-2 w-full md:w-72 bg-aura-panel border-t md:border border-aura-border rounded-t-3xl md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[70] overflow-hidden animate-in fade-in slide-in-from-bottom md:slide-in-from-top-2 duration-300 backdrop-blur-2xl">
+                  <div className="fixed bottom-0 inset-x-0 md:absolute md:bottom-auto md:top-full md:right-0 mt-0 md:mt-2 w-full md:w-72 bg-aura-panel border-t md:border border-aura-border rounded-t-3xl md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[70] overflow-hidden animate-in fade-in slide-in-from-bottom md:slide-in-from-top-2 duration-300 backdrop-blur-2xl">
                     <div className="p-4 md:p-3 border-b border-aura-border bg-white/5 flex items-center justify-between">
                       <p className="text-[10px] md:text-[9px] font-black text-aura-primary uppercase tracking-[0.2em]">Aura Intelligence</p>
                       <button onClick={() => setShowAiMenu(false)} className="md:hidden text-aura-lavender/50"><X size={18} /></button>
@@ -333,46 +324,42 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
                       <AiMenuButton icon={<List size={16}/>} label="Create Checklist" onClick={() => runAiCommand('todo')} />
                       <AiMenuButton icon={<Hash size={16}/>} label="Summarize" onClick={() => runAiCommand('summarize')} />
                       <AiMenuButton icon={<RefreshCw size={16}/>} label="Rewrite in Hinglish" onClick={() => runAiCommand('hinglish')} />
-                      
                       <div className="mt-3 md:mt-2 px-3 md:px-2 pb-2">
-                         <div className="relative group">
-                           <input 
-                             type="text" 
-                             placeholder="Custom request..."
-                             className="w-full bg-aura-navy/50 border border-aura-border rounded-xl py-3 md:py-2 px-4 md:px-3 text-sm md:text-xs text-white placeholder:text-aura-lavender/30 focus:outline-none focus:border-aura-primary/50 transition-all"
-                             onKeyDown={(e) => {
-                               if (e.key === 'Enter') {
-                                 runAiCommand('custom', (e.target as HTMLInputElement).value);
-                                 (e.target as HTMLInputElement).value = '';
-                               }
-                             }}
-                           />
-                           <button 
-                             className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-aura-primary hover:text-white transition-colors"
-                             onClick={(e) => {
-                               const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                               if (input.value) {
-                                 runAiCommand('custom', input.value);
-                                 input.value = '';
-                               }
-                             }}
-                           >
-                             <Send size={16} />
-                           </button>
-                         </div>
+                        <div className="relative group">
+                          <input
+                            type="text"
+                            placeholder="Custom request..."
+                            className="w-full bg-aura-navy/50 border border-aura-border rounded-xl py-3 md:py-2 px-4 md:px-3 text-sm md:text-xs text-white placeholder:text-aura-lavender/30 focus:outline-none focus:border-aura-primary/50 transition-all"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                runAiCommand('custom', (e.target as HTMLInputElement).value);
+                                (e.target as HTMLInputElement).value = '';
+                              }
+                            }}
+                          />
+                          <button
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-aura-primary hover:text-white transition-colors"
+                            onClick={(e) => {
+                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                              if (input.value) { runAiCommand('custom', input.value); input.value = ''; }
+                            }}
+                          >
+                            <Send size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </>
               )}
-           </div>
-             <button onClick={exportAsMarkdown} className="p-2 text-aura-lavender/40 hover:text-white hover:bg-white/5 rounded-lg transition-all" title="Export as Markdown"><Download size={18} /></button>
-             <button onClick={() => confirm('Wipe all content?') && editor?.commands.setContent('')} className="p-2 text-red-400/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all" title="Clear All"><Trash2 size={18} /></button>
-           </div>
-         </div>
+            </div>
+            <button onClick={exportAsMarkdown} className="h-7 w-8 flex items-center justify-center text-aura-lavender/40 hover:text-white hover:bg-white/5 rounded-lg transition-all" title="Export"><Download size={14} /></button>
+            <button onClick={() => confirm('Wipe all content?') && editor?.commands.setContent('')} className="h-7 w-8 flex items-center justify-center text-red-400/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all" title="Clear"><Trash2 size={14} /></button>
+          </div>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-aura-navy/30 relative">
+      <div className="flex-1 overflow-y-auto bg-aura-navy/30 relative no-scrollbar">
         <div className="max-w-4xl mx-auto min-h-full flex flex-col">
           <div className="p-8 pb-0 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="flex items-center gap-2 mb-2">
@@ -456,7 +443,7 @@ function AiMenuButton({ icon, label, onClick }: any) {
 
 function ToolbarButton({ active, onClick, icon, label, size = 'md' }: any) {
   return (
-    <button onClick={onClick} title={label} className={clsx("flex items-center justify-center rounded-lg transition-all", size === 'sm' ? "w-7 h-7" : "w-9 h-9", active ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/20 scale-105" : "text-aura-lavender/40 hover:text-white hover:bg-white/5")}>
+    <button onClick={onClick} title={label} className={clsx("flex items-center justify-center rounded-lg transition-all shrink-0", size === 'sm' ? "w-8 h-8" : "w-9 h-9", active ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/20 scale-105" : "text-aura-lavender/40 hover:text-white hover:bg-white/5")}>
       {icon}
     </button>
   );

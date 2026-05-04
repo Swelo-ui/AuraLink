@@ -604,29 +604,33 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                     (c.user1_id === u.id || c.user2_id === u.id) && !c.isVirtual
                   );
                   return (
-                    <div key={u.id} className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
-                      <div className="flex items-center gap-3">
-                        <ActionMojiAvatar
-                          state="offline"
-                          username={u.username}
-                          avatarUrl={u.avatarUrl || u.avatar_url}
-                          size="xs"
-                          showStatusRing={false}
-                        />
-                        <span className="text-white font-medium">{u.username}</span>
+                    <div key={u.id} className="flex items-center gap-3 bg-aura-navy p-3 rounded-xl border border-aura-border">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="shrink-0">
+                          <ActionMojiAvatar
+                            state="offline"
+                            username={u.username}
+                            avatarUrl={u.avatarUrl || u.avatar_url}
+                            size="xs"
+                            showStatusRing={false}
+                          />
+                        </div>
+                        <span className="text-white font-medium truncate min-w-0">{u.username}</span>
                       </div>
-                      {existingConn ? (
-                        <span className="text-xs text-aura-lavender/40 px-3 py-1 bg-white/5 rounded-lg">
-                          {existingConn.status === 'pending' ? 'Pending' : 'Connected'}
-                        </span>
-                      ) : (
-                        <button 
-                          onClick={() => { addFriend(u.id); setShowDiscover(false); }}
-                          className="text-xs bg-aura-primary hover:bg-aura-primary/80 text-white px-3 py-1.5 rounded-lg transition-colors font-semibold"
-                        >
-                          Add Friend
-                        </button>
-                      )}
+                      <div className="shrink-0 ml-2">
+                        {existingConn ? (
+                          <span className="text-xs text-aura-lavender/40 whitespace-nowrap px-3 py-1 bg-white/5 rounded-lg block">
+                            {existingConn.status === 'pending' ? 'Pending' : 'Connected'}
+                          </span>
+                        ) : (
+                          <button 
+                            onClick={() => { addFriend(u.id); setShowDiscover(false); }}
+                            className="text-xs bg-aura-primary hover:bg-aura-primary/80 text-white whitespace-nowrap px-3 py-1.5 rounded-lg transition-colors font-semibold active:scale-95"
+                          >
+                            Add Friend
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })
