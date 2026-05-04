@@ -150,26 +150,28 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
   };
 
   const marvelAvatars = [
-    '/avatars/ironman.png',
-    '/avatars/spiderman.png',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=CaptainAmerica&top=shortHair&hairColor=blonde&clothing=graphicShirt&clothingColor=blue03',
-    'https://api.dicebear.com/7.x/bottts/svg?seed=Hulk&backgroundColor=2ecc71',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Thor&top=longHair&hairColor=blonde&clothing=graphicShirt&clothingColor=gray01',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=BlackWidow&top=longHair&hairColor=red&clothing=graphicShirt&clothingColor=black',
-    'https://api.dicebear.com/7.x/bottts/svg?seed=BlackPanther&backgroundColor=34495e',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=ScarletWitch&top=longHair&hairColor=red&clothing=graphicShirt&clothingColor=red',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=DoctorStrange&top=shortHair&hairColor=black&clothing=graphicShirt&clothingColor=blue03',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Wolverine&top=shortHair&hairColor=black&facialHair=beardLight'
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=IronMan&backgroundColor=ffdfbf',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=Spiderman&backgroundColor=b6e3f4',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=CaptainAmerica&backgroundColor=c0aede',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=Thor&backgroundColor=d1d4f9',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=Hulk&backgroundColor=ffd5dc',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=BlackWidow&backgroundColor=ffdfbf',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=BlackPanther&backgroundColor=b6e3f4',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=Strange&backgroundColor=c0aede',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=Wolverine&backgroundColor=d1d4f9',
+    'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=Deadpool&backgroundColor=ffd5dc',
   ];
   const animeAvatars = [
-    '/avatars/naruto.png',
-    '/avatars/goku.png',
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=Luffy&hair=short&hairColor=2c3e50',
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=Zoro&hair=short&hairColor=2ecc71',
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=Nezuko&hair=long&hairColor=2c3e50',
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=Tanjiro&hair=short&hairColor=4a312c',
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=Saitama&hair=bald',
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=Deku&hair=curly&hairColor=27ae60',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Naruto&backgroundColor=ffdfbf',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Goku&backgroundColor=b6e3f4',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Luffy&backgroundColor=c0aede',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Sasuke&backgroundColor=d1d4f9',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Vegeta&backgroundColor=ffd5dc',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Itachi&backgroundColor=ffdfbf',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Gojo&backgroundColor=b6e3f4',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Sukuna&backgroundColor=c0aede',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Zoro&backgroundColor=d1d4f9',
+    'https://api.dicebear.com/7.x/pixel-art/svg?seed=Eren&backgroundColor=ffd5dc',
     'https://api.dicebear.com/7.x/lorelei/svg?seed=Mikasa&hair=short&hairColor=2c3e50',
     'https://api.dicebear.com/7.x/lorelei/svg?seed=Levi&hair=short&hairColor=2c3e50'
   ];

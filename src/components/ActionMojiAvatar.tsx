@@ -587,15 +587,21 @@ export default function ActionMojiAvatar({
             zIndex:1,
             borderRadius: "50%",
             WebkitMaskImage: "-webkit-radial-gradient(white, black)",
-            background:"radial-gradient(circle at 64% 26%, "+T.m+" 0%, "+T.d+" 100%)",
-            boxShadow:"0 "+fp(s*.03)+" "+fp(s*.08)+" rgba(0,0,40,.4), inset -"+fp(s*.01)+" -"+fp(s*.015)+" "+fp(s*.03)+" rgba(0,0,100,.15)",
+            background: avatarUrl ? "transparent" : "radial-gradient(circle at 64% 26%, "+T.m+" 0%, "+T.d+" 100%)",
+            boxShadow: avatarUrl ? "none" : "0 "+fp(s*.03)+" "+fp(s*.08)+" rgba(0,0,40,.4), inset -"+fp(s*.01)+" -"+fp(s*.015)+" "+fp(s*.03)+" rgba(0,0,100,.15)",
             filter: isOffline ? "grayscale(1) opacity(0.8)" : "none",
             overflow:"hidden",
             transition:"background .4s ease, box-shadow .4s ease, border-radius .4s ease, filter .4s ease"
           }}>
-            <div style={{position:"absolute",top:"-7%",right:"5%",width:"55%",height:"45%",borderRadius:"50%",background:"radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
-            <div style={{position:"absolute",top:"13%",left:"18%",width:"16%",height:"12%",borderRadius:"50%",background:"radial-gradient(ellipse, rgba(255,255,255,.88) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
-            <FaceSVG state={activeState} vx={vx} vy={vy} mOpen={mOpen} blinking={blinking} lidColor={T.m}/>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
+            ) : (
+              <>
+                <div style={{position:"absolute",top:"-7%",right:"5%",width:"55%",height:"45%",borderRadius:"50%",background:"radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+                <div style={{position:"absolute",top:"13%",left:"18%",width:"16%",height:"12%",borderRadius:"50%",background:"radial-gradient(ellipse, rgba(255,255,255,.88) 0%, rgba(255,255,255,0) 100%)",pointerEvents:"none"}}/>
+                <FaceSVG state={activeState} vx={vx} vy={vy} mOpen={mOpen} blinking={blinking} lidColor={T.m}/>
+              </>
+            )}
           </div>
         </div>
 
