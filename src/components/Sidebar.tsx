@@ -343,7 +343,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-2 pb-4">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-4">
         {/* Personal Space */}
         <div className="mb-4 mt-4 px-2">
           <button
@@ -498,7 +498,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto max-h-[60vh] space-y-6">
+            <div className="p-4 overflow-y-auto max-h-[70dvh] space-y-6">
               {/* Profile Section */}
               <div>
                 <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Account</h3>
@@ -597,7 +597,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
                 <X size={20} />
               </button>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[60vh] space-y-3">
+            <div className="p-4 overflow-y-auto max-h-[70dvh] space-y-3">
               {allUsers.length === 0 ? (
                 <p className="text-center text-aura-lavender/40 py-8">No other users found yet.</p>
               ) : (

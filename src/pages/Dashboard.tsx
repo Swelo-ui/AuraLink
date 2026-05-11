@@ -86,7 +86,7 @@ export default function Dashboard() {
   return (
     <SocketProvider>
       <GlobalNotificationListener />
-      <div className="flex w-full bg-aura-navy overflow-hidden" style={{ height: '100%' }}>
+      <div className="flex w-full bg-aura-navy overflow-hidden" style={{ height: '100dvh' }}>
         {/* Sidebar */}
         <Sidebar
           connections={connections}

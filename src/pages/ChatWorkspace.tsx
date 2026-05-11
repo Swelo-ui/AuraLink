@@ -24,7 +24,7 @@ export interface Message {
   createdAt?: string;
   isVirtual?: boolean;
   type?: string;
-  fileUrl?: string;
+  fileUrl?: string | null;
   timestamp?: string | number;
 }
 
@@ -771,16 +771,14 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-            {/* ── ActionMoji ── */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex-shrink-0 flex items-center justify-center overflow-visible self-center w-8 sm:w-12 h-8 sm:h-12"
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* ── ActionMoji — compact on mobile, larger on desktop ── */}
+            <div
+              className="shrink-0 flex items-center justify-center overflow-hidden rounded-full"
+              style={{ width: 28, height: 28 }}
               title={getStatusLabel(avatarMood)}
             >
-              {/* Removed key and AnimatePresence to allow smooth internal ActionMoji state transitions */}
-              <div className="w-[80px] h-[80px] scale-[0.45] sm:scale-[0.6] origin-center">
+              <div style={{ width: 80, height: 80, transform: 'scale(0.35)', transformOrigin: 'center' }}>
                 <ActionMojiAvatar
                   state={avatarMood}
                   username={partner?.username || 'User'}
@@ -789,34 +787,34 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                   showStatus={false}
                 />
               </div>
-            </motion.div>
+            </div>
 
-            {/* Tool Toggles */}
-            <div className="flex items-center gap-0.5 sm:gap-2 bg-aura-navy/50 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-aura-border/50">
+            {/* Tool Toggles — compact on mobile */}
+            <div className="flex items-center gap-px sm:gap-1 bg-aura-navy/50 p-px sm:p-1 rounded-lg sm:rounded-xl border border-aura-border/50">
               <button
                 onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 flex items-center justify-center", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
                 title="SyncNotes"
               >
                 <FileText className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
               <button
                 onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 flex items-center justify-center", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
                 title="SmartVault"
               >
                 <Paperclip className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
               <button
                 onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")}
+                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 flex items-center justify-center", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")}
                 title="Shared Timetable"
               >
                 <Calendar className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               </button>
               <button
                 onClick={() => setShowSettings(true)}
-                className="p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 text-aura-lavender/50 hover:text-white"
+                className="p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 text-aura-lavender/50 hover:text-white flex items-center justify-center"
                 title="Chat Settings"
               >
                 <SettingsIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
@@ -1045,12 +1043,20 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="w-full md:w-1/2 flex flex-col h-full bg-aura-panel border-l border-aura-border absolute md:relative z-[30] inset-0 md:inset-auto shadow-2xl md:shadow-none"
           >
-            <div className="h-16 sm:h-20 flex items-center justify-between px-4 sm:px-6 border-b border-aura-border shrink-0 bg-aura-panel/95 backdrop-blur-md z-10 shadow-sm">
-              <h2 className="text-white font-bold flex items-center gap-3 text-[15px] sm:text-lg">
-                {toolTab === 'notes' && <div className="p-2 bg-aura-primary/10 rounded-lg"><FileText size={20} className="text-aura-primary" /></div>}
-                {toolTab === 'vault' && <div className="p-2 bg-aura-primary/10 rounded-lg"><Paperclip size={20} className="text-aura-primary" /></div>}
-                {toolTab === 'timetable' && <div className="p-2 bg-aura-pink/10 rounded-lg"><Calendar size={20} className="text-aura-pink" /></div>}
-                <span>
+            <div className="h-14 sm:h-16 flex items-center justify-between px-3 sm:px-6 border-b border-aura-border shrink-0 bg-aura-panel/95 backdrop-blur-md z-10 shadow-sm gap-2">
+              {/* Mobile back button */}
+              <button
+                onClick={() => setToolTab('none')}
+                className="md:hidden p-2 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all shrink-0"
+                aria-label="Back to chat"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              </button>
+              <h2 className="text-white font-bold flex items-center gap-2 text-[14px] sm:text-base flex-1 min-w-0">
+                {toolTab === 'notes' && <div className="p-1.5 bg-aura-primary/10 rounded-lg shrink-0"><FileText size={17} className="text-aura-primary" /></div>}
+                {toolTab === 'vault' && <div className="p-1.5 bg-aura-primary/10 rounded-lg shrink-0"><Paperclip size={17} className="text-aura-primary" /></div>}
+                {toolTab === 'timetable' && <div className="p-1.5 bg-aura-pink/10 rounded-lg shrink-0"><Calendar size={17} className="text-aura-pink" /></div>}
+                <span className="truncate">
                   {toolTab === 'notes' && 'SyncNotes'}
                   {toolTab === 'vault' && 'SmartVault'}
                   {toolTab === 'timetable' && 'Shared Timetable'}
@@ -1058,7 +1064,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               </h2>
               <button
                 onClick={() => setToolTab('none')}
-                className="p-2.5 text-aura-lavender/50 hover:text-white transition-all bg-aura-navy hover:bg-aura-border rounded-xl active:scale-90 border border-aura-border/50"
+                className="hidden md:flex p-2 text-aura-lavender/50 hover:text-white transition-all bg-aura-navy hover:bg-aura-border rounded-xl active:scale-90 border border-aura-border/50 items-center justify-center"
               >
                 <X size={22} />
               </button>

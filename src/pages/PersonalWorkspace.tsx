@@ -53,30 +53,29 @@ export default function PersonalWorkspace() {
 
       <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
         {/* Mobile Tab Bar */}
-        <div className="md:hidden flex bg-aura-panel border-b border-aura-border p-1.5 gap-1 shrink-0">
+        <div className="md:hidden flex bg-aura-panel border-b border-aura-border p-1.5 gap-1.5 shrink-0">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const activeColor =
+              tab.color === 'aura-primary' ? { bg: 'rgba(155,89,182,0.18)', border: 'rgba(155,89,182,0.4)', text: '#b07aff' } :
+                tab.color === 'aura-pink' ? { bg: 'rgba(236,72,153,0.18)', border: 'rgba(236,72,153,0.4)', text: '#f472b6' } :
+                  { bg: 'rgba(0,212,170,0.18)', border: 'rgba(0,212,170,0.4)', text: '#2dd4bf' };
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={clsx(
-                  'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all text-sm font-semibold',
-                  isActive
-                    ? `bg-${tab.color}/15 text-white border border-${tab.color}/30`
-                    : 'text-aura-lavender/50 hover:text-white'
-                )}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition-all font-semibold min-h-[44px]"
                 style={isActive ? {
-                  backgroundColor: tab.color === 'aura-primary' ? 'rgba(155,89,182,0.15)' :
-                    tab.color === 'aura-pink' ? 'rgba(236,72,153,0.15)' :
-                      'rgba(0,212,170,0.15)',
-                  borderColor: tab.color === 'aura-primary' ? 'rgba(155,89,182,0.3)' :
-                    tab.color === 'aura-pink' ? 'rgba(236,72,153,0.3)' :
-                      'rgba(0,212,170,0.3)',
-                } : undefined}
+                  backgroundColor: activeColor.bg,
+                  border: `1.5px solid ${activeColor.border}`,
+                  color: activeColor.text,
+                } : {
+                  color: 'rgba(148,163,184,0.5)',
+                  border: '1.5px solid transparent',
+                }}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 <span className="text-xs">{tab.label}</span>
               </button>
             );
