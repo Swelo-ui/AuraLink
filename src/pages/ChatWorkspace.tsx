@@ -68,19 +68,19 @@ function getStatusLabel(status: string) {
 
 // ── Sentiment keywords ──────────────────────────────────────────────────
 const SENTIMENT_MAP: { states: string[]; keywords: string[] }[] = [
-  { states: ['searching'],  keywords: ['search', 'find', 'looking', 'dhund', 'dhundh', 'kahan', 'kidhar', 'talash', 'khoj', 'mil nahi', 'pata karo', 'dhundo', 'check'] },
+  { states: ['searching'], keywords: ['search', 'find', 'looking', 'dhund', 'dhundh', 'kahan', 'kidhar', 'talash', 'khoj', 'mil nahi', 'pata karo', 'dhundo', 'check'] },
   { states: ['writing_code'], keywords: ['code', 'debug', 'error', 'bug', 'coding', 'script', 'logic', 'fix', 'build', 'program', 'run kar', 'chalao', 'developer', 'hacker', 'vscode', 'terminal', 'cmd'] },
-  { states: ['uploading'],  keywords: ['upload', 'send file', 'attachment', 'bhej', 'bheja', 'lelo', 'document', 'share', 'daal raha', 'receive', 'photo', 'video', 'file bhej', 'pdf', 'image'] },
+  { states: ['uploading'], keywords: ['upload', 'send file', 'attachment', 'bhej', 'bheja', 'lelo', 'document', 'share', 'daal raha', 'receive', 'photo', 'video', 'file bhej', 'pdf', 'image'] },
   { states: ['reading_book'], keywords: ['read', 'study', 'learn', 'book', 'padhai', 'padh', 'seekh', 'notes', 'exam', 'revision', 'kitaab', 'paper', 'homework', 'padhlo', 'shlok', 'gyaan'] },
-  { states: ['celebrating'],keywords: ['congratulations', 'yay', 'party', 'mubarak', 'badhai', 'kamaal', 'badiya', 'jeeta', 'op', 'gg', 'booyah', 'shabaash', 'party do', 'daaru', 'masti', 'shava', 'chakde'] },
+  { states: ['celebrating'], keywords: ['congratulations', 'yay', 'party', 'mubarak', 'badhai', 'kamaal', 'badiya', 'jeeta', 'op', 'gg', 'booyah', 'shabaash', 'party do', 'daaru', 'masti', 'shava', 'chakde'] },
   { states: ['playing_games'], keywords: ['play', 'game', 'khel', 'pubg', 'bgmi', 'valorant', 'minecraft', 'match', 'lobby', 'push kar', 'kill', 'winner', 'chicken dinner', 'game khel', 'pc'] },
   { states: ['listening_music'], keywords: ['music', 'song', 'listen', 'gaana', 'sun', 'spotify', 'playlist', 'vibe', 'beat', 'lyrics', 'singer', 'voice note', 'audio', 'earphone', 'headphone'] },
-  { states: ['angry'],    keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'mad', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas', 'dimag kharab', 'hatt', 'bak', 'chup', 'ghatiya', 'sharam', 'bewakoof', 'gadha', 'badtameez', 'haramkhor', 'bewajah'] },
-  { states: ['sad'],      keywords: ['sad', 'depressed', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'sorry', 'regret', 'fail', 'bad', 'dukhi', 'rona', 'akela', 'bura', 'udas', 'pareshan', 'ro mat', 'tension', 'dard', 'kyu kiya', 'bechara', 'afsos', 'rondu'] },
+  { states: ['angry'], keywords: ['angry', 'hate', 'stupid', 'idiot', 'shut up', 'ugh', 'mad', 'gusa', 'gussa', 'bekar', 'galat', 'pagal', 'kutta', 'bakwas', 'dimag kharab', 'hatt', 'bak', 'chup', 'ghatiya', 'sharam', 'bewakoof', 'gadha', 'badtameez', 'haramkhor', 'bewajah'] },
+  { states: ['sad'], keywords: ['sad', 'depressed', 'miss', 'lonely', 'hurt', 'cry', 'crying', 'sorry', 'regret', 'fail', 'bad', 'dukhi', 'rona', 'akela', 'bura', 'udas', 'pareshan', 'ro mat', 'tension', 'dard', 'kyu kiya', 'bechara', 'afsos', 'rondu'] },
   { states: ['confused'], keywords: ['confused', 'what', 'huh', 'idk', 'unclear', 'weird', 'strange', 'why', 'how', 'lost', 'really?', '??', 'kya', 'samajh nahi', 'kaise', 'kyu', 'pata nahi', 'kuch bhi', 'hein', 'matlab', 'ye kya', 'kya hai'] },
-  { states: ['surprised'],keywords: ['wow', 'omg', 'whoa', 'no way', 'seriously', 'really', 'shocking', 'unexpected', 'wait what', 'sachme', 'are waah', 'kya baat', 'gazab', 'dhamaal', 'bhayanak', 'baap re', 'hey bhagwan', 'shakal', 'look at that'] },
-  { states: ['happy'],    keywords: ['happy', 'great', 'awesome', 'love', 'haha', 'lol', 'fun', 'nice', 'good', 'cool', 'yes!', 'yay', 'excited', 'amazing', 'perfect', 'thanks', 'thank you', 'khush', 'acha', 'mast', 'badiya', 'sahi', 'maza', 'wah', 'super', 'ji', 'hnji', 'shukriya', 'mubarak'] },
-  { states: ['heart_eyes'],keywords: ['love you', 'adore', 'crush', 'beautiful', 'gorgeous', 'cute', 'sundar', 'pyar', 'khoobsurat', 'mast lag', 'jaan', 'shona', 'babu', 'pyaara', 'sweet', 'mohabat', 'ishq', 'dil', 'i love', 'ily'] },
+  { states: ['surprised'], keywords: ['wow', 'omg', 'whoa', 'no way', 'seriously', 'really', 'shocking', 'unexpected', 'wait what', 'sachme', 'are waah', 'kya baat', 'gazab', 'dhamaal', 'bhayanak', 'baap re', 'hey bhagwan', 'shakal', 'look at that'] },
+  { states: ['happy'], keywords: ['happy', 'great', 'awesome', 'love', 'haha', 'lol', 'fun', 'nice', 'good', 'cool', 'yes!', 'yay', 'excited', 'amazing', 'perfect', 'thanks', 'thank you', 'khush', 'acha', 'mast', 'badiya', 'sahi', 'maza', 'wah', 'super', 'ji', 'hnji', 'shukriya', 'mubarak'] },
+  { states: ['heart_eyes'], keywords: ['love you', 'adore', 'crush', 'beautiful', 'gorgeous', 'cute', 'sundar', 'pyar', 'khoobsurat', 'mast lag', 'jaan', 'shona', 'babu', 'pyaara', 'sweet', 'mohabat', 'ishq', 'dil', 'i love', 'ily'] },
   { states: ['sleepy'], keywords: ['sleep', 'good night', 'gn', 'so jao', 'so raha', 'bye', 'tata', 'shubh ratri', 'nini', 'neend', 'thak gaya', 'rest', 'dream', 'sapne', 'so gaya', 'goodnight', 'sd'] },
 ];
 
@@ -113,7 +113,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const [showCommands, setShowCommands] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { socket, partnerStatus, setPartnerStatus } = useSocket();
+  const { socket, partnerStatus, setPartnerStatus, channelReady } = useSocket();
   const [messages, setMessages] = useState<any[]>([]);
   const messagesRef = useRef(messages);
   const [input, setInput] = useState('');
@@ -297,7 +297,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             if (Array.isArray(parsed) && parsed.length > 0) {
               return parsed;
             }
-          } catch {}
+          } catch { }
         }
       }
 
@@ -344,22 +344,42 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     const updateStatus = async (state: string) => {
       if (state === lastTrackedState) return; // Prevent websocket spam and rate limits
       lastTrackedState = state;
+
+      // Check if socket exists and channel is ready before calling track
+      if (!socket || !channelReady) {
+        console.warn('[Track Warning] Channel not ready, channelReady:', channelReady, 'socket state:', socket?.state);
+        return;
+      }
+
       try {
         await socket.track({ status: state });
-      } catch (e) {}
+      } catch (e) {
+        console.error('[Track Error]', e);
+
+        // Retry once for transient network issues
+        setTimeout(async () => {
+          try {
+            if (socket && socket.state === 'joined') {
+              await socket.track({ status: state });
+            }
+          } catch (retryError) {
+            console.error('[Track Retry Error]', retryError);
+          }
+        }, 1000);
+      }
     };
 
     let throttleTimer: any = null;
     const handleInteraction = () => {
       if (throttleTimer) return;
-      
+
       throttleTimer = setTimeout(() => {
         throttleTimer = null;
       }, 2000); // Throttle checks to every 2s
 
       clearTimeout(timeout);
       let state = 'online';
-      
+
       if (input.trim().length > 0) {
         const inputMood = deriveMoodFromString(input);
         state = inputMood ? `typing_${inputMood}` : 'typing';
@@ -381,7 +401,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     window.addEventListener('keydown', handleInteraction);
     window.addEventListener('touchstart', handleInteraction);
     window.addEventListener('scroll', handleInteraction);
-    
+
     // Initial status
     updateStatus('online');
     handleInteraction();
@@ -399,7 +419,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   // ── AuraBot Core Response Flow ─────────────────────────────────────────────
   const handleBotResponse = async (userText: string, imageBase64?: string, fileUrl?: string) => {
     if (!user?.id || !partner) return;
-    
+
     setPartnerStatus(partner.id, 'thinking');
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
@@ -421,7 +441,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
       // Step 1: show typing indicator with predicted mood
       setPartnerStatus(partner.id, `typing_${llm.mood}`);
-      
+
       // Artificial delay for realism based on text length
       const delay = Math.min(2000, Math.max(800, llm.text.length * 15));
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -445,7 +465,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
       // Step 2: Set final emotion for a few seconds
       setPartnerStatus(partner.id, llm.mood || 'happy');
-      
+
       // Auto-revert to baseline after 5s
       setTimeout(() => {
         const currentTab = toolTab;
@@ -479,7 +499,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     if (e) e.preventDefault();
     const contentToSend = overrideContent || input;
     if (!contentToSend.trim() || !user?.id || !partner) return;
-    
+
     const msgContent = contentToSend;
     if (!overrideContent) setInput('');
 
@@ -500,19 +520,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         return next;
       });
       if (chatSettings.sendSound) playPopSound();
-      
+
       // Trigger bot flow
       handleBotResponse(msgContent);
       return;
     }
-    
+
     const { data } = await supabase.from('messages').insert([{
       sender_id: user.id,
       receiver_id: partner.id,
       content: msgContent,
       type: 'text'
     }]).select().single();
-    
+
     if (data) {
       if (chatSettings.sendSound) playPopSound();
       setMessages(prev => [...prev, {
@@ -531,7 +551,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   useEffect(() => {
     const handleAISuggest = (e: any) => {
       const { type, content, custom, prompt } = e.detail || {};
-      
+
       if (prompt) {
         setInput(prompt);
         return;
@@ -539,7 +559,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
       if (type && content) {
         let aiPrompt = "";
-        switch(type) {
+        switch (type) {
           case 'refine': aiPrompt = `Please professionalize and refine this text:\n\n"${content}"`; break;
           case 'todo': aiPrompt = `Create a clear checklist/todo list based on this content:\n\n"${content}"`; break;
           case 'summarize': aiPrompt = `Summarize this text concisely:\n\n"${content}"`; break;
@@ -548,7 +568,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           case 'custom': aiPrompt = `${custom}\n\nContext from my notes:\n"${content}"`; break;
           default: aiPrompt = `Help me with this from my notes:\n\n"${content}"`;
         }
-        
+
         // Auto-send to AuraBot
         if (isVirtualBot) {
           const now = new Date().toISOString();
@@ -596,7 +616,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
           timestamp: new Date().toISOString(),
         };
         setMessages(prev => [...prev, userMsg]);
-        
+
         // Also manually add to vault_items since AuraBot messages aren't saved to DB
         await supabase.from('vault_items').insert([{
           user_id: user.id,
@@ -724,31 +744,31 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         {/* Header */}
         <div className="h-[60px] sm:h-[72px] flex items-center justify-between px-2 sm:px-4 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0 overflow-visible gap-1 sm:gap-2">
           <div className="flex items-center gap-1.5 sm:gap-4 min-w-0 flex-1">
-             <button
+            <button
               onClick={() => navigate('/dashboard')}
               className="md:hidden p-1.5 sm:p-2.5 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all shrink-0"
-             >
-               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-             </button>
-             <div className="relative shrink-0">
-                <div className={clsx("w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-inner overflow-hidden", partner?.username === 'AuraBot' ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
-                  {partner.avatar_url ? (
-                    <img src={partner.avatar_url} alt={partner.username} className="w-full h-full object-cover" />
-                  ) : (
-                    partner.username[0].toUpperCase()
-                  )}
-                </div>
-                {currentPartnerStatus !== 'offline' && <span className="absolute bottom-0 right-0 block w-2.5 h-2.5 sm:w-3 sm:h-3 bg-aura-teal rounded-full border-2 border-aura-panel shadow-sm"></span>}
-             </div>
-             <div className="min-w-0 flex-1 flex flex-col justify-center">
-               <h3 className="text-white font-bold flex items-center gap-1.5 text-[14px] sm:text-lg truncate leading-tight">
-                 <span className="truncate">{partner.username}</span>
-                 {partner?.username === 'AuraBot' && <span className="hidden sm:inline-block text-[9px] sm:text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-widest font-black border border-pink-500/20">AI</span>}
-               </h3>
-               <p className="text-[9px] sm:text-xs text-aura-lavender/50 truncate font-medium tracking-wide leading-tight">
-                  {getStatusLabel(currentPartnerStatus)}
-               </p>
-             </div>
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <div className="relative shrink-0">
+              <div className={clsx("w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-inner overflow-hidden", partner?.username === 'AuraBot' ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
+                {partner.avatar_url ? (
+                  <img src={partner.avatar_url} alt={partner.username} className="w-full h-full object-cover" />
+                ) : (
+                  partner.username[0].toUpperCase()
+                )}
+              </div>
+              {currentPartnerStatus !== 'offline' && <span className="absolute bottom-0 right-0 block w-2.5 h-2.5 sm:w-3 sm:h-3 bg-aura-teal rounded-full border-2 border-aura-panel shadow-sm"></span>}
+            </div>
+            <div className="min-w-0 flex-1 flex flex-col justify-center">
+              <h3 className="text-white font-bold flex items-center gap-1.5 text-[14px] sm:text-lg truncate leading-tight">
+                <span className="truncate">{partner.username}</span>
+                {partner?.username === 'AuraBot' && <span className="hidden sm:inline-block text-[9px] sm:text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-widest font-black border border-pink-500/20">AI</span>}
+              </h3>
+              <p className="text-[9px] sm:text-xs text-aura-lavender/50 truncate font-medium tracking-wide leading-tight">
+                {getStatusLabel(currentPartnerStatus)}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
@@ -761,14 +781,14 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
             >
               {/* Removed key and AnimatePresence to allow smooth internal ActionMoji state transitions */}
               <div className="w-[80px] h-[80px] scale-[0.45] sm:scale-[0.6] origin-center">
-              <ActionMojiAvatar 
-                state={avatarMood} 
-                username={partner?.username || 'User'} 
-                avatarUrl={partner?.avatar_url || partner?.avatarUrl}
-                showStatusRing={false}
-                showStatus={false}
-              />
-            </div>
+                <ActionMojiAvatar
+                  state={avatarMood}
+                  username={partner?.username || 'User'}
+                  avatarUrl={partner?.avatar_url || partner?.avatarUrl}
+                  showStatusRing={false}
+                  showStatus={false}
+                />
+              </div>
             </motion.div>
 
             {/* Tool Toggles */}
@@ -817,7 +837,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                     <div className="flex flex-col">
                       <p className="text-[14px] sm:text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</p>
                       {m.senderId === 'aurabot' && (
-                        <button 
+                        <button
                           onClick={() => {
                             window.dispatchEvent(new CustomEvent('aura_note_update', { detail: { content: m.content } }));
                             setToolTab('notes');
@@ -842,7 +862,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                   {(() => {
                     const d = new Date(m.timestamp);
                     const isToday = new Date().toDateString() === d.toDateString();
-                    const time = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const day = d.toLocaleDateString([], { weekday: 'short' });
                     return `${time} • ${isToday ? 'Today' : day}`;
                   })()}
@@ -876,7 +896,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={chatSettings.vanishMode} onChange={e => setChatSettings({...chatSettings, vanishMode: e.target.checked})} />
+                    <input type="checkbox" className="sr-only peer" checked={chatSettings.vanishMode} onChange={e => setChatSettings({ ...chatSettings, vanishMode: e.target.checked })} />
                     <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-primary"></div>
                   </label>
                 </div>
@@ -888,7 +908,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                     <p className="text-sm font-medium">Send Sound</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={chatSettings.sendSound} onChange={e => setChatSettings({...chatSettings, sendSound: e.target.checked})} />
+                    <input type="checkbox" className="sr-only peer" checked={chatSettings.sendSound} onChange={e => setChatSettings({ ...chatSettings, sendSound: e.target.checked })} />
                     <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-teal"></div>
                   </label>
                 </div>
@@ -900,7 +920,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                     <p className="text-sm font-medium">Receive Sound</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={chatSettings.receiveSound} onChange={e => setChatSettings({...chatSettings, receiveSound: e.target.checked})} />
+                    <input type="checkbox" className="sr-only peer" checked={chatSettings.receiveSound} onChange={e => setChatSettings({ ...chatSettings, receiveSound: e.target.checked })} />
                     <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-400"></div>
                   </label>
                 </div>
@@ -917,13 +937,13 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                 <>
                   <p className="text-aura-lavender/70 text-sm font-medium">Accept friend request to chat with {partner.username}?</p>
                   <div className="flex items-center gap-4 w-full">
-                    <button 
+                    <button
                       onClick={rejectFriend}
                       className="flex-1 bg-aura-navy border border-aura-border text-red-400 py-2.5 rounded-xl text-sm font-bold hover:bg-red-500/10 transition-all active:scale-95"
                     >
                       Reject
                     </button>
-                    <button 
+                    <button
                       onClick={acceptFriend}
                       className="flex-1 bg-aura-primary text-white py-2.5 rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-aura-primary/20 active:scale-95"
                     >
@@ -940,7 +960,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               )}
             </div>
           ) : null}
-          
+
           <form onSubmit={sendMessage} autoComplete="off" className={clsx("flex items-center gap-2 relative transition-opacity duration-300", isPending && amIReceiver && "opacity-40 pointer-events-none")}>
             {/* Using a hidden field with a neutral name to steer away aggressive password manager heuristics */}
             <div className="hidden" aria-hidden="true">
@@ -976,7 +996,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
                   <span className="text-[10px] font-black uppercase text-aura-lavender/50 tracking-widest px-2">Aura Commands</span>
                 </div>
                 {SLASH_COMMANDS.map((c, i) => (
-                  <button 
+                  <button
                     key={i}
                     type="button"
                     onClick={() => {
