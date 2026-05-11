@@ -7,7 +7,7 @@ import { useSocket } from './SocketProvider';
 import { supabase } from '../lib/supabaseClient';
 import ActionMojiAvatar from './ActionMojiAvatar';
 
-export default function Sidebar({ connections, onRefresh, className }: { connections: any[], onRefresh: () => void, className?: string }) {
+export default function Sidebar({ connections, onRefresh, isLoading = false, className }: { connections: any[], onRefresh: () => void, isLoading?: boolean, className?: string }) {
   const { user, logout } = useAuthStore();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -41,7 +41,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     };
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', onInstalled);
-    
+
     // Check if app is already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
       console.log('PWA: App is already in standalone mode');
@@ -78,7 +78,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
 
   const toggleNotifications = async () => {
     const newVal = !notificationsEnabled;
-    
+
     // Optimistically update UI
     setNotificationsEnabled(newVal);
     localStorage.setItem('aura_notifications', newVal.toString());
@@ -87,12 +87,12 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         await Notification.requestPermission();
       }
-      
+
       if (Notification.permission === 'denied') {
         alert('Notifications are blocked by your browser. Please allow them in site settings to receive background alerts.');
         return; // Don't try to subscribe to push
       }
-      
+
       // Subscribe to Web Push
       try {
         if ('serviceWorker' in navigator) {
@@ -104,7 +104,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
               applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
             });
           }
-          
+
           // Save to DB
           if (subscription && user?.id) {
             const subData = subscription.toJSON();
@@ -135,12 +135,12 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
 
   const handleUpdateProfile = async () => {
     if (!user?.id || !newUsername) return;
-    
+
     const { error } = await supabase
       .from('users')
       .update({ username: newUsername, avatar_url: newAvatar })
       .eq('id', user.id);
-    
+
     if (!error) {
       const updatedUser = { ...user, username: newUsername, avatarUrl: newAvatar };
       useAuthStore.getState().setAuth(localStorage.getItem('token') || '', updatedUser);
@@ -180,14 +180,14 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     e.preventDefault();
     const query = search.trim();
     if (!query) return setResults([]);
-    
+
     const { data, error } = await supabase
       .from('users')
       .select('id, username, avatar_url')
       .ilike('username', `%${query}%`)
       .neq('id', user?.id)
       .limit(15);
-      
+
     if (data) setResults(data);
   };
 
@@ -197,14 +197,14 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       .select('id, username, avatar_url')
       .neq('id', user?.id)
       .limit(20);
-    
+
     if (data) setAllUsers(data);
     setShowDiscover(true);
   };
 
   const addFriend = async (targetUserId: string) => {
     if (!user?.id) return;
-    
+
     // Check if connection already exists in either direction
     const { data: existing } = await supabase
       .from('connections')
@@ -222,11 +222,11 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
     const { data, error } = await supabase.from('connections').insert([
       { user1_id: user.id, user2_id: targetUserId, status: 'pending' }
     ]).select().single();
-    
+
     if (data) {
       navigate(`/dashboard/c/${data.id}`);
     }
-    
+
     setSearch('');
     setResults([]);
   };
@@ -289,11 +289,11 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             <input type="text" name="fake_un" autoComplete="username" tabIndex={-1} />
             <input type="password" name="fake_pw" autoComplete="current-password" tabIndex={-1} />
           </div>
-          
-          <input 
-            type="text" 
+
+          <input
+            type="text"
             name={`aura_search_${Math.random().toString(36).substring(7)}`}
-            placeholder="Search users..." 
+            placeholder="Search users..."
             className="w-full bg-aura-navy border border-aura-border rounded-xl pl-10 pr-10 py-2.5 flex-1 text-sm text-white focus:outline-none focus:border-aura-primary transition-all shadow-inner"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -307,8 +307,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
           />
           <Search size={16} className="absolute left-3 top-3 text-aura-lavender/40" />
           {search && (
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => { setSearch(''); setResults([]); }}
               className="absolute right-3 top-3 text-aura-lavender/40 hover:text-white"
             >
@@ -325,11 +325,11 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             {results.map(r => (
               <div key={r.id} className="flex items-center justify-between p-2 hover:bg-aura-primary/10 rounded-lg transition-colors border border-transparent hover:border-aura-primary/10 group">
                 <div className="flex items-center gap-2">
-                  <ActionMojiAvatar 
-                    state="idle" 
-                    username={r.username} 
-                    avatarUrl={r.avatar_url} 
-                    size="xs" 
+                  <ActionMojiAvatar
+                    state="idle"
+                    username={r.username}
+                    avatarUrl={r.avatar_url}
+                    size="xs"
                     showStatusRing={false}
                   />
                   <span className="text-sm font-semibold text-white group-hover:text-aura-primary transition-colors">{r.username}</span>
@@ -346,12 +346,12 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {/* Personal Space */}
         <div className="mb-4 mt-4 px-2">
-          <button 
+          <button
             onClick={() => navigate('/dashboard/personal')}
             className={clsx(
               "w-full flex items-center gap-3 p-3 rounded-xl transition-all border",
-              location.pathname === '/dashboard/personal' 
-                ? "bg-aura-primary/10 border-aura-primary/30 text-white" 
+              location.pathname === '/dashboard/personal'
+                ? "bg-aura-primary/10 border-aura-primary/30 text-white"
                 : "bg-aura-navy border-aura-border text-aura-lavender/70 hover:bg-aura-border hover:text-white"
             )}
           >
@@ -409,10 +409,10 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             const canAccept = isPending && !isUser1;
             const isAuraBot = partner.username === 'AuraBot';
             const status = partnerStatus[partner.id] || (isAuraBot ? 'online' : 'offline');
-            
+
             return (
-              <div 
-                key={conn.id} 
+              <div
+                key={conn.id}
                 onClick={() => navigate(`/dashboard/c/${conn.id}`)}
                 className={clsx(
                   "flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer group",
@@ -422,11 +422,11 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
               >
                 <div className="flex items-center gap-3">
                   <div className="shrink-0">
-                    <ActionMojiAvatar 
-                      state={isPending ? 'offline' : status} 
-                      username={partner.username} 
+                    <ActionMojiAvatar
+                      state={isPending ? 'offline' : status}
+                      username={partner.username}
                       avatarUrl={partner.avatarUrl || partner.avatar_url}
-                      size="sm" 
+                      size="sm"
                       showStatusRing={!isPending && status !== 'offline'}
                     />
                   </div>
@@ -437,7 +437,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                     </h3>
                     {isPending ? (
                       <span className={clsx("text-xs flex items-center gap-1", canAccept ? "text-aura-primary font-bold animate-pulse" : "text-orange-400")}>
-                        <Clock size={12}/> {canAccept ? 'New Request' : 'Pending'}
+                        <Clock size={12} /> {canAccept ? 'New Request' : 'Pending'}
                       </span>
                     ) : (
                       <span className="text-xs text-aura-lavender/50 truncate w-24 block">
@@ -449,15 +449,15 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                 <div className="flex items-center gap-1">
                   {canAccept && (
                     <>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); rejectFriend(conn.id); }} 
+                      <button
+                        onClick={(e) => { e.stopPropagation(); rejectFriend(conn.id); }}
                         className="w-8 h-8 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
                         title="Reject"
                       >
                         <X size={16} />
                       </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); acceptFriend(conn.id); }} 
+                      <button
+                        onClick={(e) => { e.stopPropagation(); acceptFriend(conn.id); }}
                         className="w-8 h-8 rounded-full bg-aura-primary/20 text-aura-primary flex items-center justify-center hover:bg-aura-primary hover:text-white transition-colors"
                         title="Accept"
                       >
@@ -477,7 +477,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
             <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-all" />
             <h4 className="text-white font-bold text-sm mb-1 relative z-10">Expand your Aura</h4>
             <p className="text-aura-lavender/60 text-[11px] mb-3 relative z-10">Connect with other people on the ecosystem.</p>
-            <button 
+            <button
               onClick={fetchDiscoverUsers}
               className="w-full py-2 bg-white text-aura-navy rounded-xl text-xs font-black shadow-lg hover:shadow-white/20 active:scale-95 transition-all relative z-10"
             >
@@ -497,7 +497,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-4 overflow-y-auto max-h-[60vh] space-y-6">
               {/* Profile Section */}
               <div>
@@ -506,8 +506,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                   <div className="space-y-4 bg-aura-navy p-4 rounded-xl border border-aura-primary/30">
                     <div>
                       <label className="text-[10px] text-aura-lavender/50 uppercase mb-1 block">Username</label>
-                      <input 
-                        value={newUsername} 
+                      <input
+                        value={newUsername}
                         onChange={e => setNewUsername(e.target.value)}
                         className="w-full bg-aura-panel border border-aura-border rounded-lg px-3 py-2 text-white text-sm focus:border-aura-primary outline-none"
                       />
@@ -516,8 +516,8 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                       <label className="text-[10px] text-aura-lavender/50 uppercase mb-2 block">Choose Avatar</label>
                       <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-1 scrollbar-none">
                         {[...marvelAvatars, ...animeAvatars].map((url, i) => (
-                          <button 
-                            key={i} 
+                          <button
+                            key={i}
                             onClick={() => setNewAvatar(url)}
                             className={clsx("w-10 h-10 rounded-lg border-2 transition-all overflow-hidden", newAvatar === url ? "border-aura-primary scale-110" : "border-transparent hover:border-white/20")}
                           >
@@ -553,21 +553,21 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
               <div>
                 <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Preferences</h3>
                 <div className="space-y-2">
-                  <button 
+                  <button
                     onClick={toggleFocusMode}
                     className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-colors", focusMode ? "bg-aura-primary/10 border-aura-primary/30" : "bg-aura-navy hover:bg-aura-border border-aura-border")}
                   >
                     <div className="flex items-center gap-3 text-white"><BookOpen size={18} className={focusMode ? "text-aura-primary" : "text-gray-400"} /> Focus Mode</div>
                     <span className="text-xs font-medium text-aura-lavender/50">{focusMode ? "On" : "Off"}</span>
                   </button>
-                  <button 
+                  <button
                     onClick={toggleNotifications}
                     className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-colors", notificationsEnabled ? "bg-aura-navy hover:bg-aura-border border-aura-border" : "bg-red-500/10 border-red-500/30")}
                   >
                     <div className="flex items-center gap-3 text-white"><Bell size={18} className={notificationsEnabled ? "text-aura-teal" : "text-red-400"} /> Notifications</div>
                     <span className="text-xs font-medium text-aura-lavender/50">{notificationsEnabled ? "Enabled" : "Muted"}</span>
                   </button>
-                  <button 
+                  <button
                     onClick={handleInstallApp}
                     className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
                   >
@@ -602,7 +602,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                 <p className="text-center text-aura-lavender/40 py-8">No other users found yet.</p>
               ) : (
                 allUsers.map(u => {
-                  const existingConn = connections.find(c => 
+                  const existingConn = connections.find(c =>
                     (c.user1_id === u.id || c.user2_id === u.id) && !c.isVirtual
                   );
                   return (
@@ -625,7 +625,7 @@ export default function Sidebar({ connections, onRefresh, className }: { connect
                             {existingConn.status === 'pending' ? 'Pending' : 'Connected'}
                           </span>
                         ) : (
-                          <button 
+                          <button
                             onClick={() => { addFriend(u.id); setShowDiscover(false); }}
                             className="text-xs bg-aura-primary hover:bg-aura-primary/80 text-white whitespace-nowrap px-3 py-1.5 rounded-lg transition-colors font-semibold active:scale-95"
                           >

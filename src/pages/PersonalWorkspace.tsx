@@ -1,114 +1,132 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { FileText, Calendar, Lock, ArrowLeft } from 'lucide-react';
+import { FileText, Calendar, Lock, ArrowLeft, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import SyncNotes from '../components/SyncNotes';
 import SharedTimetable from '../components/SharedTimetable';
 import SmartVault from '../components/SmartVault';
 
+const TABS = [
+  { id: 'notes' as const, label: 'Notes', icon: FileText, color: 'aura-primary' },
+  { id: 'timetable' as const, label: 'Timetable', icon: Calendar, color: 'aura-pink' },
+  { id: 'vault' as const, label: 'Vault', icon: Lock, color: 'aura-teal' },
+] as const;
+
+type TabId = typeof TABS[number]['id'];
+
 export default function PersonalWorkspace() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'notes' | 'vault' | 'timetable'>('notes');
+  const [activeTab, setActiveTab] = useState<TabId>('notes');
 
   if (!user) return null;
 
   return (
     <div className="flex-1 flex flex-col h-full relative">
-      <div className="p-4 border-b border-aura-border bg-aura-panel flex items-center gap-3 shadow-sm relative z-10 shrink-0">
-        <button 
-          onClick={() => navigate('/dashboard')} 
-          className="md:hidden p-2 -ml-2 text-aura-lavender hover:text-white transition-colors"
+      {/* Header */}
+      <div className="p-3 sm:p-4 border-b border-aura-border bg-aura-panel flex items-center gap-3 shadow-sm relative z-10 shrink-0">
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="md:hidden p-2 -ml-2 text-aura-lavender hover:text-white transition-colors rounded-lg active:scale-95"
           title="Back to Chats"
+          aria-label="Back to dashboard"
         >
           <ArrowLeft size={22} />
         </button>
-        
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-aura-primary flex items-center justify-center text-white font-bold text-lg shadow-inner">
-            {user.username[0].toUpperCase()}
+
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-aura-primary to-aura-pink flex items-center justify-center text-white shadow-lg shadow-aura-primary/20 shrink-0">
+            <Shield size={20} />
           </div>
-          <div>
-            <h2 className="text-white font-semibold text-lg flex items-center gap-2">
-              My Personal Space
-              <span className="text-xs bg-aura-teal/20 text-aura-teal px-2 py-0.5 rounded-full font-medium border border-aura-teal/30">Private</span>
+          <div className="min-w-0">
+            <h2 className="text-white font-bold text-base sm:text-lg truncate">
+              Personal Space
             </h2>
-            <p className="text-xs text-aura-lavender/70 flex items-center gap-1.5">
-              Only visible to you
+            <p className="text-[11px] text-aura-lavender/50 flex items-center gap-1.5">
+              <Lock size={10} /> Private — only visible to you
             </p>
           </div>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
-        {/* Horizontal Tabs for Mobile */}
-        <div className="md:hidden flex bg-aura-panel border-b border-aura-border p-2 gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
-          <button
-            onClick={() => setActiveTab('notes')}
-            className={clsx(
-              "flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium shrink-0",
-              activeTab === 'notes' ? "bg-aura-primary text-white" : "text-aura-lavender/70 hover:text-white"
-            )}
-          >
-            <FileText size={16} /> Notes
-          </button>
-          <button
-            onClick={() => setActiveTab('timetable')}
-            className={clsx(
-              "flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium shrink-0",
-              activeTab === 'timetable' ? "bg-aura-primary text-white" : "text-aura-lavender/70 hover:text-white"
-            )}
-          >
-            <Calendar size={16} /> Timetable
-          </button>
-          <button
-            onClick={() => setActiveTab('vault')}
-            className={clsx(
-              "flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium shrink-0",
-              activeTab === 'vault' ? "bg-aura-primary text-white" : "text-aura-lavender/70 hover:text-white"
-            )}
-          >
-            <Lock size={16} /> Vault
-          </button>
+        {/* Mobile Tab Bar */}
+        <div className="md:hidden flex bg-aura-panel border-b border-aura-border p-1.5 gap-1 shrink-0">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all text-sm font-semibold',
+                  isActive
+                    ? `bg-${tab.color}/15 text-white border border-${tab.color}/30`
+                    : 'text-aura-lavender/50 hover:text-white'
+                )}
+                style={isActive ? {
+                  backgroundColor: tab.color === 'aura-primary' ? 'rgba(155,89,182,0.15)' :
+                    tab.color === 'aura-pink' ? 'rgba(236,72,153,0.15)' :
+                      'rgba(0,212,170,0.15)',
+                  borderColor: tab.color === 'aura-primary' ? 'rgba(155,89,182,0.3)' :
+                    tab.color === 'aura-pink' ? 'rgba(236,72,153,0.3)' :
+                      'rgba(0,212,170,0.3)',
+                } : undefined}
+              >
+                <Icon size={16} />
+                <span className="text-xs">{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Sidebar for tabs (Desktop only) */}
-        <div className="hidden md:flex w-64 bg-aura-panel border-r border-aura-border flex-col p-4 gap-2 shrink-0">
-          <button
-            onClick={() => setActiveTab('notes')}
-            className={clsx(
-              "flex items-center gap-3 p-3 rounded-xl transition-all font-medium",
-              activeTab === 'notes' ? "bg-aura-primary text-white shadow-md shadow-aura-primary/20" : "text-aura-lavender hover:bg-aura-border hover:text-white"
-            )}
-          >
-            <FileText size={20} /> Personal Notes
-          </button>
-          <button
-            onClick={() => setActiveTab('timetable')}
-            className={clsx(
-              "flex items-center gap-3 p-3 rounded-xl transition-all font-medium",
-              activeTab === 'timetable' ? "bg-aura-primary text-white shadow-md shadow-aura-primary/20" : "text-aura-lavender hover:bg-aura-border hover:text-white"
-            )}
-          >
-            <Calendar size={20} /> My Timetable
-          </button>
-          <button
-            onClick={() => setActiveTab('vault')}
-            className={clsx(
-              "flex items-center gap-3 p-3 rounded-xl transition-all font-medium",
-              activeTab === 'vault' ? "bg-aura-primary text-white shadow-md shadow-aura-primary/20" : "text-aura-lavender hover:bg-aura-border hover:text-white"
-            )}
-          >
-            <Lock size={20} /> My Vault
-          </button>
+        {/* Desktop Sidebar */}
+        <div className="hidden md:flex w-56 bg-aura-panel border-r border-aura-border flex-col p-3 gap-1.5 shrink-0">
+          <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest font-bold px-3 mb-2">
+            Workspace
+          </p>
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  'flex items-center gap-3 p-3 rounded-xl transition-all font-medium text-sm',
+                  isActive
+                    ? 'bg-aura-primary text-white shadow-md shadow-aura-primary/20'
+                    : 'text-aura-lavender/70 hover:bg-aura-border hover:text-white'
+                )}
+              >
+                <Icon size={18} />
+                {tab.label === 'Notes' ? 'Personal Notes' :
+                  tab.label === 'Timetable' ? 'My Timetable' :
+                    'My Vault'}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content Area */}
         <div className="flex-1 bg-aura-navy overflow-hidden relative">
-          {activeTab === 'notes' && <SyncNotes connectionId={undefined} />}
-          {activeTab === 'timetable' && <SharedTimetable connectionId={undefined} />}
-          {activeTab === 'vault' && <SmartVault connectionId="" messages={[]} partner={null} isPersonal={true} />}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              {activeTab === 'notes' && <SyncNotes connectionId={undefined} />}
+              {activeTab === 'timetable' && <SharedTimetable connectionId={undefined} />}
+              {activeTab === 'vault' && <SmartVault connectionId="" messages={[]} partner={null} isPersonal={true} />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>

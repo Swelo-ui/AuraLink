@@ -1,30 +1,54 @@
 import pg from 'pg';
+import 'dotenv/config';
+
 const { Client } = pg;
-const client = new Client({ connectionString: "postgresql://postgres.bzpotcqlatuqaakgjizw:qEuPtf%40E8%24FH8Hj@aws-1-ap-south-1.pooler.supabase.com:5432/postgres" });
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    console.error('ERROR: DATABASE_URL environment variable is required.');
+    console.error('Set it in your .env file: DATABASE_URL="postgresql://..."');
+    process.exit(1);
+}
+
+const client = new Client({ connectionString });
 
 async function setup() {
     await client.connect();
-    await client.query(`
-        CREATE TABLE IF NOT EXISTS push_subscriptions (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-            endpoint TEXT NOT NULL UNIQUE,
-            auth TEXT NOT NULL,
-            p256dh TEXT NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
-        );
-        -- Enable RLS
-        ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+    console.log('Connected to database.');
 
-        -- Create policies
+    await client.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL UNIQUE,
+      auth TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+    );
+
+    -- Enable RLS
+    ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+    -- Create policies (idempotent with IF NOT EXISTS pattern)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage their own subscriptions'
+      ) THEN
         CREATE POLICY "Users can manage their own subscriptions"
-            ON push_subscriptions FOR ALL
-            USING (auth.uid() = user_id);
-    `).catch(e => {
-        // Ignore "already exists" error for policies
-        console.log(e.message);
+          ON push_subscriptions FOR ALL
+          USING (auth.uid() = user_id);
+      END IF;
+    END $$;
+  `).catch(e => {
+        console.log('Note:', e.message);
     });
-    console.log("Database setup complete.");
+
+    console.log('Database setup complete.');
     await client.end();
 }
-setup();
+
+setup().catch(err => {
+    console.error('Setup failed:', err);
+    process.exit(1);
+});

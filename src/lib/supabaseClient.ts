@@ -1,6 +1,24 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../types/database'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bzpotcqlatuqaakgjizw.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6cG90Y3FsYXR1cWFha2dqaXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2NTQzMjcsImV4cCI6MjA5MzIzMDMyN30.MFTQAwYCGxZaMq_KU3Dkgyh2c0Aq5aCpEHf4QWQ9lSI'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+        'Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
+    )
+}
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+    },
+    realtime: {
+        params: {
+            eventsPerSecond: 10,
+        },
+    },
+})

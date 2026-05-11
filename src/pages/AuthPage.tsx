@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabaseClient';
 import { validateCredentials } from '../lib/authSecurity';
 
@@ -9,16 +10,19 @@ export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const setAuth = useAuthStore(state => state.setAuth);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+    setSuccess('');
+
     const validationError = validateCredentials(username, password);
     if (validationError) {
       setError(validationError);
@@ -26,14 +30,13 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    
+
     try {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username.trim());
       const authEmail = isEmail ? username.trim().toLowerCase() : `${username.trim().toLowerCase()}@auralink.app`;
       const displayUsername = isEmail ? username.trim().split('@')[0] : username.trim();
 
       if (isLogin) {
-        // Supabase Login
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email: authEmail,
           password: password,
@@ -42,7 +45,6 @@ export default function AuthPage() {
         if (signInError) throw signInError;
         if (!data.session) throw new Error('No session returned');
 
-        // Get user profile from public.users
         const { data: existingUser } = await supabase
           .from('users')
           .select('*')
@@ -50,16 +52,18 @@ export default function AuthPage() {
           .single();
 
         const userToSet = existingUser || { id: data.user.id, username: displayUsername };
-        
-        // If profile doesn't exist, create it (backwards compatibility or first login after email signup)
+
         if (!existingUser) {
-           await supabase.from('users').insert([{ id: data.user.id, username: displayUsername }]);
+          await supabase.from('users').insert([{ id: data.user.id, username: displayUsername }]);
         }
 
-        setAuth(data.session.access_token, userToSet);
+        setAuth(data.session.access_token, {
+          id: userToSet.id,
+          username: userToSet.username,
+          avatarUrl: userToSet.avatar_url || undefined,
+        });
         navigate('/dashboard');
       } else {
-        // Supabase Signup
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: authEmail,
           password: password,
@@ -69,21 +73,19 @@ export default function AuthPage() {
         });
 
         if (signUpError) throw signUpError;
-        
-        // Handle auto-confirm vs email confirmation
+
         if (!data.session) {
-          setError('Signup successful! Please check your email to confirm your account.');
+          setSuccess('Account created! Check your email to verify, then sign in.');
           setLoading(false);
           return;
         }
 
-        // Add to public.users
         const { error: profileError } = await supabase.from('users').upsert([
-          { id: data.user.id, username: displayUsername }
+          { id: data.user!.id, username: displayUsername }
         ]);
 
         if (profileError) {
-          console.error('Error creating profile:', profileError);
+          console.error('Profile creation error:', profileError);
         }
 
         // Auto-connect with AuraBot
@@ -92,126 +94,207 @@ export default function AuthPage() {
           .select('id')
           .eq('username', 'AuraBot')
           .single();
-        
+
         if (botData) {
           await supabase.from('connections').insert([
-            { user1_id: data.user.id, user2_id: botData.id, status: 'accepted' }
+            { user1_id: data.user!.id, user2_id: botData.id, status: 'accepted' }
           ]);
         }
 
-        setAuth(data.session.access_token, { id: data.user.id, username: displayUsername });
+        setAuth(data.session.access_token, { id: data.user!.id, username: displayUsername });
         navigate('/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      const msg = err.message || 'Authentication failed';
+      // Friendlier error messages
+      if (msg.includes('Invalid login credentials')) {
+        setError('Incorrect username or password. Please try again.');
+      } else if (msg.includes('User already registered')) {
+        setError('This account already exists. Try signing in instead.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [username, password, isLogin, setAuth, navigate]);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 md:p-6 relative overflow-hidden"
-      style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(155,89,182,0.25) 0%, transparent 55%), radial-gradient(ellipse at 75% 80%, rgba(236,72,153,0.2) 0%, transparent 55%), #0D0D1A' }}
+    <div
+      className="min-h-screen w-full flex items-center justify-center p-4 md:p-6 relative overflow-hidden"
+      style={{
+        background: 'radial-gradient(ellipse at 30% 20%, rgba(155,89,182,0.25) 0%, transparent 55%), radial-gradient(ellipse at 75% 80%, rgba(236,72,153,0.2) 0%, transparent 55%), #0D0D1A'
+      }}
     >
-      {/* Ambient blobs */}
+      {/* Ambient background effects */}
       <div className="absolute top-[-80px] left-[-80px] w-96 h-96 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #9B59B6, transparent)' }} />
       <div className="absolute bottom-[-80px] right-[-60px] w-80 h-80 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #EC4899, transparent)' }} />
 
-      <div className="relative w-full max-w-md">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative w-full max-w-md"
+      >
         {/* Card */}
-        <div className="rounded-3xl p-6 md:p-8 border border-white/10 shadow-2xl backdrop-blur-sm"
-          style={{ background: 'rgba(26,26,46,0.85)' }}
+        <div
+          className="rounded-3xl p-6 md:p-8 border border-white/10 shadow-2xl backdrop-blur-sm"
+          style={{ background: 'rgba(26,26,46,0.9)' }}
         >
-          {/* Icon + Logo stacked */}
-          <div className="flex flex-col items-center mb-6 gap-3">
-            {/* Clean vector icon instead of jpeg with box artifacts */}
-            <div className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#9B59B6] to-[#EC4899] shadow-[0_0_40px_rgba(236,72,153,0.4)] transform rotate-3 hover:rotate-6 transition-transform">
+          {/* Logo */}
+          <div className="flex flex-col items-center mb-8 gap-3">
+            <motion.div
+              whileHover={{ rotate: 6, scale: 1.05 }}
+              className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#9B59B6] to-[#EC4899] shadow-[0_0_40px_rgba(236,72,153,0.4)]"
+            >
               <Sparkles className="w-10 h-10 text-white" />
-            </div>
-            {/* Text logo */}
-            <h1 className="text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-[#E9D5FF] to-white" style={{ filter: 'drop-shadow(0 2px 12px rgba(155,89,182,0.4))' }}>
+            </motion.div>
+            <h1 className="text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-[#E9D5FF] to-white">
               AuraLink
             </h1>
+            <p className="text-xs text-aura-lavender/40 uppercase tracking-[0.2em] font-bold">
+              Chat · Connect · Closer
+            </p>
           </div>
 
-          {/* Subtitle */}
-          <p className="text-center text-sm mb-7" style={{ color: 'rgba(233,213,255,0.55)' }}>
-            {isLogin ? '✨ Welcome back! Your aura awaits.' : '🌟 Join AuraLink — study together, closer.'}
-          </p>
+          {/* Tab Switcher */}
+          <div className="flex bg-aura-navy rounded-xl p-1 mb-6 border border-aura-border">
+            <button
+              type="button"
+              onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${isLogin ? 'bg-aura-primary text-white shadow-lg shadow-aura-primary/20' : 'text-aura-lavender/50 hover:text-white'}`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${!isLogin ? 'bg-aura-primary text-white shadow-lg shadow-aura-primary/20' : 'text-aura-lavender/50 hover:text-white'}`}
+            >
+              Register
+            </button>
+          </div>
 
-          {error && (
-            <div className="bg-red-500/15 text-red-400 p-3 rounded-xl mb-5 text-sm border border-red-500/20">
-              {error}
-            </div>
-          )}
+          {/* Error/Success Messages */}
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-red-500/10 text-red-400 p-3 rounded-xl mb-4 text-sm border border-red-500/20"
+                role="alert"
+              >
+                {error}
+              </motion.div>
+            )}
+            {success && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-green-500/10 text-green-400 p-3 rounded-xl mb-4 text-sm border border-green-500/20"
+                role="status"
+              >
+                {success}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(233,213,255,0.5)' }}>
-                Username or Email
+              <label
+                htmlFor="auth-username"
+                className="block text-xs font-semibold uppercase tracking-widest mb-1.5 text-aura-lavender/50"
+              >
+                {isLogin ? 'Username or Email' : 'Choose a Username'}
               </label>
               <input
                 type="text"
                 id="auth-username"
-                className="w-full rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none transition-all border"
-                style={{ background: 'rgba(13,13,26,0.8)', borderColor: 'rgba(155,89,182,0.3)' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#9B59B6')}
-                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(155,89,182,0.3)')}
+                className="w-full rounded-xl px-4 py-3 text-white text-sm focus:outline-none transition-all border bg-aura-navy border-aura-border focus:border-aura-primary focus:ring-1 focus:ring-aura-primary/30"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="username or email@example.com"
+                placeholder={isLogin ? 'username or email@example.com' : 'your_username'}
                 minLength={3}
                 maxLength={50}
                 autoComplete="username"
+                autoCapitalize="off"
+                spellCheck={false}
                 required
+                disabled={loading}
               />
+              {!isLogin && (
+                <p className="text-[10px] text-aura-lavender/30 mt-1 px-1">
+                  3-24 characters, letters, numbers, and underscores only
+                </p>
+              )}
             </div>
+
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(233,213,255,0.5)' }}>
+              <label
+                htmlFor="auth-password"
+                className="block text-xs font-semibold uppercase tracking-widest mb-1.5 text-aura-lavender/50"
+              >
                 Password
               </label>
-              <input
-                type="password"
-                id="auth-password"
-                className="w-full rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none transition-all border"
-                style={{ background: 'rgba(13,13,26,0.8)', borderColor: 'rgba(155,89,182,0.3)' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#9B59B6')}
-                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(155,89,182,0.3)')}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                minLength={8}
-                maxLength={128}
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="auth-password"
+                  className="w-full rounded-xl px-4 py-3 pr-12 text-white text-sm focus:outline-none transition-all border bg-aura-navy border-aura-border focus:border-aura-primary focus:ring-1 focus:ring-aura-primary/30"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  minLength={8}
+                  maxLength={128}
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-aura-lavender/40 hover:text-white transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {!isLogin && (
+                <p className="text-[10px] text-aura-lavender/30 mt-1 px-1">
+                  Minimum 8 characters
+                </p>
+              )}
             </div>
 
             <button
               type="submit"
-              id="auth-submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl font-bold text-white text-sm mt-2 transition-all active:scale-95 disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #9B59B6 0%, #EC4899 100%)', boxShadow: '0 4px 24px rgba(155,89,182,0.4)' }}
+              className="w-full py-3.5 rounded-xl font-bold text-white text-sm mt-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 bg-gradient-to-r from-aura-primary to-aura-pink shadow-lg shadow-aura-primary/30 hover:shadow-aura-primary/50"
             >
-              {loading ? '✨ Connecting...' : isLogin ? 'Sign In 🚀' : 'Create Account 🌸'}
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
+                  <ArrowRight size={18} />
+                </>
+              )}
             </button>
           </form>
 
-          <div className="mt-5 text-center">
-            <button
-              id="auth-toggle"
-              onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              className="text-xs transition-colors"
-              style={{ color: 'rgba(233,213,255,0.5)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#EC4899')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(233,213,255,0.5)')}
-            >
-              {isLogin ? "Don't have an account? Register →" : 'Already have an account? Sign in →'}
-            </button>
-          </div>
+          {/* Footer */}
+          <p className="text-center text-[11px] text-aura-lavender/30 mt-6">
+            By continuing, you agree to AuraLink's Terms of Service
+          </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

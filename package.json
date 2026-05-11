@@ -1,8 +1,9 @@
 {
-  "name": "react-example",
+  "name": "auralink",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "AuraLink - Real-time messaging and collaboration platform for students",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
