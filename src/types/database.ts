@@ -20,9 +20,11 @@ export interface Database {
                     created_at?: string
                 }
                 Update: {
+                    id?: string
                     username?: string
                     avatar_url?: string | null
                 }
+                Relationships: []
             }
             connections: {
                 Row: {
@@ -33,13 +35,19 @@ export interface Database {
                     created_at: string
                 }
                 Insert: {
+                    id?: string
                     user1_id: string
                     user2_id: string
                     status?: 'pending' | 'accepted'
+                    created_at?: string
                 }
                 Update: {
+                    id?: string
+                    user1_id?: string
+                    user2_id?: string
                     status?: 'pending' | 'accepted'
                 }
+                Relationships: []
             }
             messages: {
                 Row: {
@@ -55,6 +63,7 @@ export interface Database {
                     created_at: string
                 }
                 Insert: {
+                    id?: string
                     sender_id: string
                     receiver_id: string
                     content: string
@@ -62,12 +71,20 @@ export interface Database {
                     file_url?: string | null
                     telegram_file_id?: string | null
                     telegram_msg_id?: number | null
+                    timestamp?: string
+                    created_at?: string
                 }
                 Update: {
+                    id?: string
+                    sender_id?: string
+                    receiver_id?: string
                     content?: string
                     type?: 'text' | 'file'
                     file_url?: string | null
+                    telegram_file_id?: string | null
+                    telegram_msg_id?: number | null
                 }
+                Relationships: []
             }
             notes: {
                 Row: {
@@ -75,21 +92,59 @@ export interface Database {
                     connection_id: string | null
                     user_id: string
                     content: string
+                    title: string | null
                     last_edited_by: string | null
                     created_at: string
                     updated_at: string | null
                 }
                 Insert: {
+                    id?: string
                     connection_id?: string | null
                     user_id: string
                     content: string
+                    title?: string | null
                     last_edited_by?: string | null
+                    created_at?: string
+                    updated_at?: string | null
                 }
                 Update: {
+                    id?: string
+                    connection_id?: string | null
+                    user_id?: string
                     content?: string
+                    title?: string | null
                     last_edited_by?: string | null
                     updated_at?: string | null
                 }
+                Relationships: []
+            }
+            timetable: {
+                Row: {
+                    id: string
+                    user_id: string
+                    title: string
+                    time: string | null
+                    day: string | null
+                    created_at: string
+                    updated_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    title: string
+                    time?: string | null
+                    day?: string | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    title?: string | null
+                    time?: string | null
+                    day?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: []
             }
             timetables: {
                 Row: {
@@ -101,15 +156,46 @@ export interface Database {
                     created_at: string
                 }
                 Insert: {
+                    id?: string
                     connection_id?: string | null
                     user_id: string
                     title: string
                     status?: 'todo' | 'done'
+                    created_at?: string
                 }
                 Update: {
+                    id?: string
+                    connection_id?: string | null
+                    user_id?: string
                     title?: string
                     status?: 'todo' | 'done'
                 }
+                Relationships: []
+            }
+            vault: {
+                Row: {
+                    id: string
+                    user_id: string
+                    title: string
+                    content: string
+                    created_at: string
+                    updated_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    title: string
+                    content: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    title?: string
+                    content?: string
+                    updated_at?: string | null
+                }
+                Relationships: []
             }
             vault_items: {
                 Row: {
@@ -118,6 +204,7 @@ export interface Database {
                     name: string
                     content: string
                     type: 'file' | 'folder'
+                    file_url: string | null
                     telegram_file_id: string | null
                     telegram_msg_id: number | null
                     file_size: number | null
@@ -126,22 +213,29 @@ export interface Database {
                     created_at: string
                 }
                 Insert: {
+                    id?: string
                     user_id: string
                     name: string
                     content: string
                     type?: 'file' | 'folder'
+                    file_url?: string | null
                     telegram_file_id?: string | null
                     telegram_msg_id?: number | null
                     file_size?: number | null
                     folder_id?: string | null
                     is_chat_file?: boolean
+                    created_at?: string
                 }
                 Update: {
+                    id?: string
+                    user_id?: string
                     name?: string
                     content?: string
                     type?: 'file' | 'folder'
+                    file_url?: string | null
                     folder_id?: string | null
                 }
+                Relationships: []
             }
             push_subscriptions: {
                 Row: {
@@ -153,17 +247,34 @@ export interface Database {
                     created_at: string
                 }
                 Insert: {
+                    id?: string
                     user_id: string
                     endpoint: string
                     auth: string
                     p256dh: string
+                    created_at?: string
                 }
                 Update: {
+                    id?: string
+                    user_id?: string
                     endpoint?: string
                     auth?: string
                     p256dh?: string
                 }
+                Relationships: []
             }
+        }
+        Views: {
+            [_ in never]: never
+        }
+        Functions: {
+            [_ in never]: never
+        }
+        Enums: {
+            [_ in never]: never
+        }
+        CompositeTypes: {
+            [_ in never]: never
         }
     }
 }

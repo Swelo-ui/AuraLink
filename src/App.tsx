@@ -1,9 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, AlertTriangle, RefreshCw } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAuthStore } from './store/authStore';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { isSupabaseConfigured } from './lib/supabaseClient';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingScreen from './components/LoadingScreen';
 
@@ -11,9 +12,33 @@ import LoadingScreen from './components/LoadingScreen';
 const AuthPage = lazy(() => import('./pages/AuthPage'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 
+function SupabaseNotConfigured() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 p-8 text-center">
+      <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6 border border-amber-500/20">
+        <AlertTriangle size={40} className="text-amber-400" />
+      </div>
+      <h1 className="text-white font-bold text-xl mb-3">Configuration Required</h1>
+      <p className="text-neutral-400 text-sm mb-6 max-w-sm leading-relaxed">
+        Supabase environment variables are missing. Please set <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">VITE_SUPABASE_URL</code> and <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">VITE_SUPABASE_ANON_KEY</code> in your <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">.env</code> file.
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-purple-600/20"
+      >
+        <RefreshCw size={16} /> Retry
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const { token } = useAuthStore();
   const isOnline = useOnlineStatus();
+
+  if (!isSupabaseConfigured) {
+    return <SupabaseNotConfigured />;
+  }
 
   return (
     <ErrorBoundary>
