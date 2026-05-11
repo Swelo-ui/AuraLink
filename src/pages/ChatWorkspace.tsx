@@ -742,7 +742,7 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         toolTab === 'none' ? "w-full lg:w-3/4 mx-auto border-r border-aura-border" : "hidden md:flex md:w-1/2 border-r border-aura-border")}>
 
         {/* Header */}
-        <div className="h-[60px] sm:h-[72px] flex items-center justify-between px-2 sm:px-4 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0 overflow-visible gap-1 sm:gap-2">
+        <div className="h-[56px] sm:h-[64px] flex items-center justify-between px-2 sm:px-4 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0 overflow-hidden gap-1 sm:gap-2">
           <div className="flex items-center gap-1.5 sm:gap-4 min-w-0 flex-1">
             <button
               onClick={() => navigate('/dashboard')}

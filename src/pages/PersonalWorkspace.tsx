@@ -51,9 +51,9 @@ export default function PersonalWorkspace() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
-        {/* Mobile Tab Bar */}
-        <div className="md:hidden flex bg-aura-panel border-b border-aura-border p-1.5 gap-1.5 shrink-0">
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden min-w-0">
+        {/* Mobile Tab Bar — all 3 tabs always visible */}
+        <div className="md:hidden flex w-full bg-aura-panel border-b border-aura-border p-1.5 gap-1 shrink-0">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -65,18 +65,15 @@ export default function PersonalWorkspace() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition-all font-semibold min-h-[44px]"
-                style={isActive ? {
-                  backgroundColor: activeColor.bg,
-                  border: `1.5px solid ${activeColor.border}`,
-                  color: activeColor.text,
-                } : {
-                  color: 'rgba(148,163,184,0.5)',
-                  border: '1.5px solid transparent',
+                className="flex-1 min-w-0 flex items-center justify-center gap-1 py-2 rounded-xl transition-all font-semibold text-xs"
+                style={{
+                  backgroundColor: isActive ? activeColor.bg : 'transparent',
+                  border: isActive ? `1.5px solid ${activeColor.border}` : '1.5px solid transparent',
+                  color: isActive ? activeColor.text : 'rgba(148,163,184,0.5)',
                 }}
               >
-                <Icon size={15} />
-                <span className="text-xs">{tab.label}</span>
+                <Icon size={14} className="shrink-0" />
+                <span className="truncate">{tab.label}</span>
               </button>
             );
           })}

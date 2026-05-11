@@ -224,35 +224,35 @@ export default function SyncNotes({ connectionId, partner }: { connectionId?: st
       {/* ── Toolbar ── */}
       <div className="bg-aura-panel/95 backdrop-blur-xl border-b border-aura-border shrink-0 z-40 shadow-lg">
 
-        {/* Row 1 — Formatting: all visible, compact on mobile */}
-        <div className="flex items-center justify-evenly px-1 sm:px-2 py-1 sm:py-1.5 border-b border-aura-border/30 flex-wrap-none">
-          <ToolbarButton active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} icon={<Bold size={13} />} label="Bold" />
-          <ToolbarButton active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} icon={<Italic size={13} />} label="Italic" />
-          <ToolbarButton active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} icon={<Heading1 size={13} />} label="H1" />
-          <ToolbarButton active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} icon={<Heading2 size={13} />} label="H2" />
-          <ToolbarButton active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} icon={<List size={13} />} label="List" />
-          <ToolbarButton active={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()} icon={<Quote size={13} />} label="Quote" />
-          <ToolbarButton active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} icon={<Code size={13} />} label="Code" />
+        {/* Row 1 — All formatting buttons in one row, evenly distributed */}
+        <div className="grid grid-cols-[repeat(11,1fr)] px-1 py-1 border-b border-aura-border/30">
+          <ToolbarButton active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} icon={<Bold size={14} />} label="Bold" />
+          <ToolbarButton active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} icon={<Italic size={14} />} label="Italic" />
+          <ToolbarButton active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} icon={<Heading1 size={14} />} label="H1" />
+          <ToolbarButton active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} icon={<Heading2 size={14} />} label="H2" />
+          <ToolbarButton active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} icon={<List size={14} />} label="List" />
+          <ToolbarButton active={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()} icon={<Quote size={14} />} label="Quote" />
+          <ToolbarButton active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} icon={<Code size={14} />} label="Code" />
           <button
             onClick={() => editor?.chain().focus().toggleHighlight({ color: '#facc15' }).run()}
-            className={clsx("w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 shrink-0", editor?.isActive('highlight', { color: '#facc15' }) ? "bg-yellow-400 text-black shadow-lg shadow-yellow-400/20" : "text-yellow-400/60 hover:text-yellow-400 hover:bg-yellow-400/10")}
+            className={clsx("w-full aspect-square max-w-[32px] mx-auto rounded-lg flex items-center justify-center transition-all active:scale-90", editor?.isActive('highlight', { color: '#facc15' }) ? "bg-yellow-400 text-black shadow-lg shadow-yellow-400/20" : "text-yellow-400/60 hover:text-yellow-400 hover:bg-yellow-400/10")}
             title="Yellow Highlight"
           >
             <Highlighter size={13} />
           </button>
           <button
             onClick={() => editor?.chain().focus().toggleHighlight({ color: '#4ade80' }).run()}
-            className={clsx("w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 shrink-0", editor?.isActive('highlight', { color: '#4ade80' }) ? "bg-green-400 text-black shadow-lg shadow-green-400/20" : "text-green-400/60 hover:text-green-400 hover:bg-green-400/10")}
+            className={clsx("w-full aspect-square max-w-[32px] mx-auto rounded-lg flex items-center justify-center transition-all active:scale-90", editor?.isActive('highlight', { color: '#4ade80' }) ? "bg-green-400 text-black shadow-lg shadow-green-400/20" : "text-green-400/60 hover:text-green-400 hover:bg-green-400/10")}
             title="Green Highlight"
           >
             <Highlighter size={13} />
           </button>
-          <ToolbarButton onClick={addLink} icon={<LinkIcon size={13} />} active={editor?.isActive('link')} label="Link" />
+          <ToolbarButton onClick={addLink} icon={<LinkIcon size={14} />} active={editor?.isActive('link')} label="Link" />
           {/* Quote color picker */}
-          <div className="relative shrink-0">
+          <div className="relative flex items-center justify-center">
             <button
               onClick={() => setShowColorMenu(!showColorMenu)}
-              className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center hover:bg-white/5 rounded-lg text-aura-lavender/50 hover:text-aura-lavender transition-all active:scale-90"
+              className="w-full aspect-square max-w-[32px] mx-auto flex items-center justify-center hover:bg-white/5 rounded-lg text-aura-lavender/50 hover:text-aura-lavender transition-all active:scale-90"
               title="Quote Color"
             >
               <Palette size={13} />
@@ -440,7 +440,7 @@ function AiMenuButton({ icon, label, onClick }: any) {
 
 function ToolbarButton({ active, onClick, icon, label }: any) {
   return (
-    <button onClick={onClick} title={label} className={clsx("flex items-center justify-center rounded-lg transition-all shrink-0 w-7 h-7 sm:w-8 sm:h-8", active ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/20 scale-105" : "text-aura-lavender/40 hover:text-white hover:bg-white/5")}>
+    <button onClick={onClick} title={label} className={clsx("w-full aspect-square max-w-[32px] mx-auto flex items-center justify-center rounded-lg transition-all", active ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/20" : "text-aura-lavender/40 hover:text-white hover:bg-white/5")}>
       {icon}
     </button>
   );
