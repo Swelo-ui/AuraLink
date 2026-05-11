@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { motion, AnimatePresence } from "motion/react";
 
 // --- Types ---
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -389,8 +388,8 @@ export default function ActionMojiAvatar({
   const fp = (n: number) => n.toFixed(1) + "px";
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const blinkTmr = useRef<any>(null);
-  const talkTmr = useRef<any>(null);
+  const blinkTmr = useRef<NodeJS.Timeout | null>(null);
+  const talkTmr = useRef<NodeJS.Timeout | null>(null);
 
   const [eyeOff, setEyeOff] = useState({ x: 0, y: 0 });
   const [blinking, setBlinking] = useState(false);
@@ -427,16 +426,28 @@ export default function ActionMojiAvatar({
   }, [state]);
 
   useEffect(() => {
+    let lastUpdate = 0;
+    const throttleMs = 16; // ~60fps
+
     const fn = (e: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastUpdate < throttleMs) return;
+      lastUpdate = now;
+
       const el = rootRef.current;
       if (!el) return;
-      const r = el.getBoundingClientRect();
-      const dx = e.clientX - (r.left + r.width / 2);
-      const dy = e.clientY - (r.top + r.height / 2);
-      const m = Math.hypot(dx, dy) || 1;
-      const str = Math.min(m / 420, 1);
-      const mx = s * 0.052;
-      setEyeOff({ x: (dx / m) * str * mx, y: (dy / m) * str * mx });
+
+      try {
+        const r = el.getBoundingClientRect();
+        const dx = e.clientX - (r.left + r.width / 2);
+        const dy = e.clientY - (r.top + r.height / 2);
+        const m = Math.hypot(dx, dy) || 1;
+        const str = Math.min(m / 420, 1);
+        const mx = s * 0.052;
+        setEyeOff({ x: (dx / m) * str * mx, y: (dy / m) * str * mx });
+      } catch (err) {
+        console.error('[Eye Tracking Error]', err);
+      }
     };
     window.addEventListener("mousemove", fn, { passive: true });
     return () => { window.removeEventListener("mousemove", fn); };
@@ -461,6 +472,9 @@ export default function ActionMojiAvatar({
     reading_chat: "ak4_f 3.3s ease-in-out infinite",
     thinking: "ak4_wb 3s ease-in-out infinite",
     browsing_files: "ak4_wb 3s ease-in-out infinite",
+    browsing_vault: "ak4_wb 3s ease-in-out infinite",
+    viewing_notes: "ak4_wb 3s ease-in-out infinite",
+    timetable_open: "ak4_wb 3s ease-in-out infinite",
     talking: "ak4_f .9s ease-in-out infinite",
     typing: "ak4_f .9s ease-in-out infinite",
     happy: "ak4_f 2.8s ease-in-out infinite",
@@ -472,6 +486,21 @@ export default function ActionMojiAvatar({
     sleepy: "ak4_hf 5.5s ease-in-out infinite",
     offline: "ak4_hf 5.5s ease-in-out infinite",
     excited: "ak4_bc .42s ease-in-out infinite",
+    celebrating: "ak4_f 2.8s ease-in-out infinite",
+    partying: "ak4_f 2.8s ease-in-out infinite",
+    heart_eyes: "ak4_f 3.6s ease-in-out infinite",
+    starry_eyes: "ak4_bc .42s ease-in-out infinite",
+    magic: "ak4_bc .42s ease-in-out infinite",
+    mind_blown: "ak4_f 3.3s ease-in-out infinite",
+    crying: "ak4_hf 5s ease-in-out infinite",
+    writing_code: "ak4_wb 3s ease-in-out infinite",
+    searching: "ak4_wb 3s ease-in-out infinite",
+    uploading: "ak4_wb 3s ease-in-out infinite",
+    reading_book: "ak4_wb 3s ease-in-out infinite",
+    listening_music: "ak4_f 2.8s ease-in-out infinite",
+    playing_games: "ak4_f 2.8s ease-in-out infinite",
+    confused: "ak4_f 3.3s ease-in-out infinite",
+    cool: "ak4_f 3.3s ease-in-out infinite",
   };
 
   const currentAnim = ANIM[activeState] || ANIM["idle"];
@@ -592,7 +621,7 @@ export default function ActionMojiAvatar({
             transition: "background .4s ease, box-shadow .4s ease, border-radius .4s ease, filter .4s ease"
           }}>
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
+              <img src={avatarUrl} alt={username} className="w-full h-full object-cover rounded-full" loading="lazy" />
             ) : (
               <>
                 <div style={{ position: "absolute", top: "-7%", right: "5%", width: "55%", height: "45%", borderRadius: "50%", background: "radial-gradient(ellipse at 52% 46%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 100%)", pointerEvents: "none" }} />
@@ -609,14 +638,14 @@ export default function ActionMojiAvatar({
 
       {/* Status Ring */}
       {showStatusRing && (
-        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-neutral-950 ${isOffline ? 'bg-neutral-500' : 'bg-green-500'}`} />
+        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-neutral-950 transition-colors duration-300 ${isOffline ? 'bg-neutral-500' : 'bg-green-500'}`} />
       )}
 
       {/* Status Label (Snapchat Style) */}
       {showStatus && (
         <div className="mt-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
           <span className="text-[10px] font-medium text-neutral-400 capitalize">
-            {activeState.replace('_', ' ')}
+            {activeState.replace(/_/g, ' ')}
           </span>
         </div>
       )}
