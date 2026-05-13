@@ -1,6 +1,6 @@
 import {
   Download, File, Image as ImageIcon, FileText, Upload,
-  Plus, X, Lock, Trash2, Presentation, Loader2, AlertCircle, Folder, FolderPlus, ArrowLeft, Filter, Film, PlayCircle
+  Plus, X, Lock, Trash2, Presentation, Loader2, AlertCircle, Folder, FolderPlus, ArrowLeft, Film, PlayCircle
 } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useSocket } from './SocketProvider';
@@ -34,33 +34,33 @@ export function getFileType(name: string) {
   if (parts.length < 2) return 'other';
   const ext = parts.pop()?.toLowerCase() || '';
 
-  if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return 'image';
-  if (ext === 'pdf')                                          return 'pdf';
-  if (['doc','docx','txt','rtf'].includes(ext))               return 'doc';
-  if (['ppt','pptx'].includes(ext))                          return 'ppt';
-  if (['xls','xlsx','csv'].includes(ext))                    return 'sheet';
-  if (['mp4','webm','mov','m4v','mkv','avi','flv','wmv','3gp'].includes(ext)) return 'video';
-  if (['zip','rar','7z','tar','gz'].includes(ext))           return 'archive';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+  if (ext === 'pdf') return 'pdf';
+  if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) return 'doc';
+  if (['ppt', 'pptx'].includes(ext)) return 'ppt';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'sheet';
+  if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'avi', 'flv', 'wmv', '3gp'].includes(ext)) return 'video';
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'archive';
   return 'other';
 }
 
 export function FileIcon({ name, size = 24, isFolder = false, className }: { name: string; size?: number; isFolder?: boolean; className?: string }) {
   if (isFolder) return <Folder size={size} className={className || "text-aura-primary fill-aura-primary/20"} />;
   const type = getFileType(name);
-  if (type === 'image')  return <ImageIcon      size={size} className={className || "text-pink-400"} />;
-  if (type === 'pdf')    return <FileText        size={size} className={className || "text-red-400"} />;
-  if (type === 'doc')    return <FileText        size={size} className={className || "text-blue-400"} />;
-  if (type === 'ppt')    return <Presentation   size={size} className={className || "text-orange-400"} />;
-  if (type === 'sheet')  return <FileText        size={size} className={className || "text-green-400"} />;
-  if (type === 'video')  return <Film            size={size} className={className || "text-purple-400"} />;
+  if (type === 'image') return <ImageIcon size={size} className={className || "text-pink-400"} />;
+  if (type === 'pdf') return <FileText size={size} className={className || "text-red-400"} />;
+  if (type === 'doc') return <FileText size={size} className={className || "text-blue-400"} />;
+  if (type === 'ppt') return <Presentation size={size} className={className || "text-orange-400"} />;
+  if (type === 'sheet') return <FileText size={size} className={className || "text-green-400"} />;
+  if (type === 'video') return <Film size={size} className={className || "text-purple-400"} />;
   return <File size={size} className={className || "text-aura-lavender/60"} />;
 }
 
 function formatBytes(bytes: number) {
   if (!bytes) return '';
-  if (bytes < 1024)        return `${bytes} B`;
-  if (bytes < 1024 ** 2)   return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3)   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
@@ -76,45 +76,45 @@ export default function SmartVault({
   partner: any;
   isPersonal?: boolean;
 }) {
-  const { socket }     = useSocket();
-  const { user }       = useAuthStore();
-  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const { socket } = useSocket();
+  const { user } = useAuthStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [previewFile,   setPreviewFile]   = useState<VaultFile | null>(null);
-  const [vaultItems,    setVaultItems]    = useState<VaultFile[]>([]);
-  const [resolvedUrls,  setResolvedUrls]  = useState<Record<string, string>>({});
-  
+  const [previewFile, setPreviewFile] = useState<VaultFile | null>(null);
+  const [vaultItems, setVaultItems] = useState<VaultFile[]>([]);
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+
   // Navigation & Filtering
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('all'); // 'all', 'image', 'doc', 'video', 'pdf'
-  
+
   // Upload State
-  const [uploading,     setUploading]     = useState(false);
-  const [uploadProgress,setUploadProgress]= useState(0);
-  const [uploadError,   setUploadError]   = useState('');
-  
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
+
   // Folder Creation State
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
-  
-  const [deletingId,    setDeletingId]    = useState<string | null>(null);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // ── Build display list ────────────────────────────────────────────────────
   // ── Build display list ────────────────────────────────────────────────────
   const rawFiles = (() => {
     // 1. Start with vault items from the DB
     const list: VaultFile[] = vaultItems.map(item => ({
-      id:                item.id,
-      content:           item.content || (item as any).name,
-      fileUrl:           item.fileUrl || item.file_url || '',
-      telegram_file_id:  item.telegram_file_id,
-      telegram_msg_id:   item.telegram_msg_id,
-      file_size:         item.file_size,
-      type:              item.type || 'file',
-      timestamp:         item.created_at || (item as any).timestamp,
-      folder_id:         item.folder_id,
-      is_chat_file:      item.is_chat_file
+      id: item.id,
+      content: item.content || (item as any).name,
+      fileUrl: item.fileUrl || item.file_url || '',
+      telegram_file_id: item.telegram_file_id,
+      telegram_msg_id: item.telegram_msg_id,
+      file_size: item.file_size,
+      type: item.type || 'file',
+      timestamp: item.created_at || (item as any).timestamp,
+      folder_id: item.folder_id,
+      is_chat_file: item.is_chat_file
     }));
 
     // 2. Add files from the current conversation (messages prop)
@@ -123,24 +123,24 @@ export default function SmartVault({
       .filter(m => m.type === 'file')
       .map(m => {
         // Find if this file is already in vaultItems by telegram_file_id
-        const existing = list.find(v => 
-          (v.telegram_file_id && v.telegram_file_id === m.telegram_file_id) || 
+        const existing = list.find(v =>
+          (v.telegram_file_id && v.telegram_file_id === m.telegram_file_id) ||
           (v.id === m.id)
         );
-        
+
         if (existing) return null;
 
         return {
-          id:                m.id || `msg-${m.telegram_msg_id || Date.now()}`,
-          content:           m.content,
-          fileUrl:           m.fileUrl || m.file_url || '',
-          telegram_file_id:  m.telegram_file_id,
-          telegram_msg_id:   m.telegram_msg_id,
-          file_size:         null,
-          type:              'file',
-          timestamp:         m.timestamp,
-          folder_id:         null,
-          is_chat_file:      true
+          id: m.id || `msg-${m.telegram_msg_id || Date.now()}`,
+          content: m.content,
+          fileUrl: m.fileUrl || m.file_url || '',
+          telegram_file_id: m.telegram_file_id,
+          telegram_msg_id: m.telegram_msg_id,
+          file_size: null,
+          type: 'file',
+          timestamp: m.timestamp,
+          folder_id: null,
+          is_chat_file: true
         };
       })
       .filter(Boolean) as VaultFile[];
@@ -156,23 +156,23 @@ export default function SmartVault({
       return messages
         .filter(m => m.type === 'file')
         .map(m => ({
-          id:                m.id || `msg-${m.telegram_msg_id}`,
-          content:           m.content,
-          fileUrl:           m.fileUrl || m.file_url || '',
-          telegram_file_id:  m.telegram_file_id,
-          telegram_msg_id:   m.telegram_msg_id,
-          file_size:         null,
-          type:              'file',
-          timestamp:         m.timestamp,
-          folder_id:         null,
-          is_chat_file:      true
+          id: m.id || `msg-${m.telegram_msg_id}`,
+          content: m.content,
+          fileUrl: m.fileUrl || m.file_url || '',
+          telegram_file_id: m.telegram_file_id,
+          telegram_msg_id: m.telegram_msg_id,
+          file_size: null,
+          type: 'file',
+          timestamp: m.timestamp,
+          folder_id: null,
+          is_chat_file: true
         }));
     }
   })();
 
   // Apply filters and folder navigation
   let displayFiles = rawFiles;
-  
+
   if (filterType !== 'all') {
     // When filtering by type, show a flat view (ignore folders)
     displayFiles = displayFiles.filter(f => f.type !== 'folder' && getFileType(f.content) === filterType);
@@ -193,7 +193,7 @@ export default function SmartVault({
   // ── Fetch personal vault from Supabase (metadata + chat files) ────────────
   const fetchPersonalVault = useCallback(async () => {
     if (!user?.id) return;
-    
+
     const [vaultRes, msgRes] = await Promise.all([
       supabase.from('vault_items').select('*').eq('user_id', user.id),
       supabase.from('messages').select('*').eq('type', 'file').or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
@@ -258,7 +258,7 @@ export default function SmartVault({
           } else if (f.file_url || f.fileUrl) {
             updates[f.id] = f.file_url || f.fileUrl || '';
           }
-        } catch (err) { 
+        } catch (err) {
           console.error(`Failed to resolve URL for ${f.id}:`, err);
         }
       }
@@ -284,14 +284,14 @@ export default function SmartVault({
 
       if (isPersonal) {
         const { error: dbError } = await supabase.from('vault_items').insert([{
-          user_id:            user.id,
-          name:               file.name,
-          content:            file.name,
-          type:               'file',
-          telegram_file_id:   file_id,
-          telegram_msg_id:    message_id,
-          file_size:          file.size,
-          folder_id:          currentFolderId,
+          user_id: user.id,
+          name: file.name,
+          content: file.name,
+          type: 'file',
+          telegram_file_id: file_id,
+          telegram_msg_id: message_id,
+          file_size: file.size,
+          folder_id: currentFolderId,
         }]);
         if (dbError) throw new Error(`Metadata save failed: ${dbError.message}`);
         await fetchPersonalVault();
@@ -299,13 +299,13 @@ export default function SmartVault({
       } else if (partner) {
         const fileUrl = await tgGetFileUrl(file_id);
         await supabase.from('messages').insert([{
-          sender_id:          user.id,
-          receiver_id:        partner.id,
-          content:            file.name,
-          type:               'file',
-          file_url:           fileUrl,
-          telegram_file_id:   file_id,
-          telegram_msg_id:    message_id,
+          sender_id: user.id,
+          receiver_id: partner.id,
+          content: file.name,
+          type: 'file',
+          file_url: fileUrl,
+          telegram_file_id: file_id,
+          telegram_msg_id: message_id,
         }]);
       }
 
@@ -349,13 +349,13 @@ export default function SmartVault({
     setDeletingId(item.id);
     try {
       if (item.telegram_msg_id) await tgDeleteMessage(item.telegram_msg_id);
-      
+
       if (item.is_chat_file) {
         await supabase.from('messages').delete().eq('id', item.id);
       } else if (item.id) {
         await supabase.from('vault_items').delete().eq('id', item.id);
       }
-      
+
       setResolvedUrls(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       await fetchPersonalVault();
     } catch (err: any) {
@@ -371,7 +371,7 @@ export default function SmartVault({
   // ── Preview renderer ──────────────────────────────────────────────────────
   const renderPreview = () => {
     if (!previewFile) return null;
-    const url  = getUrl(previewFile);
+    const url = getUrl(previewFile);
     const type = getFileType(previewFile.content ?? '');
 
     if (!url) return (
@@ -393,7 +393,7 @@ export default function SmartVault({
       <video src={url} controls className="max-w-full max-h-[70vh] rounded-xl shadow-xl" />
     );
 
-    if (['pdf','doc','ppt','sheet'].includes(type)) {
+    if (['pdf', 'doc', 'ppt', 'sheet'].includes(type)) {
       const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
       return (
         <iframe
@@ -425,62 +425,63 @@ export default function SmartVault({
     <div className="flex flex-col h-full bg-aura-navy overflow-hidden w-full relative">
 
       {/* ── Header & Navigation ──────────────────────────────────────────── */}
-      <div className="p-4 border-b border-aura-border bg-aura-panel/30 flex flex-col gap-3 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="p-3 border-b border-aura-border/50 bg-aura-panel/30 flex flex-col gap-2.5 shrink-0">
+        {/* Top row: title + actions */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {currentFolderId && filterType === 'all' && (
-              <button 
+              <button
                 onClick={() => setCurrentFolderId(null)}
-                className="p-1.5 hover:bg-aura-border text-aura-lavender hover:text-white rounded-lg transition-all"
+                className="p-2 hover:bg-aura-surface text-aura-lavender/60 hover:text-white rounded-xl transition-all shrink-0 active:scale-95"
               >
                 <ArrowLeft size={18} />
               </button>
             )}
-            <div>
-              <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
-                {isPersonal && <Lock size={15} className="text-aura-primary" />}
-                {filterType !== 'all' ? `Filtered by ${filterType}` : currentFolderName}
+            <div className="min-w-0">
+              <h3 className="text-white font-semibold flex items-center gap-1.5 text-sm truncate">
+                {isPersonal && <Lock size={13} className="text-aura-primary shrink-0" />}
+                <span className="truncate">{filterType !== 'all' ? `${filterType} files` : currentFolderName}</span>
               </h3>
-              <p className="text-xs text-aura-lavender/50">{displayFiles.length} items</p>
+              <p className="text-[11px] text-aura-lavender/40">{displayFiles.length} items</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Action buttons - always visible */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {isPersonal && filterType === 'all' && (
               <button
                 onClick={() => setShowFolderModal(true)}
-                className="bg-aura-panel hover:bg-aura-border text-aura-lavender hover:text-white px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-all active:scale-95 border border-aura-border"
+                className="p-2.5 bg-aura-surface hover:bg-aura-border text-aura-lavender/60 hover:text-white rounded-xl transition-all active:scale-95 border border-aura-border/50"
+                title="New Folder"
               >
-                <FolderPlus size={16} /> <span className="hidden sm:inline">New Folder</span>
+                <FolderPlus size={18} />
               </button>
             )}
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading || filterType !== 'all'}
-              className="bg-aura-primary hover:opacity-90 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-aura-primary/20 disabled:opacity-60"
+              className="flex items-center gap-1.5 px-3 py-2.5 bg-aura-primary hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-md shadow-aura-primary/20 disabled:opacity-50"
             >
               {uploading
-                ? <><Loader2 size={15} className="animate-spin" /> Uploading…</>
-                : <><Plus size={16} /> Upload</>}
+                ? <><Loader2 size={14} className="animate-spin" /><span className="hidden xs:inline">Uploading</span></>
+                : <><Plus size={15} /><span>Upload</span></>}
             </button>
             <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" accept="*" />
           </div>
         </div>
 
-        {/* ── Filters ────────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          <Filter size={14} className="text-aura-lavender/50 mr-1 shrink-0" />
+        {/* ── Filters - scrollable row ───────────────────────────────────── */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none -mx-1 px-1">
           {['all', 'image', 'video', 'pdf', 'doc'].map(ft => (
             <button
               key={ft}
               onClick={() => { setFilterType(ft); setCurrentFolderId(null); }}
-              className={`px-3 py-1 text-xs font-medium rounded-full capitalize whitespace-nowrap transition-all border ${
-                filterType === ft 
-                  ? 'bg-aura-primary/20 border-aura-primary text-aura-primary' 
-                  : 'bg-aura-panel/50 border-aura-border text-aura-lavender hover:text-white hover:border-aura-primary/50'
-              }`}
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg capitalize whitespace-nowrap transition-all border ${filterType === ft
+                ? 'bg-aura-primary/15 border-aura-primary/40 text-aura-primary'
+                : 'bg-aura-surface/50 border-aura-border/50 text-aura-lavender/50 hover:text-white active:bg-aura-surface'
+                }`}
             >
-              {ft}
+              {ft === 'all' ? '📁 All' : ft === 'image' ? '🖼 Images' : ft === 'video' ? '🎬 Videos' : ft === 'pdf' ? '📄 PDF' : '📝 Docs'}
             </button>
           ))}
         </div>
@@ -507,72 +508,68 @@ export default function SmartVault({
         </div>
       )}
 
-      {/* ── File Grid ───────────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+      {/* ── File List (Mobile-optimized) ────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 scrollbar-none">
         {displayFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center text-aura-lavender/50 gap-3">
-            <div className="w-16 h-16 bg-aura-panel rounded-full flex items-center justify-center border border-aura-border">
-              <Upload size={28} className="text-aura-primary opacity-60" />
+          <div className="flex flex-col items-center justify-center h-full text-center text-aura-lavender/50 gap-3 px-4">
+            <div className="w-14 h-14 bg-aura-surface rounded-2xl flex items-center justify-center border border-aura-border/50">
+              <Upload size={24} className="text-aura-primary opacity-60" />
             </div>
-            <p className="font-semibold text-white">
+            <p className="font-semibold text-white text-sm">
               {filterType !== 'all' ? `No ${filterType}s found` : 'Vault is empty'}
             </p>
-            <p className="text-sm max-w-xs">
-              {filterType !== 'all' ? 'Try changing the filter.' : 'Upload any file — images, PDFs, videos, ZIPs, and more. No size limits.'}
+            <p className="text-xs max-w-[240px]">
+              {filterType !== 'all' ? 'Try a different filter.' : 'Upload files — images, PDFs, videos, ZIPs. No size limits.'}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {displayFiles.map((f, i) => {
+          <div className="flex flex-col gap-2">
+            {displayFiles.map((f) => {
               const isFolder = f.type === 'folder';
-              const url  = isFolder ? '' : getUrl(f);
+              const url = isFolder ? '' : getUrl(f);
               const type = getFileType(f.content ?? '');
               const isDeleting = deletingId === f.id;
 
               return (
                 <div
                   key={f.id}
-                  className="bg-aura-panel/50 border border-aura-border rounded-2xl p-3.5 flex flex-col gap-3 hover:border-aura-primary/40 transition-all group animate-in fade-in slide-in-from-bottom-2 duration-300"
+                  className="bg-aura-surface/40 border border-aura-border/40 rounded-xl p-3 flex items-center gap-3 active:scale-[0.99] transition-all"
                 >
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-11 h-11 rounded-xl bg-aura-navy flex items-center justify-center shrink-0 border border-aura-border group-hover:border-aura-primary/30 transition-all cursor-pointer"
-                      onClick={() => isFolder ? setCurrentFolderId(f.id) : setPreviewFile(f)}
-                    >
-                      <FileIcon name={f.content ?? ''} size={22} isFolder={isFolder} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p 
-                        className="text-sm text-white font-semibold truncate cursor-pointer hover:text-aura-primary transition-colors" 
-                        title={f.content}
-                        onClick={() => isFolder ? setCurrentFolderId(f.id) : setPreviewFile(f)}
-                      >
-                        {f.content}
-                      </p>
-                      <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        {isFolder ? 'Folder' : (f.file_size ? formatBytes(f.file_size) + ' · ' : '')}
-                        {f.timestamp ? new Date(f.timestamp).toLocaleDateString() : 'Just now'}
-                        {f.is_chat_file && (
-                          <span className="bg-aura-primary/20 text-aura-primary px-1.5 py-0.5 rounded-sm lowercase text-[8px] font-bold">from chat</span>
-                        )}
-                      </p>
-                    </div>
+                  {/* File icon */}
+                  <div
+                    className="w-10 h-10 rounded-xl bg-aura-navy flex items-center justify-center shrink-0 border border-aura-border/50 cursor-pointer active:scale-95"
+                    onClick={() => isFolder ? setCurrentFolderId(f.id) : setPreviewFile(f)}
+                  >
+                    <FileIcon name={f.content ?? ''} size={20} isFolder={isFolder} />
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {isFolder ? (
+                  {/* File info */}
+                  <div
+                    className="min-w-0 flex-1 cursor-pointer"
+                    onClick={() => isFolder ? setCurrentFolderId(f.id) : setPreviewFile(f)}
+                  >
+                    <p className="text-[13px] text-white font-medium truncate" title={f.content}>
+                      {f.content}
+                    </p>
+                    <p className="text-[10px] text-aura-lavender/35 mt-0.5 flex items-center gap-1 flex-wrap">
+                      {isFolder ? 'Folder' : (f.file_size ? formatBytes(f.file_size) : '')}
+                      {!isFolder && f.file_size && f.timestamp ? ' · ' : ''}
+                      {f.timestamp ? new Date(f.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
+                      {f.is_chat_file && (
+                        <span className="bg-aura-primary/15 text-aura-primary px-1 py-px rounded text-[8px] font-bold ml-0.5">chat</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Action buttons - ALWAYS visible */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isFolder && (
                       <button
                         onClick={() => setCurrentFolderId(f.id)}
-                        className="flex-1 py-2 bg-aura-navy hover:bg-aura-border text-aura-lavender hover:text-white text-xs font-bold rounded-xl border border-aura-border active:scale-95 transition-all"
+                        className="p-2 bg-aura-navy text-aura-lavender/60 hover:text-white rounded-lg border border-aura-border/50 active:scale-90 transition-all"
+                        title="Open"
                       >
-                        Open Folder
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setPreviewFile(f)}
-                        className="flex-1 py-2 bg-aura-navy hover:bg-aura-border text-aura-lavender hover:text-white text-xs font-bold rounded-xl border border-aura-border active:scale-95 transition-all"
-                      >
-                        {['image','pdf','doc','ppt','sheet','video'].includes(type) ? 'Preview' : 'Open'}
+                        <ArrowLeft size={14} className="rotate-180" />
                       </button>
                     )}
 
@@ -580,10 +577,10 @@ export default function SmartVault({
                       <a
                         href={url}
                         download={f.content}
-                        className="p-2 bg-aura-primary/10 hover:bg-aura-primary text-aura-primary hover:text-white rounded-xl border border-aura-primary/20 active:scale-90 transition-all"
+                        className="p-2 bg-aura-primary/10 text-aura-primary rounded-lg border border-aura-primary/20 active:scale-90 transition-all"
                         title="Download"
                       >
-                        <Download size={16} />
+                        <Download size={14} />
                       </a>
                     )}
 
@@ -591,12 +588,10 @@ export default function SmartVault({
                       <button
                         onClick={() => handleDelete(f)}
                         disabled={isDeleting}
-                        className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 active:scale-90 transition-all disabled:opacity-50"
+                        className="p-2 bg-red-500/8 text-red-400 rounded-lg border border-red-500/15 active:scale-90 transition-all disabled:opacity-40"
                         title="Delete"
                       >
-                        {isDeleting
-                          ? <Loader2 size={16} className="animate-spin" />
-                          : <Trash2   size={16} />}
+                        {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       </button>
                     )}
                   </div>
@@ -612,7 +607,7 @@ export default function SmartVault({
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-aura-panel border border-aura-border rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="p-4 border-b border-aura-border flex items-center justify-between bg-aura-navy/50">
-              <h3 className="text-white font-semibold flex items-center gap-2"><FolderPlus size={18} className="text-aura-primary"/> New Folder</h3>
+              <h3 className="text-white font-semibold flex items-center gap-2"><FolderPlus size={18} className="text-aura-primary" /> New Folder</h3>
               <button onClick={() => setShowFolderModal(false)} className="text-aura-lavender hover:text-white">
                 <X size={20} />
               </button>

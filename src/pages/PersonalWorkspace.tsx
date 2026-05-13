@@ -10,8 +10,8 @@ import SmartVault from '../components/SmartVault';
 
 const TABS = [
   { id: 'notes' as const, label: 'Notes', icon: FileText },
-  { id: 'timetable' as const, label: 'Schedule', icon: Calendar },
   { id: 'vault' as const, label: 'Vault', icon: Lock },
+  { id: 'timetable' as const, label: 'Schedule', icon: Calendar },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -51,8 +51,8 @@ export default function PersonalWorkspace() {
       </div>
 
       <div className="flex flex-1 flex-col md:flex-row overflow-hidden min-w-0">
-        {/* Mobile Tab Bar */}
-        <div className="md:hidden flex w-full bg-aura-panel border-b border-aura-border/50 p-1.5 gap-1 shrink-0">
+        {/* Mobile Tab Bar - all 3 tabs always visible */}
+        <div className="md:hidden grid grid-cols-3 w-full bg-aura-panel border-b border-aura-border/50 p-1.5 gap-1 shrink-0">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -61,14 +61,14 @@ export default function PersonalWorkspace() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={clsx(
-                  "flex-1 min-w-0 flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition-all font-semibold text-xs",
+                  "flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition-all font-semibold text-xs",
                   isActive
                     ? "bg-aura-primary/12 text-aura-primary-light border border-aura-primary/20"
                     : "text-aura-lavender/40 border border-transparent"
                 )}
               >
                 <Icon size={14} className="shrink-0" />
-                <span className="truncate">{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             );
           })}
