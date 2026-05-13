@@ -14,17 +14,17 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 
 function SupabaseNotConfigured() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 p-8 text-center">
-      <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6 border border-amber-500/20">
-        <AlertTriangle size={40} className="text-amber-400" />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-aura-navy p-8 text-center">
+      <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-5 border border-amber-500/20">
+        <AlertTriangle size={32} className="text-amber-400" />
       </div>
-      <h1 className="text-white font-bold text-xl mb-3">Configuration Required</h1>
-      <p className="text-neutral-400 text-sm mb-6 max-w-sm leading-relaxed">
+      <h1 className="text-white font-bold text-lg mb-2">Configuration Required</h1>
+      <p className="text-aura-lavender/40 text-sm mb-6 max-w-sm leading-relaxed">
         Supabase environment variables are missing. Please set <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">VITE_SUPABASE_URL</code> and <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">VITE_SUPABASE_ANON_KEY</code> in your <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">.env</code> file.
       </p>
       <button
         onClick={() => window.location.reload()}
-        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-purple-600/20"
+        className="flex items-center gap-2 px-5 py-2.5 gradient-primary text-white rounded-xl font-semibold text-sm active:scale-95 transition-all shadow-md shadow-aura-primary/20"
       >
         <RefreshCw size={16} /> Retry
       </button>
@@ -66,7 +66,6 @@ export default function App() {
             <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth" replace />} />
             <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthPage />} />
             <Route path="/dashboard/*" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
-            {/* 404 fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

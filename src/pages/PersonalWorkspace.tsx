@@ -9,9 +9,9 @@ import SharedTimetable from '../components/SharedTimetable';
 import SmartVault from '../components/SmartVault';
 
 const TABS = [
-  { id: 'notes' as const, label: 'Notes', icon: FileText, color: 'aura-primary' },
-  { id: 'timetable' as const, label: 'Timetable', icon: Calendar, color: 'aura-pink' },
-  { id: 'vault' as const, label: 'Vault', icon: Lock, color: 'aura-teal' },
+  { id: 'notes' as const, label: 'Notes', icon: FileText },
+  { id: 'timetable' as const, label: 'Schedule', icon: Calendar },
+  { id: 'vault' as const, label: 'Vault', icon: Lock },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -24,53 +24,48 @@ export default function PersonalWorkspace() {
   if (!user) return null;
 
   return (
-    <div className="flex-1 flex flex-col h-full relative">
+    <div className="flex-1 flex flex-col h-full relative bg-aura-navy">
       {/* Header */}
-      <div className="p-3 sm:p-4 border-b border-aura-border bg-aura-panel flex items-center gap-3 shadow-sm relative z-10 shrink-0">
+      <div className="px-4 py-3 border-b border-aura-border/50 bg-aura-panel/95 backdrop-blur-md flex items-center gap-3 shrink-0 z-10">
         <button
           onClick={() => navigate('/dashboard')}
-          className="md:hidden p-2 -ml-2 text-aura-lavender hover:text-white transition-colors rounded-lg active:scale-95"
-          title="Back to Chats"
+          className="md:hidden p-2 -ml-2 text-aura-lavender/60 hover:text-white transition-colors rounded-xl active:scale-95"
           aria-label="Back to dashboard"
         >
-          <ArrowLeft size={22} />
+          <ArrowLeft size={20} />
         </button>
 
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-aura-primary to-aura-pink flex items-center justify-center text-white shadow-lg shadow-aura-primary/20 shrink-0">
-            <Shield size={20} />
+          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-white shadow-md shadow-aura-primary/20 shrink-0">
+            <Shield size={18} />
           </div>
           <div className="min-w-0">
-            <h2 className="text-white font-bold text-base sm:text-lg truncate">
+            <h2 className="text-white font-bold text-base truncate">
               Personal Space
             </h2>
-            <p className="text-[11px] text-aura-lavender/50 flex items-center gap-1.5">
-              <Lock size={10} /> Private — only visible to you
+            <p className="text-[11px] text-aura-lavender/40 flex items-center gap-1 font-medium">
+              <Lock size={9} /> Private — only visible to you
             </p>
           </div>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col md:flex-row overflow-hidden min-w-0">
-        {/* Mobile Tab Bar — all 3 tabs always visible */}
-        <div className="md:hidden flex w-full bg-aura-panel border-b border-aura-border p-1.5 gap-1 shrink-0">
+        {/* Mobile Tab Bar */}
+        <div className="md:hidden flex w-full bg-aura-panel border-b border-aura-border/50 p-1.5 gap-1 shrink-0">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-            const activeColor =
-              tab.color === 'aura-primary' ? { bg: 'rgba(155,89,182,0.18)', border: 'rgba(155,89,182,0.4)', text: '#b07aff' } :
-                tab.color === 'aura-pink' ? { bg: 'rgba(236,72,153,0.18)', border: 'rgba(236,72,153,0.4)', text: '#f472b6' } :
-                  { bg: 'rgba(0,212,170,0.18)', border: 'rgba(0,212,170,0.4)', text: '#2dd4bf' };
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex-1 min-w-0 flex items-center justify-center gap-1 py-2 rounded-xl transition-all font-semibold text-xs"
-                style={{
-                  backgroundColor: isActive ? activeColor.bg : 'transparent',
-                  border: isActive ? `1.5px solid ${activeColor.border}` : '1.5px solid transparent',
-                  color: isActive ? activeColor.text : 'rgba(148,163,184,0.5)',
-                }}
+                className={clsx(
+                  "flex-1 min-w-0 flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition-all font-semibold text-xs",
+                  isActive
+                    ? "bg-aura-primary/12 text-aura-primary-light border border-aura-primary/20"
+                    : "text-aura-lavender/40 border border-transparent"
+                )}
               >
                 <Icon size={14} className="shrink-0" />
                 <span className="truncate">{tab.label}</span>
@@ -80,8 +75,8 @@ export default function PersonalWorkspace() {
         </div>
 
         {/* Desktop Sidebar */}
-        <div className="hidden md:flex w-56 bg-aura-panel border-r border-aura-border flex-col p-3 gap-1.5 shrink-0">
-          <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest font-bold px-3 mb-2">
+        <div className="hidden md:flex w-52 bg-aura-panel border-r border-aura-border/50 flex-col p-3 gap-1 shrink-0">
+          <p className="text-[10px] text-aura-lavender/30 uppercase tracking-widest font-bold px-3 mb-2 mt-1">
             Workspace
           </p>
           {TABS.map(tab => {
@@ -94,13 +89,13 @@ export default function PersonalWorkspace() {
                 className={clsx(
                   'flex items-center gap-3 p-3 rounded-xl transition-all font-medium text-sm',
                   isActive
-                    ? 'bg-aura-primary text-white shadow-md shadow-aura-primary/20'
-                    : 'text-aura-lavender/70 hover:bg-aura-border hover:text-white'
+                    ? 'gradient-primary text-white shadow-md shadow-aura-primary/20'
+                    : 'text-aura-lavender/60 hover:bg-aura-surface hover:text-white'
                 )}
               >
                 <Icon size={18} />
                 {tab.label === 'Notes' ? 'Personal Notes' :
-                  tab.label === 'Timetable' ? 'My Timetable' :
+                  tab.label === 'Schedule' ? 'My Schedule' :
                     'My Vault'}
               </button>
             );
@@ -112,10 +107,10 @@ export default function PersonalWorkspace() {
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, x: 10 }}
+              initial={{ opacity: 0, x: 8 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.15 }}
               className="h-full"
             >
               {activeTab === 'notes' && <SyncNotes connectionId={undefined} />}

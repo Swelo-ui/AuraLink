@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, Palette, Shield, Download, BookOpen, Monitor } from 'lucide-react';
+import { Search, UserPlus, LogOut, Check, Clock, Settings, X, Bell, BookOpen, Monitor } from 'lucide-react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSocket } from './SocketProvider';
@@ -29,7 +29,6 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
 
   useEffect(() => {
     const handler = (e: any) => {
-      console.log('PWA: beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e);
       setInstallHint('Install is ready on this device.');
@@ -42,9 +41,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', onInstalled);
 
-    // Check if app is already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
-      console.log('PWA: App is already in standalone mode');
       setIsInstalled(true);
       setInstallHint('Already installed.');
     } else {
@@ -58,28 +55,19 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
   }, []);
 
   const handleInstallApp = async () => {
-    if (isInstalled) {
-      setInstallHint('App is already installed on this device.');
-      return;
-    }
+    if (isInstalled) { setInstallHint('App is already installed.'); return; }
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-        setInstallHint('Installing...');
-      } else {
-        setInstallHint('Install cancelled. You can try again.');
-      }
+      if (outcome === 'accepted') { setDeferredPrompt(null); setInstallHint('Installing...'); }
+      else { setInstallHint('Install cancelled. You can try again.'); }
       return;
     }
-    setInstallHint('Install prompt not ready yet. In Android Chrome, tap menu (3 dots) -> Add to Home screen.');
+    setInstallHint('Install prompt not ready. In Chrome, tap menu → Add to Home screen.');
   };
 
   const toggleNotifications = async () => {
     const newVal = !notificationsEnabled;
-
-    // Optimistically update UI
     setNotificationsEnabled(newVal);
     localStorage.setItem('aura_notifications', newVal.toString());
 
@@ -87,13 +75,10 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
       if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         await Notification.requestPermission();
       }
-
       if (Notification.permission === 'denied') {
-        alert('Notifications are blocked by your browser. Please allow them in site settings to receive background alerts.');
-        return; // Don't try to subscribe to push
+        alert('Notifications are blocked. Please allow them in site settings.');
+        return;
       }
-
-      // Subscribe to Web Push
       try {
         if ('serviceWorker' in navigator) {
           const registration = await navigator.serviceWorker.ready;
@@ -104,8 +89,6 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
               applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
             });
           }
-
-          // Save to DB
           if (subscription && user?.id) {
             const subData = subscription.toJSON();
             await supabase.from('push_subscriptions').upsert({
@@ -116,9 +99,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
             }, { onConflict: 'endpoint' });
           }
         }
-      } catch (e) {
-        console.error('Push subscription failed:', e);
-      }
+      } catch (e) { console.error('Push subscription failed:', e); }
     }
   };
 
@@ -135,12 +116,10 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
 
   const handleUpdateProfile = async () => {
     if (!user?.id || !newUsername) return;
-
     const { error } = await supabase
       .from('users')
       .update({ username: newUsername, avatar_url: newAvatar })
       .eq('id', user.id);
-
     if (!error) {
       const updatedUser = { ...user, username: newUsername, avatarUrl: newAvatar };
       useAuthStore.getState().setAuth(localStorage.getItem('token') || '', updatedUser);
@@ -180,121 +159,107 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
     e.preventDefault();
     const query = search.trim();
     if (!query) return setResults([]);
-
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('users')
       .select('id, username, avatar_url')
       .ilike('username', `%${query}%`)
       .neq('id', user?.id)
       .limit(15);
-
     if (data) setResults(data);
   };
 
   const fetchDiscoverUsers = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('users')
       .select('id, username, avatar_url')
       .neq('id', user?.id)
       .limit(20);
-
     if (data) setAllUsers(data);
     setShowDiscover(true);
   };
 
   const addFriend = async (targetUserId: string) => {
     if (!user?.id) return;
-
-    // Check if connection already exists in either direction
     const { data: existing } = await supabase
       .from('connections')
       .select('id')
       .or(`and(user1_id.eq.${user.id},user2_id.eq.${targetUserId}),and(user1_id.eq.${targetUserId},user2_id.eq.${user.id})`)
       .single();
-
     if (existing) {
       navigate(`/dashboard/c/${existing.id}`);
-      setSearch('');
-      setResults([]);
+      setSearch(''); setResults([]);
       return;
     }
-
-    const { data, error } = await supabase.from('connections').insert([
+    const { data } = await supabase.from('connections').insert([
       { user1_id: user.id, user2_id: targetUserId, status: 'pending' }
     ]).select().single();
-
-    if (data) {
-      navigate(`/dashboard/c/${data.id}`);
-    }
-
-    setSearch('');
-    setResults([]);
+    if (data) navigate(`/dashboard/c/${data.id}`);
+    setSearch(''); setResults([]);
   };
 
   const acceptFriend = async (id: string) => {
-    await supabase
-      .from('connections')
-      .update({ status: 'accepted' })
-      .eq('id', id);
+    await supabase.from('connections').update({ status: 'accepted' }).eq('id', id);
     onRefresh();
   };
 
   const rejectFriend = async (id: string) => {
-    await supabase
-      .from('connections')
-      .delete()
-      .eq('id', id);
+    await supabase.from('connections').delete().eq('id', id);
     onRefresh();
     navigate('/dashboard');
   };
 
   return (
-    <div className={clsx("w-full md:w-80 bg-aura-panel border-r border-aura-border flex-col h-full shrink-0 flex", className)}>
-      <div className="p-4 border-b border-aura-border flex items-center justify-between" style={{ background: 'linear-gradient(135deg, rgba(155,89,182,0.12) 0%, rgba(236,72,153,0.08) 100%)' }}>
-        <div className="flex items-center gap-2.5">
-          {/* Kawaii icon */}
-          <img src="/auralink-icon.jpeg" alt="AuraLink" className="w-9 h-9 object-contain mix-blend-screen shrink-0" />
-          {/* Brand text logo */}
-          <img src="/auralink-logo.jpeg" alt="AuraLink" className="h-7 object-contain mix-blend-screen" style={{ filter: 'brightness(1.1) drop-shadow(0 1px 6px rgba(155,89,182,0.5))' }} />
-        </div>
-      </div>
-      <div className="p-4 border-b border-aura-border flex items-center justify-between">
+    <div className={clsx("w-full md:w-80 bg-aura-panel flex-col h-full shrink-0 flex border-r border-aura-border/50", className)}>
+      {/* Header */}
+      <div className="px-5 py-4 flex items-center justify-between border-b border-aura-border/50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-aura-primary flex items-center justify-center border border-white/10">
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-white font-bold text-lg">{user?.username[0].toUpperCase()}</span>
-            )}
+          <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center shadow-md shadow-aura-primary/20">
+            <span className="text-white font-black text-sm">A</span>
           </div>
-          <div>
-            <h2 className="text-white font-medium">{user?.username}</h2>
-            <span className="text-xs text-aura-teal">Online</span>
-          </div>
+          <h1 className="text-white font-bold text-lg tracking-tight">AuraLink</h1>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={fetchDiscoverUsers} className="p-2 text-aura-teal hover:text-white transition-colors" title="Discover Friends">
+          <button onClick={fetchDiscoverUsers} className="p-2.5 text-aura-lavender/50 hover:text-aura-primary hover:bg-aura-primary/10 transition-all rounded-xl" title="Discover">
             <UserPlus size={18} />
           </button>
-          <button onClick={() => setShowSettings(true)} className="p-2 text-aura-lavender/50 hover:text-white transition-colors" title="Settings">
+          <button onClick={() => setShowSettings(true)} className="p-2.5 text-aura-lavender/50 hover:text-aura-primary hover:bg-aura-primary/10 transition-all rounded-xl" title="Settings">
             <Settings size={18} />
           </button>
         </div>
       </div>
 
-      <div className="p-4">
+      {/* Profile Quick View */}
+      <div className="px-5 py-3 border-b border-aura-border/30">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-aura-surface flex items-center justify-center ring-2 ring-aura-primary/20">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white font-bold text-base">{user?.username[0].toUpperCase()}</span>
+              )}
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full status-online" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-sm truncate">{user?.username}</p>
+            <p className="text-[11px] text-aura-teal font-medium">Online</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="px-4 py-3">
         <form onSubmit={handleSearch} className="relative" autoComplete="off">
-          {/* Aggressive Honeypot: Using zero-size absolute container with non-display:none to trick detectors */}
           <div className="absolute overflow-hidden w-[1px] h-[1px] -left-[1000px] pointer-events-none" aria-hidden="true">
             <input type="text" name="fake_un" autoComplete="username" tabIndex={-1} />
             <input type="password" name="fake_pw" autoComplete="current-password" tabIndex={-1} />
           </div>
-
           <input
             type="text"
             name={`aura_search_${Math.random().toString(36).substring(7)}`}
-            placeholder="Search users..."
-            className="w-full bg-aura-navy border border-aura-border rounded-xl pl-10 pr-10 py-2.5 flex-1 text-sm text-white focus:outline-none focus:border-aura-primary transition-all shadow-inner"
+            placeholder="Search people..."
+            className="w-full bg-aura-navy/60 border border-aura-border/50 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-aura-primary/50 focus:ring-2 focus:ring-aura-primary/10 transition-all placeholder:text-aura-lavender/30"
             value={search}
             onChange={e => setSearch(e.target.value)}
             autoComplete="new-password"
@@ -305,36 +270,27 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
             data-1p-ignore="true"
             data-form-type="other"
           />
-          <Search size={16} className="absolute left-3 top-3 text-aura-lavender/40" />
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-aura-lavender/40" />
           {search && (
-            <button
-              type="button"
-              onClick={() => { setSearch(''); setResults([]); }}
-              className="absolute right-3 top-3 text-aura-lavender/40 hover:text-white"
-            >
+            <button type="button" onClick={() => { setSearch(''); setResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-aura-lavender/40 hover:text-white">
               <X size={14} />
             </button>
           )}
         </form>
       </div>
 
+      {/* Search Results */}
       {results.length > 0 && (
-        <div className="mx-4 mb-4 bg-aura-navy/80 backdrop-blur-sm rounded-xl p-3 flex flex-col gap-2 border border-aura-primary/20 shadow-xl animate-in zoom-in-95 duration-200">
-          <p className="text-[10px] text-aura-primary uppercase tracking-widest px-1 font-black">Found on AuraLink</p>
-          <div className="max-h-48 overflow-y-auto space-y-2">
+        <div className="mx-4 mb-3 bg-aura-surface rounded-xl p-3 flex flex-col gap-2 border border-aura-primary/15 shadow-lg animate-fade-in-up">
+          <p className="text-[10px] text-aura-primary uppercase tracking-widest px-1 font-bold">Search Results</p>
+          <div className="max-h-48 overflow-y-auto space-y-1.5 scrollbar-none">
             {results.map(r => (
-              <div key={r.id} className="flex items-center justify-between p-2 hover:bg-aura-primary/10 rounded-lg transition-colors border border-transparent hover:border-aura-primary/10 group">
-                <div className="flex items-center gap-2">
-                  <ActionMojiAvatar
-                    state="idle"
-                    username={r.username}
-                    avatarUrl={r.avatar_url}
-                    size="xs"
-                    showStatusRing={false}
-                  />
-                  <span className="text-sm font-semibold text-white group-hover:text-aura-primary transition-colors">{r.username}</span>
+              <div key={r.id} className="flex items-center justify-between p-2.5 hover:bg-aura-primary/5 rounded-lg transition-colors group">
+                <div className="flex items-center gap-2.5">
+                  <ActionMojiAvatar state="idle" username={r.username} avatarUrl={r.avatar_url} size="xs" showStatusRing={false} />
+                  <span className="text-sm font-medium text-white">{r.username}</span>
                 </div>
-                <button onClick={() => addFriend(r.id)} className="bg-aura-primary text-white p-1.5 rounded-lg shadow-lg shadow-aura-primary/20 hover:scale-110 active:scale-95 transition-all">
+                <button onClick={() => addFriend(r.id)} className="p-2 bg-aura-primary text-white rounded-lg shadow-sm hover:shadow-md hover:shadow-aura-primary/20 active:scale-95 transition-all">
                   <UserPlus size={14} />
                 </button>
               </div>
@@ -343,52 +299,47 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-4">
+      {/* Connections List */}
+      <div className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 scrollbar-none">
         {/* Personal Space */}
-        <div className="mb-4 mt-4 px-2">
+        <div className="mb-3 mt-1">
           <button
             onClick={() => navigate('/dashboard/personal')}
             className={clsx(
-              "w-full flex items-center gap-3 p-3 rounded-xl transition-all border",
+              "w-full flex items-center gap-3 p-3 rounded-xl transition-all card-interactive",
               location.pathname === '/dashboard/personal'
-                ? "bg-aura-primary/10 border-aura-primary/30 text-white"
-                : "bg-aura-navy border-aura-border text-aura-lavender/70 hover:bg-aura-border hover:text-white"
+                ? "bg-aura-primary/10 border border-aura-primary/25 shadow-sm shadow-aura-primary/10"
+                : "bg-aura-surface/50 border border-transparent hover:bg-aura-surface hover:border-aura-border/50"
             )}
           >
-            <div className="w-8 h-8 rounded-lg bg-aura-primary flex items-center justify-center text-white shrink-0">
-              <Shield size={16} />
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-white shrink-0 shadow-sm">
+              <BookOpen size={18} />
             </div>
-            <div className="flex-1 text-left">
+            <div className="flex-1 text-left min-w-0">
               <p className="font-semibold text-sm text-white">Personal Space</p>
-              <p className="text-[10px] uppercase tracking-widest text-aura-primary">Private Area</p>
+              <p className="text-[11px] text-aura-primary-light font-medium">Notes · Timetable · Vault</p>
             </div>
           </button>
         </div>
 
-        {/* Friend Requests Section */}
+        {/* Friend Requests */}
         {connections.some(c => c.status === 'pending' && (c.user2_id === user?.id || c.user2?.id === user?.id)) && (
-          <div className="mb-6">
-            <p className="text-xs text-aura-teal uppercase tracking-widest px-2 mb-2 font-bold flex items-center gap-2">
-              <Bell size={12} className="animate-bounce" /> Friend Requests
+          <div className="mb-4">
+            <p className="text-[11px] text-aura-primary uppercase tracking-wider px-2 mb-2 font-bold flex items-center gap-1.5">
+              <Bell size={11} className="animate-bounce" /> Requests
             </p>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {connections.filter(c => c.status === 'pending' && (c.user2_id === user?.id || c.user2?.id === user?.id)).map(conn => {
                 const partner = conn.user1;
                 return (
-                  <div key={conn.id} className="flex items-center justify-between p-3 bg-aura-primary/5 rounded-xl border border-aura-primary/20">
-                    <div className="flex items-center gap-3">
-                      <ActionMojiAvatar
-                        state="offline"
-                        username={partner?.username || 'User'}
-                        avatarUrl={partner?.avatarUrl || partner?.avatar_url}
-                        size="xs"
-                        showStatusRing={false}
-                      />
+                  <div key={conn.id} className="flex items-center justify-between p-3 bg-aura-surface/80 rounded-xl border border-aura-primary/15">
+                    <div className="flex items-center gap-2.5">
+                      <ActionMojiAvatar state="offline" username={partner?.username || 'User'} avatarUrl={partner?.avatarUrl || partner?.avatar_url} size="xs" showStatusRing={false} />
                       <span className="text-sm font-medium text-white">{partner?.username}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => rejectFriend(conn.id)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg"><X size={16} /></button>
-                      <button onClick={() => acceptFriend(conn.id)} className="p-1.5 text-aura-teal hover:bg-aura-teal/10 rounded-lg"><Check size={16} /></button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => rejectFriend(conn.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"><X size={16} /></button>
+                      <button onClick={() => acceptFriend(conn.id)} className="p-2 text-aura-teal hover:bg-aura-teal/10 rounded-lg transition-colors"><Check size={16} /></button>
                     </div>
                   </div>
                 );
@@ -397,7 +348,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
           </div>
         )}
 
-        <p className="text-xs text-aura-lavender/40 uppercase tracking-widest px-2 mb-2 font-semibold">Connections</p>
+        <p className="text-[11px] text-aura-lavender/40 uppercase tracking-wider px-2 mb-2 font-semibold">Chats</p>
         <div className="space-y-1">
           {connections.map(conn => {
             const user1Id = conn.user1Id ?? conn.user1_id;
@@ -415,12 +366,14 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
                 key={conn.id}
                 onClick={() => navigate(`/dashboard/c/${conn.id}`)}
                 className={clsx(
-                  "flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer group",
-                  conn.id === connectionId ? "bg-aura-primary/10 border-aura-primary/20" : "hover:bg-aura-navy active:scale-[0.98]",
-                  isPending && !canAccept && "opacity-70"
+                  "flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer card-interactive",
+                  conn.id === connectionId
+                    ? "bg-aura-primary/10 border border-aura-primary/20"
+                    : "hover:bg-aura-surface/60 border border-transparent",
+                  isPending && !canAccept && "opacity-60"
                 )}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="shrink-0">
                     <ActionMojiAvatar
                       state={isPending ? 'offline' : status}
@@ -430,58 +383,44 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
                       showStatusRing={!isPending && status !== 'offline'}
                     />
                   </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-white flex items-center gap-2">
-                      {partner.username}
-                      {isAuraBot && <span className="text-[10px] bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded-full">AI</span>}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2 truncate">
+                      <span className="truncate">{partner.username}</span>
+                      {isAuraBot && <span className="text-[9px] bg-aura-primary/15 text-aura-primary-light px-1.5 py-0.5 rounded-md font-bold shrink-0">AI</span>}
                     </h3>
                     {isPending ? (
-                      <span className={clsx("text-xs flex items-center gap-1", canAccept ? "text-aura-primary font-bold animate-pulse" : "text-orange-400")}>
-                        <Clock size={12} /> {canAccept ? 'New Request' : 'Pending'}
+                      <span className={clsx("text-[11px] flex items-center gap-1", canAccept ? "text-aura-primary font-semibold" : "text-aura-warning")}>
+                        <Clock size={10} /> {canAccept ? 'New Request' : 'Pending'}
                       </span>
                     ) : (
-                      <span className="text-xs text-aura-lavender/50 truncate w-24 block">
+                      <span className="text-[11px] text-aura-lavender/40 truncate block font-medium">
                         {status === 'typing' ? 'Typing...' : status === 'reading_chat' ? 'Reading chat' : status === 'browsing_files' ? 'In vault' : status === 'viewing_notes' ? 'Editing notes' : status === 'timetable_open' ? 'Viewing timetable' : status}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  {canAccept && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); rejectFriend(conn.id); }}
-                        className="w-8 h-8 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
-                        title="Reject"
-                      >
-                        <X size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); acceptFriend(conn.id); }}
-                        className="w-8 h-8 rounded-full bg-aura-primary/20 text-aura-primary flex items-center justify-center hover:bg-aura-primary hover:text-white transition-colors"
-                        title="Accept"
-                      >
-                        <Check size={16} />
-                      </button>
-                    </>
-                  )}
-                </div>
+                {canAccept && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); rejectFriend(conn.id); }} className="w-8 h-8 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors" title="Reject"><X size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); acceptFriend(conn.id); }} className="w-8 h-8 rounded-full bg-aura-primary/15 text-aura-primary flex items-center justify-center hover:bg-aura-primary hover:text-white transition-colors" title="Accept"><Check size={14} /></button>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
-        {/* Discover More Card */}
+        {/* Discover Card */}
         {connections.length < 5 && !search && (
-          <div className="mx-4 mt-6 p-4 rounded-2xl bg-gradient-to-br from-aura-primary/20 to-aura-pink/20 border border-white/10 relative overflow-hidden group">
-            <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-all" />
-            <h4 className="text-white font-bold text-sm mb-1 relative z-10">Expand your Aura</h4>
-            <p className="text-aura-lavender/60 text-[11px] mb-3 relative z-10">Connect with other people on the ecosystem.</p>
+          <div className="mt-5 p-4 rounded-2xl bg-gradient-to-br from-aura-primary/10 to-aura-pink/5 border border-aura-primary/15 relative overflow-hidden">
+            <div className="absolute -right-6 -top-6 w-24 h-24 bg-aura-primary/5 rounded-full blur-2xl" />
+            <h4 className="text-white font-bold text-sm mb-1 relative z-10">Find Friends</h4>
+            <p className="text-aura-lavender/50 text-[11px] mb-3 relative z-10">Connect with other people on AuraLink.</p>
             <button
               onClick={fetchDiscoverUsers}
-              className="w-full py-2 bg-white text-aura-navy rounded-xl text-xs font-black shadow-lg hover:shadow-white/20 active:scale-95 transition-all relative z-10"
+              className="w-full py-2.5 gradient-primary text-white rounded-xl text-xs font-bold shadow-md shadow-aura-primary/20 active:scale-95 transition-all relative z-10"
             >
-              EXPLORE PEOPLE
+              Explore People
             </button>
           </div>
         )}
@@ -489,98 +428,81 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
 
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-aura-panel w-full max-w-md rounded-2xl border border-aura-border shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-aura-border flex items-center justify-between bg-aura-navy/50">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2"><Settings size={20} className="text-aura-primary" /> Settings</h2>
-              <button onClick={() => setShowSettings(false)} className="p-1.5 text-aura-lavender/50 hover:text-white hover:bg-white/5 rounded-full transition-colors">
-                <X size={20} />
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-aura-panel w-full max-w-md rounded-t-3xl md:rounded-2xl border border-aura-border/50 shadow-2xl overflow-hidden flex flex-col max-h-[85dvh]">
+            <div className="p-4 border-b border-aura-border/50 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2"><Settings size={18} className="text-aura-primary" /> Settings</h2>
+              <button onClick={() => setShowSettings(false)} className="p-2 text-aura-lavender/50 hover:text-white hover:bg-aura-surface rounded-xl transition-colors">
+                <X size={18} />
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto max-h-[70dvh] space-y-6">
-              {/* Profile Section */}
+            <div className="p-4 overflow-y-auto flex-1 space-y-5 scrollbar-none">
+              {/* Profile */}
               <div>
-                <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Account</h3>
+                <h3 className="text-[11px] font-bold text-aura-lavender/40 uppercase tracking-wider mb-3">Account</h3>
                 {isEditing ? (
-                  <div className="space-y-4 bg-aura-navy p-4 rounded-xl border border-aura-primary/30">
+                  <div className="space-y-4 bg-aura-surface p-4 rounded-xl border border-aura-primary/20">
                     <div>
-                      <label className="text-[10px] text-aura-lavender/50 uppercase mb-1 block">Username</label>
-                      <input
-                        value={newUsername}
-                        onChange={e => setNewUsername(e.target.value)}
-                        className="w-full bg-aura-panel border border-aura-border rounded-lg px-3 py-2 text-white text-sm focus:border-aura-primary outline-none"
-                      />
+                      <label className="text-[11px] text-aura-lavender/50 font-medium mb-1.5 block">Username</label>
+                      <input value={newUsername} onChange={e => setNewUsername(e.target.value)} className="w-full bg-aura-navy border border-aura-border rounded-xl px-3.5 py-2.5 text-white text-sm focus:border-aura-primary focus:ring-2 focus:ring-aura-primary/10 outline-none transition-all" />
                     </div>
                     <div>
-                      <label className="text-[10px] text-aura-lavender/50 uppercase mb-2 block">Choose Avatar</label>
+                      <label className="text-[11px] text-aura-lavender/50 font-medium mb-2 block">Choose Avatar</label>
                       <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-1 scrollbar-none">
                         {[...marvelAvatars, ...animeAvatars].map((url, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setNewAvatar(url)}
-                            className={clsx("w-10 h-10 rounded-lg border-2 transition-all overflow-hidden", newAvatar === url ? "border-aura-primary scale-110" : "border-transparent hover:border-white/20")}
-                          >
+                          <button key={i} onClick={() => setNewAvatar(url)} className={clsx("w-10 h-10 rounded-lg border-2 transition-all overflow-hidden", newAvatar === url ? "border-aura-primary scale-110 shadow-md shadow-aura-primary/20" : "border-transparent hover:border-aura-border")}>
                             <img src={url} alt="Avatar" className="w-full h-full object-cover" />
                           </button>
                         ))}
                       </div>
                     </div>
-                    <div className="flex gap-2 pt-2">
-                      <button onClick={() => setIsEditing(false)} className="flex-1 text-xs text-aura-lavender/50 py-2 hover:text-white transition-colors">Cancel</button>
-                      <button onClick={handleUpdateProfile} className="flex-1 bg-aura-primary text-white text-xs py-2 rounded-lg font-bold">Save Changes</button>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => setIsEditing(false)} className="flex-1 text-xs text-aura-lavender/50 py-2.5 hover:text-white transition-colors rounded-xl border border-aura-border">Cancel</button>
+                      <button onClick={handleUpdateProfile} className="flex-1 gradient-primary text-white text-xs py-2.5 rounded-xl font-bold shadow-sm">Save</button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-4 bg-aura-navy p-3 rounded-xl border border-aura-border">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-aura-primary flex items-center justify-center border border-white/10">
+                  <div className="flex items-center gap-3 bg-aura-surface p-3.5 rounded-xl border border-aura-border/50">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-aura-primary/20 flex items-center justify-center ring-2 ring-aura-primary/20">
                       {user?.avatarUrl ? (
                         <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-white font-bold text-xl">{user?.username[0].toUpperCase()}</span>
+                        <span className="text-white font-bold text-lg">{user?.username[0].toUpperCase()}</span>
                       )}
                     </div>
-                    <div>
-                      <p className="text-white font-medium">{user?.username}</p>
-                      <p className="text-xs text-aura-lavender/50">Free Tier Member</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-semibold text-sm">{user?.username}</p>
+                      <p className="text-[11px] text-aura-lavender/40">Free Tier</p>
                     </div>
-                    <button onClick={() => { setIsEditing(true); setNewUsername(user?.username || ''); setNewAvatar(user?.avatarUrl || ''); }} className="ml-auto text-xs bg-aura-border hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition-colors">Edit</button>
+                    <button onClick={() => { setIsEditing(true); setNewUsername(user?.username || ''); setNewAvatar(user?.avatarUrl || ''); }} className="text-xs bg-aura-surface hover:bg-aura-border text-aura-lavender/70 hover:text-white px-3 py-2 rounded-lg transition-colors border border-aura-border/50 font-medium">Edit</button>
                   </div>
                 )}
               </div>
 
               {/* Preferences */}
               <div>
-                <h3 className="text-xs font-bold text-aura-lavender/50 uppercase tracking-wider mb-3">Preferences</h3>
+                <h3 className="text-[11px] font-bold text-aura-lavender/40 uppercase tracking-wider mb-3">Preferences</h3>
                 <div className="space-y-2">
-                  <button
-                    onClick={toggleFocusMode}
-                    className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-colors", focusMode ? "bg-aura-primary/10 border-aura-primary/30" : "bg-aura-navy hover:bg-aura-border border-aura-border")}
-                  >
-                    <div className="flex items-center gap-3 text-white"><BookOpen size={18} className={focusMode ? "text-aura-primary" : "text-gray-400"} /> Focus Mode</div>
-                    <span className="text-xs font-medium text-aura-lavender/50">{focusMode ? "On" : "Off"}</span>
+                  <button onClick={toggleFocusMode} className={clsx("w-full flex items-center justify-between p-3.5 rounded-xl border transition-all", focusMode ? "bg-aura-primary/8 border-aura-primary/20" : "bg-aura-surface border-aura-border/50 hover:border-aura-border")}>
+                    <div className="flex items-center gap-3 text-white"><BookOpen size={18} className={focusMode ? "text-aura-primary" : "text-aura-lavender/40"} /><span className="text-sm font-medium">Focus Mode</span></div>
+                    <span className={clsx("text-[11px] font-semibold px-2 py-0.5 rounded-md", focusMode ? "bg-aura-primary/15 text-aura-primary" : "text-aura-lavender/40")}>{focusMode ? "On" : "Off"}</span>
                   </button>
-                  <button
-                    onClick={toggleNotifications}
-                    className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-colors", notificationsEnabled ? "bg-aura-navy hover:bg-aura-border border-aura-border" : "bg-red-500/10 border-red-500/30")}
-                  >
-                    <div className="flex items-center gap-3 text-white"><Bell size={18} className={notificationsEnabled ? "text-aura-teal" : "text-red-400"} /> Notifications</div>
-                    <span className="text-xs font-medium text-aura-lavender/50">{notificationsEnabled ? "Enabled" : "Muted"}</span>
+                  <button onClick={toggleNotifications} className={clsx("w-full flex items-center justify-between p-3.5 rounded-xl border transition-all", notificationsEnabled ? "bg-aura-surface border-aura-border/50 hover:border-aura-border" : "bg-red-500/5 border-red-500/20")}>
+                    <div className="flex items-center gap-3 text-white"><Bell size={18} className={notificationsEnabled ? "text-aura-teal" : "text-red-400"} /><span className="text-sm font-medium">Notifications</span></div>
+                    <span className={clsx("text-[11px] font-semibold px-2 py-0.5 rounded-md", notificationsEnabled ? "bg-aura-teal/10 text-aura-teal" : "bg-red-500/10 text-red-400")}>{notificationsEnabled ? "On" : "Muted"}</span>
                   </button>
-                  <button
-                    onClick={handleInstallApp}
-                    className="w-full flex items-center justify-between p-3 bg-aura-navy hover:bg-aura-border rounded-xl border border-aura-border transition-colors"
-                  >
-                    <div className="flex items-center gap-3 text-white"><Monitor size={18} className="text-pink-400" /> Install App</div>
-                    <span className="text-xs text-aura-lavender/50 text-right max-w-[120px] truncate">{isInstalled ? "Installed" : "PWA"}</span>
+                  <button onClick={handleInstallApp} className="w-full flex items-center justify-between p-3.5 bg-aura-surface hover:border-aura-border rounded-xl border border-aura-border/50 transition-all">
+                    <div className="flex items-center gap-3 text-white"><Monitor size={18} className="text-aura-pink" /><span className="text-sm font-medium">Install App</span></div>
+                    <span className="text-[11px] text-aura-lavender/40 font-medium">{isInstalled ? "Installed" : "PWA"}</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 border-t border-aura-border bg-aura-navy/50">
-              <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium rounded-xl transition-colors border border-red-500/20">
-                <LogOut size={18} /> Log Out
+            <div className="p-4 border-t border-aura-border/50">
+              <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/8 hover:bg-red-500/15 text-red-400 font-semibold rounded-xl transition-colors border border-red-500/15 text-sm">
+                <LogOut size={16} /> Log Out
               </button>
             </div>
           </div>
@@ -589,47 +511,34 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
 
       {/* Discover Modal */}
       {showDiscover && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-aura-panel w-full max-w-md rounded-2xl border border-aura-border shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-aura-border flex items-center justify-between bg-aura-navy/50">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={20} className="text-aura-teal" /> Discover People</h2>
-              <button onClick={() => setShowDiscover(false)} className="p-1.5 text-aura-lavender/50 hover:text-white hover:bg-white/5 rounded-full transition-colors">
-                <X size={20} />
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-aura-panel w-full max-w-md rounded-t-3xl md:rounded-2xl border border-aura-border/50 shadow-2xl overflow-hidden flex flex-col max-h-[80dvh]">
+            <div className="p-4 border-b border-aura-border/50 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={18} className="text-aura-teal" /> Discover People</h2>
+              <button onClick={() => setShowDiscover(false)} className="p-2 text-aura-lavender/50 hover:text-white hover:bg-aura-surface rounded-xl transition-colors">
+                <X size={18} />
               </button>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[70dvh] space-y-3">
+            <div className="p-4 overflow-y-auto flex-1 space-y-2 scrollbar-none">
               {allUsers.length === 0 ? (
-                <p className="text-center text-aura-lavender/40 py-8">No other users found yet.</p>
+                <p className="text-center text-aura-lavender/40 py-8 text-sm">No other users found yet.</p>
               ) : (
                 allUsers.map(u => {
-                  const existingConn = connections.find(c =>
-                    (c.user1_id === u.id || c.user2_id === u.id) && !c.isVirtual
-                  );
+                  const existingConn = connections.find(c => (c.user1_id === u.id || c.user2_id === u.id) && !c.isVirtual);
                   return (
-                    <div key={u.id} className="flex items-center gap-3 bg-aura-navy p-3 rounded-xl border border-aura-border">
+                    <div key={u.id} className="flex items-center gap-3 bg-aura-surface p-3 rounded-xl border border-aura-border/50">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="shrink-0">
-                          <ActionMojiAvatar
-                            state="offline"
-                            username={u.username}
-                            avatarUrl={u.avatarUrl || u.avatar_url}
-                            size="xs"
-                            showStatusRing={false}
-                          />
-                        </div>
-                        <span className="text-white font-medium truncate min-w-0">{u.username}</span>
+                        <ActionMojiAvatar state="offline" username={u.username} avatarUrl={u.avatarUrl || u.avatar_url} size="xs" showStatusRing={false} />
+                        <span className="text-white font-medium text-sm truncate">{u.username}</span>
                       </div>
-                      <div className="shrink-0 ml-2">
+                      <div className="shrink-0">
                         {existingConn ? (
-                          <span className="text-xs text-aura-lavender/40 whitespace-nowrap px-3 py-1 bg-white/5 rounded-lg block">
+                          <span className="text-[11px] text-aura-lavender/40 px-3 py-1.5 bg-aura-navy/50 rounded-lg font-medium">
                             {existingConn.status === 'pending' ? 'Pending' : 'Connected'}
                           </span>
                         ) : (
-                          <button
-                            onClick={() => { addFriend(u.id); setShowDiscover(false); }}
-                            className="text-xs bg-aura-primary hover:bg-aura-primary/80 text-white whitespace-nowrap px-3 py-1.5 rounded-lg transition-colors font-semibold active:scale-95"
-                          >
-                            Add Friend
+                          <button onClick={() => { addFriend(u.id); setShowDiscover(false); }} className="text-[11px] gradient-primary text-white px-3 py-1.5 rounded-lg font-bold active:scale-95 transition-all shadow-sm">
+                            Add
                           </button>
                         )}
                       </div>
@@ -637,9 +546,6 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
                   );
                 })
               )}
-            </div>
-            <div className="p-4 border-t border-aura-border bg-aura-navy/50 text-center">
-              <p className="text-[10px] text-aura-lavender/40 uppercase tracking-widest">Connect with other AuraLink users</p>
             </div>
           </div>
         </div>

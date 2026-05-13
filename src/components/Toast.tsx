@@ -34,8 +34,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return (
         <ToastContext.Provider value={{ showToast }}>
             {children}
-            {/* Toast Container */}
-            <div className="fixed top-4 right-4 z-[300] flex flex-col gap-2 pointer-events-none max-w-sm w-full">
+            {/* Toast Container - bottom on mobile for thumb reach */}
+            <div className="fixed bottom-20 md:top-4 md:bottom-auto left-4 right-4 md:left-auto md:right-4 z-[300] flex flex-col gap-2 pointer-events-none md:max-w-sm md:w-full">
                 <AnimatePresence>
                     {toasts.map(toast => (
                         <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
@@ -52,30 +52,27 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
         return () => clearTimeout(timer);
     }, [toast.id, toast.duration, onRemove]);
 
-    const icons = {
-        success: <CheckCircle2 size={18} className="text-green-400 shrink-0" />,
-        error: <AlertCircle size={18} className="text-red-400 shrink-0" />,
-        info: <Info size={18} className="text-blue-400 shrink-0" />,
+    const styles = {
+        success: { icon: <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />, border: 'border-emerald-500/20', bg: 'bg-emerald-500/5' },
+        error: { icon: <AlertCircle size={18} className="text-red-400 shrink-0" />, border: 'border-red-500/20', bg: 'bg-red-500/5' },
+        info: { icon: <Info size={18} className="text-aura-primary-light shrink-0" />, border: 'border-aura-primary/20', bg: 'bg-aura-primary/5' },
     };
 
-    const borders = {
-        success: 'border-green-500/20',
-        error: 'border-red-500/20',
-        info: 'border-blue-500/20',
-    };
+    const { icon, border, bg } = styles[toast.type];
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: 50, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 50, scale: 0.95 }}
-            className={`pointer-events-auto bg-aura-panel/95 backdrop-blur-xl border ${borders[toast.type]} rounded-xl p-3 shadow-2xl flex items-center gap-3`}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className={`pointer-events-auto glass-strong ${border} ${bg} rounded-xl p-3.5 shadow-2xl flex items-center gap-3`}
         >
-            {icons[toast.type]}
+            {icon}
             <p className="text-sm text-white font-medium flex-1">{toast.message}</p>
             <button
                 onClick={() => onRemove(toast.id)}
-                className="p-1 text-aura-lavender/40 hover:text-white transition-colors shrink-0"
+                className="p-1 text-aura-lavender/30 hover:text-white transition-colors shrink-0"
                 aria-label="Dismiss"
             >
                 <X size={14} />

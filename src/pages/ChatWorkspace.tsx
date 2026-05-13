@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabaseClient';
 import { getAuraBotResponse } from '../lib/aurabot';
 import { playPopSound, playReceiveSound } from '../lib/audio';
 import { tgUploadFile, tgGetFileUrl } from '../lib/telegram';
+
 export interface Message {
   id?: string;
   sender_id?: string;
@@ -27,8 +28,6 @@ export interface Message {
   fileUrl?: string | null;
   timestamp?: string | number;
 }
-
-// Human-readable status labels
 
 const STATUS_LABELS: Record<string, string> = {
   offline: '⚫ Offline',
@@ -66,7 +65,6 @@ function getStatusLabel(status: string) {
   return STATUS_LABELS[status] || status.replace(/_/g, ' ');
 }
 
-// ── Sentiment keywords ──────────────────────────────────────────────────
 const SENTIMENT_MAP: { states: string[]; keywords: string[] }[] = [
   { states: ['searching'], keywords: ['search', 'find', 'looking', 'dhund', 'dhundh', 'kahan', 'kidhar', 'talash', 'khoj', 'mil nahi', 'pata karo', 'dhundo', 'check'] },
   { states: ['writing_code'], keywords: ['code', 'debug', 'error', 'bug', 'coding', 'script', 'logic', 'fix', 'build', 'program', 'run kar', 'chalao', 'developer', 'hacker', 'vscode', 'terminal', 'cmd'] },
@@ -96,9 +94,9 @@ function deriveMoodFromString(text: string): string | null {
 }
 
 const SLASH_COMMANDS = [
-  { cmd: '/rename-note', desc: 'Rename a note (e.g. /rename-note old to new)', icon: <FileText size={14} /> },
-  { cmd: '/rename-file', desc: 'Rename vault file (e.g. /rename-file old to new)', icon: <Paperclip size={14} /> },
-  { cmd: '/analyze-file', desc: 'Analyse a specific file/note', icon: <Sparkles size={14} /> },
+  { cmd: '/rename-note', desc: 'Rename a note', icon: <FileText size={14} /> },
+  { cmd: '/rename-file', desc: 'Rename vault file', icon: <Paperclip size={14} /> },
+  { cmd: '/analyze-file', desc: 'Analyse a file/note', icon: <Sparkles size={14} /> },
 ];
 
 function deriveAvatarMoodFromMessages(msgs: any[]): string | null {
@@ -141,7 +139,6 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     }
   }, [chatSettings, connectionId]);
 
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -150,66 +147,40 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
         recognitionRef.current.lang = 'en-US';
-
         recognitionRef.current.onresult = (event: any) => {
           let finalTranscript = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            }
+            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
           }
-          if (finalTranscript) {
-            setInput(prev => prev + (prev ? ' ' : '') + finalTranscript.trim());
-          }
+          if (finalTranscript) setInput(prev => prev + (prev ? ' ' : '') + finalTranscript.trim());
         };
-
-        recognitionRef.current.onend = () => {
-          setIsListening(false);
-        };
+        recognitionRef.current.onend = () => setIsListening(false);
       }
     }
   }, []);
 
   const toggleListening = () => {
-    if (!recognitionRef.current) {
-      alert("Speech recognition is not supported in this browser.");
-      return;
-    }
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
+    if (!recognitionRef.current) { alert("Speech recognition not supported."); return; }
+    if (isListening) { recognitionRef.current.stop(); setIsListening(false); }
+    else { recognitionRef.current.start(); setIsListening(true); }
   };
 
   const conn = connections.find(c => c.id === connectionId);
-  const partner = conn
-    ? ((conn.user1Id ?? conn.user1_id) === user?.id ? conn.user2 : conn.user1)
-    : null;
+  const partner = conn ? ((conn.user1Id ?? conn.user1_id) === user?.id ? conn.user2 : conn.user1) : null;
   const isVirtualBot = Boolean(conn?.isVirtual) && partner?.username === 'AuraBot';
   const virtualChatKey = user?.id ? `aurabot_chat_${user.id}` : null;
 
   useEffect(() => {
     return () => {
       if (chatSettingsRef.current.vanishMode && user?.id && partner?.id) {
-        if (isVirtualBot && virtualChatKey) {
-          localStorage.removeItem(virtualChatKey);
-        } else {
-          // Delete messages we received so they disappear for the partner
-          supabase.from('messages').delete()
-            .eq('receiver_id', user.id)
-            .eq('sender_id', partner.id)
-            .then();
-        }
+        if (isVirtualBot && virtualChatKey) localStorage.removeItem(virtualChatKey);
+        else supabase.from('messages').delete().eq('receiver_id', user.id).eq('sender_id', partner.id).then();
       }
     };
   }, [user?.id, partner?.id, isVirtualBot, virtualChatKey]);
 
   useEffect(() => {
     messagesRef.current = messages;
-    // Re-derive mood when messages change
     if (user?.id) {
       const mood = deriveAvatarMoodFromMessages(messages);
       setSentimentState(mood);
@@ -219,25 +190,13 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   useEffect(() => {
     if (!connectionId || !user?.id || !partner?.id || isVirtualBot) return;
     const fetchMessages = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('messages')
         .select('*')
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partner.id}),and(sender_id.eq.${partner.id},receiver_id.eq.${user.id})`)
         .order('timestamp', { ascending: true });
-
       if (data) {
-        const mapped = data.map(m => ({
-          id: m.id,
-          senderId: m.sender_id,
-          receiverId: m.receiver_id,
-          content: m.content,
-          type: m.type,
-          fileUrl: m.file_url,
-          timestamp: m.timestamp,
-          telegram_file_id: m.telegram_file_id,
-          telegram_msg_id: m.telegram_msg_id
-        }));
-        setMessages(mapped);
+        setMessages(data.map(m => ({ id: m.id, senderId: m.sender_id, receiverId: m.receiver_id, content: m.content, type: m.type, fileUrl: m.file_url, timestamp: m.timestamp, telegram_file_id: m.telegram_file_id, telegram_msg_id: m.telegram_msg_id })));
       }
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
@@ -246,72 +205,31 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
 
   useEffect(() => {
     if (!connectionId || !user?.id || !partner?.id || isVirtualBot) return;
-
-    // Realtime for messages
     const msgSub = supabase.channel(`messages:${connectionId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const m = payload.new as any;
-        if (
-          (m.sender_id === user.id && m.receiver_id === partner.id) ||
-          (m.sender_id === partner.id && m.receiver_id === user.id)
-        ) {
+        if ((m.sender_id === user.id && m.receiver_id === partner.id) || (m.sender_id === partner.id && m.receiver_id === user.id)) {
           setMessages(prev => {
             if (prev.some(p => p.id === m.id)) return prev;
-            if (m.sender_id === partner.id && chatSettingsRef.current.receiveSound) {
-              playReceiveSound();
-            }
-            return [...prev, {
-              id: m.id,
-              senderId: m.sender_id,
-              receiverId: m.receiver_id,
-              content: m.content,
-              type: m.type,
-              fileUrl: m.file_url,
-              timestamp: m.timestamp,
-              telegram_file_id: m.telegram_file_id,
-              telegram_msg_id: m.telegram_msg_id
-            }];
+            if (m.sender_id === partner.id && chatSettingsRef.current.receiveSound) playReceiveSound();
+            return [...prev, { id: m.id, senderId: m.sender_id, receiverId: m.receiver_id, content: m.content, type: m.type, fileUrl: m.file_url, timestamp: m.timestamp, telegram_file_id: m.telegram_file_id, telegram_msg_id: m.telegram_msg_id }];
           });
           setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(msgSub);
-    };
+      }).subscribe();
+    return () => { supabase.removeChannel(msgSub); };
   }, [connectionId, user?.id, partner?.id, isVirtualBot]);
 
-  // Virtual AuraBot bootstrap: keep bot "alive" with initial message + online status.
   useEffect(() => {
     if (!isVirtualBot || !partner?.id) return;
     setPartnerStatus(partner.id, 'online');
     setMessages((prev) => {
       if (prev.length > 0) return prev;
-
       if (virtualChatKey) {
         const saved = localStorage.getItem(virtualChatKey);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              return parsed;
-            }
-          } catch { }
-        }
+        if (saved) { try { const parsed = JSON.parse(saved); if (Array.isArray(parsed) && parsed.length > 0) return parsed; } catch { } }
       }
-
-      return [
-        {
-          id: `bot-welcome-${Date.now()}`,
-          senderId: partner.id,
-          receiverId: user?.id,
-          content: 'Hi! Main AuraBot hoon 🤖 Tum jo bhi build karna chaho, chalo saath karte hain.',
-          type: 'text',
-          fileUrl: null,
-          timestamp: new Date().toISOString(),
-        },
-      ];
+      return [{ id: `bot-welcome-${Date.now()}`, senderId: partner.id, receiverId: user?.id, content: 'Hi! Main AuraBot hoon 🤖 Tum jo bhi build karna chaho, chalo saath karte hain.', type: 'text', fileUrl: null, timestamp: new Date().toISOString() }];
     });
   }, [isVirtualBot, partner?.id, setPartnerStatus, user?.id, virtualChatKey]);
 
@@ -320,92 +238,49 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     localStorage.setItem(virtualChatKey, JSON.stringify(messages));
   }, [messages, isVirtualBot, virtualChatKey]);
 
-  // AuraBot: reflect toolTab activity states (browsing_files, viewing_notes, timetable_open)
   useEffect(() => {
     if (!isVirtualBot || !partner?.id) return;
-    // Only update to activity state if bot is not in a special transient state
     const current = partnerStatus[partner.id] || 'online';
-    const transientStates = new Set(['thinking', 'typing', 'happy', 'sad', 'angry', 'confused',
-      'surprised', 'heart_eyes', 'magic', 'cool', 'starry_eyes', 'partying', 'crying']);
-    if (transientStates.has(current)) return; // don't override bot's active response mood
+    const transientStates = new Set(['thinking', 'typing', 'happy', 'sad', 'angry', 'confused', 'surprised', 'heart_eyes', 'magic', 'cool', 'starry_eyes', 'partying', 'crying']);
+    if (transientStates.has(current)) return;
     if (toolTab === 'vault') setPartnerStatus(partner.id, 'browsing_files');
     else if (toolTab === 'notes') setPartnerStatus(partner.id, 'viewing_notes');
     else if (toolTab === 'timetable') setPartnerStatus(partner.id, 'timetable_open');
     else if (input.trim().length === 0) setPartnerStatus(partner.id, 'online');
   }, [toolTab, isVirtualBot, partner?.id, setPartnerStatus, partnerStatus, input]);
 
-  // Status tracking — broadcast OUR status to partner
   useEffect(() => {
     if (!socket || !partner) return;
-
     let timeout: NodeJS.Timeout;
     let lastTrackedState = '';
-
     const updateStatus = async (state: string) => {
-      if (state === lastTrackedState) return; // Prevent websocket spam and rate limits
+      if (state === lastTrackedState) return;
       lastTrackedState = state;
-
-      // Check if socket exists and channel is ready before calling track
-      if (!socket || !channelReady) {
-        console.warn('[Track Warning] Channel not ready, channelReady:', channelReady, 'socket state:', socket?.state);
-        return;
-      }
-
-      try {
-        await socket.track({ status: state });
-      } catch (e) {
-        console.error('[Track Error]', e);
-
-        // Retry once for transient network issues
-        setTimeout(async () => {
-          try {
-            if (socket && socket.state === 'joined') {
-              await socket.track({ status: state });
-            }
-          } catch (retryError) {
-            console.error('[Track Retry Error]', retryError);
-          }
-        }, 1000);
+      if (!socket || !channelReady) return;
+      try { await socket.track({ status: state }); } catch (e) {
+        setTimeout(async () => { try { if (socket && socket.state === 'joined') await socket.track({ status: state }); } catch { } }, 1000);
       }
     };
-
     let throttleTimer: any = null;
     const handleInteraction = () => {
       if (throttleTimer) return;
-
-      throttleTimer = setTimeout(() => {
-        throttleTimer = null;
-      }, 2000); // Throttle checks to every 2s
-
+      throttleTimer = setTimeout(() => { throttleTimer = null; }, 2000);
       clearTimeout(timeout);
       let state = 'online';
-
-      if (input.trim().length > 0) {
-        const inputMood = deriveMoodFromString(input);
-        state = inputMood ? `typing_${inputMood}` : 'typing';
-      }
+      if (input.trim().length > 0) { const inputMood = deriveMoodFromString(input); state = inputMood ? `typing_${inputMood}` : 'typing'; }
       else if (toolTab === 'notes') state = 'viewing_notes';
       else if (toolTab === 'vault') state = 'browsing_files';
       else if (toolTab === 'timetable') state = 'timetable_open';
       else state = 'reading_chat';
-
       updateStatus(state);
-
-      timeout = setTimeout(() => {
-        updateStatus('idle');
-      }, 60000); // Idle after 60s of no interaction
+      timeout = setTimeout(() => { updateStatus('idle'); }, 60000);
     };
-
-    // Include mobile touch and scroll events
     window.addEventListener('mousemove', handleInteraction);
     window.addEventListener('keydown', handleInteraction);
     window.addEventListener('touchstart', handleInteraction);
     window.addEventListener('scroll', handleInteraction);
-
-    // Initial status
     updateStatus('online');
     handleInteraction();
-
     return () => {
       window.removeEventListener('mousemove', handleInteraction);
       window.removeEventListener('keydown', handleInteraction);
@@ -416,57 +291,20 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     };
   }, [socket, partner?.id, partner?.username, input, toolTab]);
 
-  // ── AuraBot Core Response Flow ─────────────────────────────────────────────
   const handleBotResponse = async (userText: string, imageBase64?: string, fileUrl?: string) => {
     if (!user?.id || !partner) return;
-
     setPartnerStatus(partner.id, 'thinking');
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
     try {
-      // Format history for LLM
-      const history = messagesRef.current.slice(-15).map(m => ({
-        role: m.senderId === partner.id ? 'assistant' : 'user',
-        content: m.content
-      }));
-
-      const llm = await getAuraBotResponse(
-        user.id,
-        partner.id,
-        userText,
-        imageBase64,
-        fileUrl,
-        history
-      );
-
-      // Step 1: show typing indicator with predicted mood
+      const history = messagesRef.current.slice(-15).map(m => ({ role: m.senderId === partner.id ? 'assistant' : 'user', content: m.content }));
+      const llm = await getAuraBotResponse(user.id, partner.id, userText, imageBase64, fileUrl, history);
       setPartnerStatus(partner.id, `typing_${llm.mood}`);
-
-      // Artificial delay for realism based on text length
       const delay = Math.min(2000, Math.max(800, llm.text.length * 15));
       await new Promise((resolve) => setTimeout(resolve, delay));
-
-      const botMsg: Message = {
-        id: `local-bot-${Date.now()}`,
-        senderId: partner.id,
-        receiverId: user.id,
-        content: llm.text,
-        type: 'text',
-        fileUrl: null,
-        timestamp: new Date().toISOString(),
-      };
-
+      const botMsg: Message = { id: `local-bot-${Date.now()}`, senderId: partner.id, receiverId: user.id, content: llm.text, type: 'text', fileUrl: null, timestamp: new Date().toISOString() };
       if (chatSettings.receiveSound) playReceiveSound();
-      setMessages(prev => {
-        const next = [...prev, botMsg];
-        messagesRef.current = next;
-        return next;
-      });
-
-      // Step 2: Set final emotion for a few seconds
+      setMessages(prev => { const next = [...prev, botMsg]; messagesRef.current = next; return next; });
       setPartnerStatus(partner.id, llm.mood || 'happy');
-
-      // Auto-revert to baseline after 5s
       setTimeout(() => {
         const currentTab = toolTab;
         if (currentTab === 'vault') setPartnerStatus(partner.id, 'browsing_files');
@@ -474,21 +312,8 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
         else if (currentTab === 'timetable') setPartnerStatus(partner.id, 'timetable_open');
         else setPartnerStatus(partner.id, 'online');
       }, 5000);
-
     } catch (err: any) {
-      console.error('[Bot Response Error]', err);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `local-bot-error-${Date.now()}`,
-          senderId: partner.id,
-          receiverId: user.id,
-          content: `AuraBot connectivity issue: ${err?.message || 'Server timeout'}`,
-          type: 'text',
-          fileUrl: null,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      setMessages(prev => [...prev, { id: `local-bot-error-${Date.now()}`, senderId: partner.id, receiverId: user.id, content: `AuraBot connectivity issue: ${err?.message || 'Server timeout'}`, type: 'text', fileUrl: null, timestamp: new Date().toISOString() }]);
       setPartnerStatus(partner.id, 'confused');
       setTimeout(() => setPartnerStatus(partner.id, 'online'), 3000);
     }
@@ -499,51 +324,19 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     if (e) e.preventDefault();
     const contentToSend = overrideContent || input;
     if (!contentToSend.trim() || !user?.id || !partner) return;
-
     const msgContent = contentToSend;
     if (!overrideContent) setInput('');
-
     if (isVirtualBot) {
-      const now = new Date().toISOString();
-      const userMsg: Message = {
-        id: `local-user-${Date.now()}`,
-        senderId: user.id,
-        receiverId: partner.id,
-        content: msgContent,
-        type: 'text',
-        fileUrl: null,
-        timestamp: now,
-      };
-      setMessages(prev => {
-        const next = [...prev, userMsg];
-        messagesRef.current = next;
-        return next;
-      });
+      const userMsg: Message = { id: `local-user-${Date.now()}`, senderId: user.id, receiverId: partner.id, content: msgContent, type: 'text', fileUrl: null, timestamp: new Date().toISOString() };
+      setMessages(prev => { const next = [...prev, userMsg]; messagesRef.current = next; return next; });
       if (chatSettings.sendSound) playPopSound();
-
-      // Trigger bot flow
       handleBotResponse(msgContent);
       return;
     }
-
-    const { data } = await supabase.from('messages').insert([{
-      sender_id: user.id,
-      receiver_id: partner.id,
-      content: msgContent,
-      type: 'text'
-    }]).select().single();
-
+    const { data } = await supabase.from('messages').insert([{ sender_id: user.id, receiver_id: partner.id, content: msgContent, type: 'text' }]).select().single();
     if (data) {
       if (chatSettings.sendSound) playPopSound();
-      setMessages(prev => [...prev, {
-        id: data.id,
-        senderId: data.sender_id,
-        receiverId: data.receiver_id,
-        content: data.content,
-        type: data.type,
-        fileUrl: data.file_url,
-        timestamp: data.timestamp
-      }]);
+      setMessages(prev => [...prev, { id: data.id, senderId: data.sender_id, receiverId: data.receiver_id, content: data.content, type: data.type, fileUrl: data.file_url, timestamp: data.timestamp }]);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
   };
@@ -551,44 +344,23 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   useEffect(() => {
     const handleAISuggest = (e: any) => {
       const { type, content, custom, prompt } = e.detail || {};
-
-      if (prompt) {
-        setInput(prompt);
-        return;
-      }
-
+      if (prompt) { setInput(prompt); return; }
       if (type && content) {
         let aiPrompt = "";
         switch (type) {
           case 'refine': aiPrompt = `Please professionalize and refine this text:\n\n"${content}"`; break;
           case 'todo': aiPrompt = `Create a clear checklist/todo list based on this content:\n\n"${content}"`; break;
           case 'summarize': aiPrompt = `Summarize this text concisely:\n\n"${content}"`; break;
-          case 'hinglish': aiPrompt = `Rewrite this content in natural Hinglish (Hindi + English) while keeping the professional tone:\n\n"${content}"`; break;
-          case 'expand': aiPrompt = `Expand on these ideas and provide more detail:\n\n"${content}"`; break;
-          case 'custom': aiPrompt = `${custom}\n\nContext from my notes:\n"${content}"`; break;
-          default: aiPrompt = `Help me with this from my notes:\n\n"${content}"`;
+          case 'hinglish': aiPrompt = `Rewrite this content in natural Hinglish:\n\n"${content}"`; break;
+          case 'expand': aiPrompt = `Expand on these ideas:\n\n"${content}"`; break;
+          case 'custom': aiPrompt = `${custom}\n\nContext:\n"${content}"`; break;
+          default: aiPrompt = `Help me with this:\n\n"${content}"`;
         }
-
-        // Auto-send to AuraBot
         if (isVirtualBot) {
-          const now = new Date().toISOString();
-          const userMsg: Message = {
-            id: `local-user-ai-${Date.now()}`,
-            senderId: user?.id,
-            receiverId: partner?.id,
-            content: aiPrompt,
-            type: 'text',
-            timestamp: now,
-          };
-          setMessages(prev => {
-            const next = [...prev, userMsg];
-            messagesRef.current = next;
-            return next;
-          });
+          const userMsg: Message = { id: `local-user-ai-${Date.now()}`, senderId: user?.id, receiverId: partner?.id, content: aiPrompt, type: 'text', timestamp: new Date().toISOString() };
+          setMessages(prev => { const next = [...prev, userMsg]; messagesRef.current = next; return next; });
           handleBotResponse(aiPrompt);
-        } else {
-          sendMessage(undefined, aiPrompt);
-        }
+        } else { sendMessage(undefined, aiPrompt); }
       }
     };
     window.addEventListener('aura_ai_suggest', handleAISuggest);
@@ -598,374 +370,205 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id || !partner) return;
-
     try {
-      // Use Telegram Cloud for all file uploads to save Supabase Storage quota
       const { file_id, message_id } = await tgUploadFile(file);
       const publicUrl = await tgGetFileUrl(file_id);
-
       if (isVirtualBot) {
-        // Local preview for bot chat
-        const userMsg: Message = {
-          id: `local-file-${Date.now()}`,
-          senderId: user.id,
-          receiverId: partner.id,
-          content: file.name,
-          type: 'file',
-          fileUrl: publicUrl,
-          timestamp: new Date().toISOString(),
-        };
+        const userMsg: Message = { id: `local-file-${Date.now()}`, senderId: user.id, receiverId: partner.id, content: file.name, type: 'file', fileUrl: publicUrl, timestamp: new Date().toISOString() };
         setMessages(prev => [...prev, userMsg]);
-
-        // Also manually add to vault_items since AuraBot messages aren't saved to DB
-        await supabase.from('vault_items').insert([{
-          user_id: user.id,
-          name: file.name,
-          content: file.name,
-          type: 'file',
-          telegram_file_id: file_id,
-          telegram_msg_id: message_id,
-          file_size: file.size,
-          folder_id: null,
-          is_chat_file: true
-        }]);
-
-        // Convert to base64 if image for LLM analysis
+        await supabase.from('vault_items').insert([{ user_id: user.id, name: file.name, content: file.name, type: 'file', telegram_file_id: file_id, telegram_msg_id: message_id, file_size: file.size, folder_id: null, is_chat_file: true }]);
         let imageBase64: string | undefined;
-        if (file.type.startsWith('image/')) {
-          imageBase64 = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-        }
-
+        if (file.type.startsWith('image/')) { imageBase64 = await new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result as string); reader.readAsDataURL(file); }); }
         handleBotResponse(`Uploaded file: ${file.name}`, imageBase64, publicUrl);
       } else {
-        const { data } = await supabase.from('messages').insert([{
-          sender_id: user.id,
-          receiver_id: partner.id,
-          content: file.name,
-          type: 'file',
-          file_url: publicUrl,
-          telegram_file_id: file_id,
-          telegram_msg_id: message_id
-        }]).select().single();
-
-        if (data) {
-          setMessages(prev => [...prev, {
-            id: data.id,
-            senderId: data.sender_id,
-            receiverId: data.receiver_id,
-            content: data.content,
-            type: data.type,
-            fileUrl: data.file_url,
-            timestamp: data.timestamp,
-            telegram_file_id: data.telegram_file_id,
-            telegram_msg_id: data.telegram_msg_id
-          }]);
-        }
+        const { data } = await supabase.from('messages').insert([{ sender_id: user.id, receiver_id: partner.id, content: file.name, type: 'file', file_url: publicUrl, telegram_file_id: file_id, telegram_msg_id: message_id }]).select().single();
+        if (data) { setMessages(prev => [...prev, { id: data.id, senderId: data.sender_id, receiverId: data.receiver_id, content: data.content, type: data.type, fileUrl: data.file_url, timestamp: data.timestamp, telegram_file_id: data.telegram_file_id, telegram_msg_id: data.telegram_msg_id }]); }
       }
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch (err) {
-      console.error('[Upload Error]', err);
-    }
-    // reset input
+    } catch (err) { console.error('[Upload Error]', err); }
     if (e.target) e.target.value = '';
   };
 
-  const acceptFriend = async () => {
-    if (!connectionId) return;
-    await supabase
-      .from('connections')
-      .update({ status: 'accepted' })
-      .eq('id', connectionId);
-  };
-
-  const rejectFriend = async () => {
-    if (!connectionId) return;
-    await supabase
-      .from('connections')
-      .delete()
-      .eq('id', connectionId);
-    navigate('/dashboard');
-  };
+  const acceptFriend = async () => { if (!connectionId) return; await supabase.from('connections').update({ status: 'accepted' }).eq('id', connectionId); };
+  const rejectFriend = async () => { if (!connectionId) return; await supabase.from('connections').delete().eq('id', connectionId); navigate('/dashboard'); };
 
   if (!partner) return null;
 
   const isPending = conn?.status === 'pending';
   const amIReceiver = (conn?.user2_id || conn?.user2Id) === user?.id;
   const amISender = (conn?.user1_id || conn?.user1Id) === user?.id;
-
   const currentPartnerStatus = partnerStatus[partner.id] || (partner.username === 'AuraBot' ? 'online' : 'offline');
 
-  // ── Avatar Mood Resolution (priority ladder) ──
-  // 1. Bot transient states (thinking, typing_X, happy, etc.) — highest priority
-  // 2. Activity states (browsing_files, viewing_notes, timetable_open) — what they are doing
-  // 3. Sentiment from recent messages — emotional memory
-  // 4. online / reading_chat / idle / offline — baseline
-
   const isPartnerTyping = currentPartnerStatus.startsWith('typing');
-  const partnerTypingMood = currentPartnerStatus.startsWith('typing_')
-    ? currentPartnerStatus.replace('typing_', '')
-    : null;
-
+  const partnerTypingMood = currentPartnerStatus.startsWith('typing_') ? currentPartnerStatus.replace('typing_', '') : null;
   const activityStates = new Set(['browsing_files', 'viewing_notes', 'timetable_open', 'offline', 'idle']);
-  const botTransientStates = new Set(['thinking', 'happy', 'sad', 'angry', 'confused', 'surprised',
-    'heart_eyes', 'magic', 'cool', 'starry_eyes', 'partying', 'crying']);
+  const botTransientStates = new Set(['thinking', 'happy', 'sad', 'angry', 'confused', 'surprised', 'heart_eyes', 'magic', 'cool', 'starry_eyes', 'partying', 'crying']);
 
   let avatarMood: string;
-
-  if (botTransientStates.has(currentPartnerStatus)) {
-    // Bot is showing emotion/action — show it directly
-    avatarMood = currentPartnerStatus;
-  } else if (partnerTypingMood) {
-    // Partner typing with detected emotion
-    avatarMood = partnerTypingMood;
-  } else if (isPartnerTyping) {
-    // Partner just typing (no detected mood)
-    avatarMood = 'typing';
-  } else if (activityStates.has(currentPartnerStatus)) {
-    // Partner doing an activity — show task emoji
-    avatarMood = currentPartnerStatus;
-  } else if (sentimentState && (currentPartnerStatus === 'online' || currentPartnerStatus === 'reading_chat')) {
-    // Partner online, show emotional memory from recent messages
-    avatarMood = sentimentState;
-  } else {
-    avatarMood = currentPartnerStatus; // online / reading_chat / offline
-  }
+  if (botTransientStates.has(currentPartnerStatus)) avatarMood = currentPartnerStatus;
+  else if (partnerTypingMood) avatarMood = partnerTypingMood;
+  else if (isPartnerTyping) avatarMood = 'typing';
+  else if (activityStates.has(currentPartnerStatus)) avatarMood = currentPartnerStatus;
+  else if (sentimentState && (currentPartnerStatus === 'online' || currentPartnerStatus === 'reading_chat')) avatarMood = sentimentState;
+  else avatarMood = currentPartnerStatus;
 
   return (
     <div className="flex w-full h-full bg-aura-navy relative overflow-hidden">
       {/* Chat Area */}
-      <div className={clsx("flex flex-col h-full transition-all duration-300 relative",
-        toolTab === 'none' ? "w-full lg:w-3/4 mx-auto border-r border-aura-border" : "hidden md:flex md:w-1/2 border-r border-aura-border")}>
+      <div className={clsx("flex flex-col h-full transition-all duration-200 relative",
+        toolTab === 'none' ? "w-full" : "hidden md:flex md:w-1/2 border-r border-aura-border/50")}>
 
         {/* Header */}
-        <div className="h-[56px] sm:h-[64px] flex items-center justify-between px-2 sm:px-4 border-b border-aura-border bg-aura-panel/95 backdrop-blur-md shadow-sm z-20 shrink-0 overflow-hidden gap-1 sm:gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-4 min-w-0 flex-1">
+        <div className="h-[60px] flex items-center justify-between px-3 border-b border-aura-border/40 bg-aura-panel/95 backdrop-blur-md z-20 shrink-0 gap-2">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={() => navigate('/dashboard')}
-              className="md:hidden p-1.5 sm:p-2.5 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all shrink-0"
+              className="md:hidden p-2 -ml-1 text-aura-lavender/60 hover:text-white active:bg-aura-surface rounded-xl transition-all shrink-0"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
             </button>
             <div className="relative shrink-0">
-              <div className={clsx("w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-inner overflow-hidden", partner?.username === 'AuraBot' ? "bg-gradient-to-br from-pink-500 to-aura-primary" : "bg-aura-border")}>
+              <div className={clsx("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm overflow-hidden ring-2", partner?.username === 'AuraBot' ? "ring-aura-primary/30 gradient-primary" : "ring-aura-border bg-aura-surface")}>
                 {partner.avatar_url ? (
                   <img src={partner.avatar_url} alt={partner.username} className="w-full h-full object-cover" />
                 ) : (
                   partner.username[0].toUpperCase()
                 )}
               </div>
-              {currentPartnerStatus !== 'offline' && <span className="absolute bottom-0 right-0 block w-2.5 h-2.5 sm:w-3 sm:h-3 bg-aura-teal rounded-full border-2 border-aura-panel shadow-sm"></span>}
+              {currentPartnerStatus !== 'offline' && <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full status-online" />}
             </div>
-            <div className="min-w-0 flex-1 flex flex-col justify-center">
-              <h3 className="text-white font-bold flex items-center gap-1.5 text-[14px] sm:text-lg truncate leading-tight">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-white font-bold text-[15px] flex items-center gap-2 truncate">
                 <span className="truncate">{partner.username}</span>
-                {partner?.username === 'AuraBot' && <span className="hidden sm:inline-block text-[9px] sm:text-[10px] bg-pink-500/20 text-pink-400 px-2 py-0.5 rounded-full uppercase tracking-widest font-black border border-pink-500/20">AI</span>}
+                {partner?.username === 'AuraBot' && <span className="text-[9px] bg-aura-primary/15 text-aura-primary-light px-1.5 py-0.5 rounded-md font-bold">AI</span>}
               </h3>
-              <p className="text-[9px] sm:text-xs text-aura-lavender/50 truncate font-medium tracking-wide leading-tight">
+              <p className="text-[11px] text-aura-lavender/40 truncate font-medium">
                 {getStatusLabel(currentPartnerStatus)}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* ── ActionMoji — compact on mobile, larger on desktop ── */}
-            <div
-              className="shrink-0 flex items-center justify-center overflow-hidden rounded-full"
-              style={{ width: 28, height: 28 }}
-              title={getStatusLabel(avatarMood)}
-            >
+          <div className="flex items-center gap-1 shrink-0">
+            {/* ActionMoji */}
+            <div className="shrink-0 w-7 h-7 flex items-center justify-center overflow-hidden rounded-full" title={getStatusLabel(avatarMood)}>
               <div style={{ width: 80, height: 80, transform: 'scale(0.35)', transformOrigin: 'center' }}>
-                <ActionMojiAvatar
-                  state={avatarMood}
-                  username={partner?.username || 'User'}
-                  avatarUrl={partner?.avatar_url || partner?.avatarUrl}
-                  showStatusRing={false}
-                  showStatus={false}
-                />
+                <ActionMojiAvatar state={avatarMood} username={partner?.username || 'User'} avatarUrl={partner?.avatar_url || partner?.avatarUrl} showStatusRing={false} showStatus={false} />
               </div>
             </div>
 
-            {/* Tool Toggles — compact on mobile */}
-            <div className="flex items-center gap-px sm:gap-1 bg-aura-navy/50 p-px sm:p-1 rounded-lg sm:rounded-xl border border-aura-border/50">
-              <button
-                onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 flex items-center justify-center", toolTab === 'notes' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
-                title="SyncNotes"
-              >
-                <FileText className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+            {/* Tool Toggles */}
+            <div className="flex items-center gap-0.5 bg-aura-navy/50 p-0.5 rounded-xl border border-aura-border/40">
+              <button onClick={() => setToolTab(toolTab === 'notes' ? 'none' : 'notes')} className={clsx("p-2 rounded-lg transition-all active:scale-90", toolTab === 'notes' ? "bg-aura-primary text-white shadow-sm shadow-aura-primary/30" : "text-aura-lavender/40 hover:text-white")} title="Notes">
+                <FileText size={16} />
               </button>
-              <button
-                onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 flex items-center justify-center", toolTab === 'vault' ? "bg-aura-primary text-white shadow-lg shadow-aura-primary/30" : "text-aura-lavender/50 hover:text-white")}
-                title="SmartVault"
-              >
-                <Paperclip className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+              <button onClick={() => setToolTab(toolTab === 'vault' ? 'none' : 'vault')} className={clsx("p-2 rounded-lg transition-all active:scale-90", toolTab === 'vault' ? "bg-aura-primary text-white shadow-sm shadow-aura-primary/30" : "text-aura-lavender/40 hover:text-white")} title="Vault">
+                <Paperclip size={16} />
               </button>
-              <button
-                onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')}
-                className={clsx("p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 flex items-center justify-center", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-lg shadow-aura-pink/30" : "text-aura-lavender/50 hover:text-white")}
-                title="Shared Timetable"
-              >
-                <Calendar className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+              <button onClick={() => setToolTab(toolTab === 'timetable' ? 'none' : 'timetable')} className={clsx("p-2 rounded-lg transition-all active:scale-90", toolTab === 'timetable' ? "bg-aura-pink text-white shadow-sm shadow-aura-pink/30" : "text-aura-lavender/40 hover:text-white")} title="Timetable">
+                <Calendar size={16} />
               </button>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-1.5 sm:p-2.5 rounded-md sm:rounded-lg transition-all active:scale-90 text-aura-lavender/50 hover:text-white flex items-center justify-center"
-                title="Chat Settings"
-              >
-                <SettingsIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+              <button onClick={() => setShowSettings(true)} className="p-2 rounded-lg transition-all active:scale-90 text-aura-lavender/40 hover:text-white" title="Settings">
+                <SettingsIcon size={16} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-4 bg-aura-navy scroll-smooth" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(30, 30, 50, 0.4) 0%, transparent 100%)' }}>
-
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-aura-navy scroll-smooth scrollbar-none" style={{ backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.03) 0%, transparent 60%)' }}>
           {messages.map((m, i) => {
             const isMe = m.senderId === user?.id;
             return (
-              <div key={i} className={clsx("flex flex-col max-w-[85%] sm:max-w-[75%]", isMe ? "ml-auto items-end" : "mr-auto items-start animate-in slide-in-from-left-2 duration-300")}>
-                <div className={clsx("px-4 py-2.5 rounded-2xl shadow-sm", isMe ? "bg-aura-primary text-white rounded-br-none" : "bg-aura-panel text-white rounded-bl-none border border-aura-border")}>
+              <div key={i} className={clsx("flex flex-col max-w-[82%]", isMe ? "ml-auto items-end" : "mr-auto items-start")}>
+                <div className={clsx("px-3.5 py-2.5 rounded-2xl shadow-sm", isMe ? "gradient-primary text-white rounded-br-md" : "bg-aura-surface text-white rounded-bl-md border border-aura-border/30")}>
                   {m.type === 'text' && (
                     <div className="flex flex-col">
-                      <p className="text-[14px] sm:text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                      <p className="text-[14px] leading-relaxed whitespace-pre-wrap">{m.content}</p>
                       {m.senderId === 'aurabot' && (
                         <button
-                          onClick={() => {
-                            window.dispatchEvent(new CustomEvent('aura_note_update', { detail: { content: m.content } }));
-                            setToolTab('notes');
-                          }}
-                          className="mt-3 self-start flex items-center gap-1.5 px-3 py-1.5 bg-aura-primary text-white text-[10px] font-black uppercase tracking-wider rounded-lg shadow-lg shadow-aura-primary/20 hover:scale-105 active:scale-95 transition-all"
+                          onClick={() => { window.dispatchEvent(new CustomEvent('aura_note_update', { detail: { content: m.content } })); setToolTab('notes'); }}
+                          className="mt-2.5 self-start flex items-center gap-1.5 px-3 py-1.5 bg-white/10 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-white/20 active:scale-95 transition-all"
                         >
-                          <Sparkles size={12} /> Apply to Notes
+                          <Sparkles size={11} /> Apply to Notes
                         </button>
                       )}
                     </div>
                   )}
                   {m.type === 'file' && (
-                    <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity py-1">
+                    <a href={m.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity py-0.5">
                       <div className="p-2 bg-white/10 rounded-lg">
-                        <FileIcon name={m.content} size={18} className="text-white" />
+                        <FileIcon name={m.content} size={16} className="text-white" />
                       </div>
-                      <span className="text-sm font-medium truncate max-w-[150px] sm:max-w-xs">{m.content}</span>
+                      <span className="text-sm font-medium truncate max-w-[180px]">{m.content}</span>
                     </a>
                   )}
                 </div>
-                <span className="text-[10px] text-aura-lavender/40 mt-1.5 font-medium px-1 uppercase tracking-tighter">
+                <span className="text-[10px] text-aura-lavender/30 mt-1 font-medium px-1">
                   {(() => {
                     const d = new Date(m.timestamp);
                     const isToday = new Date().toDateString() === d.toDateString();
                     const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const day = d.toLocaleDateString([], { weekday: 'short' });
-                    return `${time} • ${isToday ? 'Today' : day}`;
+                    return `${time} · ${isToday ? 'Today' : day}`;
                   })()}
                 </span>
               </div>
-            )
+            );
           })}
           <div ref={chatEndRef} />
         </div>
 
         {/* Chat Settings Modal */}
         {showSettings && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-aura-panel w-full max-w-sm rounded-2xl border border-aura-border shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-4 border-b border-aura-border flex items-center justify-between bg-aura-navy/50">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <SettingsIcon size={20} className="text-aura-primary" /> Chat Settings
-                </h2>
-                <button onClick={() => setShowSettings(false)} className="p-1.5 text-aura-lavender/50 hover:text-white hover:bg-white/5 rounded-full transition-colors">
-                  <X size={20} />
-                </button>
+          <div className="absolute inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in-up">
+            <div className="bg-aura-panel w-full max-w-sm rounded-t-3xl md:rounded-2xl border border-aura-border/50 shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-aura-border/50 flex items-center justify-between">
+                <h2 className="text-base font-bold text-white flex items-center gap-2"><SettingsIcon size={16} className="text-aura-primary" /> Chat Settings</h2>
+                <button onClick={() => setShowSettings(false)} className="p-2 text-aura-lavender/50 hover:text-white hover:bg-aura-surface rounded-xl transition-colors"><X size={18} /></button>
               </div>
-              <div className="p-4 space-y-4">
-                {/* Vanish Mode */}
-                <div className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
-                  <div className="flex items-center gap-3 text-white">
-                    <EyeOff size={18} className="text-pink-400" />
-                    <div>
-                      <p className="text-sm font-medium">Vanish Mode</p>
-                      <p className="text-[10px] text-aura-lavender/50">Delete chats after viewing when you leave</p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={chatSettings.vanishMode} onChange={e => setChatSettings({ ...chatSettings, vanishMode: e.target.checked })} />
-                    <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-primary"></div>
-                  </label>
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between bg-aura-surface p-3.5 rounded-xl border border-aura-border/40">
+                  <div className="flex items-center gap-3 text-white"><EyeOff size={16} className="text-aura-pink" /><div><p className="text-sm font-medium">Vanish Mode</p><p className="text-[10px] text-aura-lavender/40">Auto-delete on exit</p></div></div>
+                  <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" className="sr-only peer" checked={chatSettings.vanishMode} onChange={e => setChatSettings({ ...chatSettings, vanishMode: e.target.checked })} /><div className="w-9 h-5 bg-aura-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-primary"></div></label>
                 </div>
-
-                {/* Send Sound */}
-                <div className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
-                  <div className="flex items-center gap-3 text-white">
-                    <Volume2 size={18} className="text-aura-teal" />
-                    <p className="text-sm font-medium">Send Sound</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={chatSettings.sendSound} onChange={e => setChatSettings({ ...chatSettings, sendSound: e.target.checked })} />
-                    <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-teal"></div>
-                  </label>
+                <div className="flex items-center justify-between bg-aura-surface p-3.5 rounded-xl border border-aura-border/40">
+                  <div className="flex items-center gap-3 text-white"><Volume2 size={16} className="text-aura-teal" /><p className="text-sm font-medium">Send Sound</p></div>
+                  <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" className="sr-only peer" checked={chatSettings.sendSound} onChange={e => setChatSettings({ ...chatSettings, sendSound: e.target.checked })} /><div className="w-9 h-5 bg-aura-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-teal"></div></label>
                 </div>
-
-                {/* Receive Sound */}
-                <div className="flex items-center justify-between bg-aura-navy p-3 rounded-xl border border-aura-border">
-                  <div className="flex items-center gap-3 text-white">
-                    <VolumeX size={18} className="text-blue-400" />
-                    <p className="text-sm font-medium">Receive Sound</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={chatSettings.receiveSound} onChange={e => setChatSettings({ ...chatSettings, receiveSound: e.target.checked })} />
-                    <div className="w-9 h-5 bg-aura-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-400"></div>
-                  </label>
+                <div className="flex items-center justify-between bg-aura-surface p-3.5 rounded-xl border border-aura-border/40">
+                  <div className="flex items-center gap-3 text-white"><VolumeX size={16} className="text-aura-primary-light" /><p className="text-sm font-medium">Receive Sound</p></div>
+                  <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" className="sr-only peer" checked={chatSettings.receiveSound} onChange={e => setChatSettings({ ...chatSettings, receiveSound: e.target.checked })} /><div className="w-9 h-5 bg-aura-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-aura-primary-light"></div></label>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Input */}
-        <div className="bg-aura-panel border-t border-aura-border shrink-0 px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
+        {/* Input Area */}
+        <div className="bg-aura-panel/95 backdrop-blur-md border-t border-aura-border/40 shrink-0 px-3 py-2.5 pb-[max(12px,env(safe-area-inset-bottom))]">
           {isPending ? (
-            <div className="flex flex-col items-center gap-3 py-2 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex flex-col items-center gap-3 py-2 animate-fade-in-up">
               {amIReceiver ? (
                 <>
-                  <p className="text-aura-lavender/70 text-sm font-medium">Accept friend request to chat with {partner.username}?</p>
-                  <div className="flex items-center gap-4 w-full">
-                    <button
-                      onClick={rejectFriend}
-                      className="flex-1 bg-aura-navy border border-aura-border text-red-400 py-2.5 rounded-xl text-sm font-bold hover:bg-red-500/10 transition-all active:scale-95"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={acceptFriend}
-                      className="flex-1 bg-aura-primary text-white py-2.5 rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-aura-primary/20 active:scale-95"
-                    >
-                      Accept
-                    </button>
+                  <p className="text-aura-lavender/60 text-sm font-medium text-center">Accept request to chat with {partner.username}?</p>
+                  <div className="flex items-center gap-3 w-full">
+                    <button onClick={rejectFriend} className="flex-1 bg-aura-surface border border-aura-border/50 text-red-400 py-2.5 rounded-xl text-sm font-semibold active:scale-95 transition-all">Reject</button>
+                    <button onClick={acceptFriend} className="flex-1 gradient-primary text-white py-2.5 rounded-xl text-sm font-bold shadow-md shadow-aura-primary/20 active:scale-95 transition-all">Accept</button>
                   </div>
                 </>
               ) : (
-                <div className="bg-aura-navy/50 border border-aura-border/50 rounded-xl px-6 py-4 text-center w-full">
+                <div className="bg-aura-surface border border-aura-border/40 rounded-xl px-5 py-4 text-center w-full">
                   <Clock className="w-5 h-5 text-aura-primary mx-auto mb-2 opacity-50" />
-                  <p className="text-aura-lavender/60 text-sm">Waiting for <span className="text-white font-bold">{partner.username}</span> to accept your friend request.</p>
-                  <p className="text-[10px] text-aura-lavender/30 mt-1">You can still send messages, but they might not see them until accepted.</p>
+                  <p className="text-aura-lavender/50 text-sm">Waiting for <span className="text-white font-semibold">{partner.username}</span> to accept.</p>
                 </div>
               )}
             </div>
           ) : null}
 
-          <form onSubmit={sendMessage} autoComplete="off" className={clsx("flex items-center gap-2 relative transition-opacity duration-300", isPending && amIReceiver && "opacity-40 pointer-events-none")}>
-            {/* Using a hidden field with a neutral name to steer away aggressive password manager heuristics */}
-            <div className="hidden" aria-hidden="true">
-              <input type="text" name="aura_chat_session" tabIndex={-1} />
-            </div>
-            <label className="p-2.5 text-aura-lavender/50 hover:text-white cursor-pointer transition-colors bg-aura-navy rounded-xl hover:bg-aura-border shrink-0 border border-aura-border/50">
-              <Paperclip size={19} />
+          <form onSubmit={sendMessage} autoComplete="off" className={clsx("flex items-center gap-2 relative", isPending && amIReceiver && "opacity-30 pointer-events-none")}>
+            <div className="hidden" aria-hidden="true"><input type="text" name="aura_chat_session" tabIndex={-1} /></div>
+            <label className="p-2.5 text-aura-lavender/40 hover:text-aura-primary cursor-pointer transition-colors bg-aura-surface rounded-xl border border-aura-border/40 shrink-0 active:scale-95">
+              <Paperclip size={18} />
               <input type="file" className="hidden" onChange={handleFileUpload} />
             </label>
             <input
@@ -973,117 +576,60 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
               name={`aura_msg_${Math.floor(Date.now() / 1000)}`}
               placeholder="Message..."
               value={input}
-              onChange={e => {
-                const val = e.target.value;
-                setInput(val);
-                setShowCommands(val === '/');
-              }}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              data-form-type="other"
-              data-lpignore="true"
-              data-1p-ignore="true"
-              inputMode="text"
-              className="flex-1 min-w-0 bg-aura-navy border border-aura-border rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-aura-primary transition-colors text-[15px]"
+              onChange={e => { setInput(e.target.value); setShowCommands(e.target.value === '/'); }}
+              autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+              data-form-type="other" data-lpignore="true" data-1p-ignore="true" inputMode="text"
+              className="flex-1 min-w-0 bg-aura-surface border border-aura-border/40 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-aura-primary/50 focus:ring-2 focus:ring-aura-primary/10 transition-all text-[15px] placeholder:text-aura-lavender/25"
             />
             {showCommands && (
-              <div className="absolute bottom-full left-0 mb-2 w-64 bg-aura-panel border border-aura-border rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
-                <div className="p-2 border-b border-aura-border bg-aura-navy/50">
-                  <span className="text-[10px] font-black uppercase text-aura-lavender/50 tracking-widest px-2">Aura Commands</span>
-                </div>
+              <div className="absolute bottom-full left-0 mb-2 w-60 bg-aura-panel border border-aura-border/50 rounded-xl shadow-2xl overflow-hidden animate-fade-in-up">
+                <div className="p-2 border-b border-aura-border/40"><span className="text-[10px] font-bold uppercase text-aura-lavender/40 tracking-wider px-2">Commands</span></div>
                 {SLASH_COMMANDS.map((c, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => {
-                      setInput(c.cmd + ' ');
-                      setShowCommands(false);
-                    }}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors border-b border-aura-border/50 last:border-0 text-left group"
-                  >
-                    <div className="p-1.5 bg-aura-primary/10 rounded-lg text-aura-primary group-hover:bg-aura-primary group-hover:text-white transition-all">
-                      {c.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-white">{c.cmd}</p>
-                      <p className="text-[9px] text-aura-lavender/50 truncate">{c.desc}</p>
-                    </div>
+                  <button key={i} type="button" onClick={() => { setInput(c.cmd + ' '); setShowCommands(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-aura-surface transition-colors text-left group">
+                    <div className="p-1.5 bg-aura-primary/10 rounded-lg text-aura-primary group-hover:bg-aura-primary group-hover:text-white transition-all">{c.icon}</div>
+                    <div className="min-w-0"><p className="text-xs font-semibold text-white">{c.cmd}</p><p className="text-[9px] text-aura-lavender/40 truncate">{c.desc}</p></div>
                   </button>
                 ))}
               </div>
             )}
-            <button
-              type="button"
-              onClick={toggleListening}
-              className={`p-2.5 rounded-xl shrink-0 border transition-colors ${isListening ? 'bg-red-500 border-red-400 text-white animate-pulse' : 'bg-aura-navy border-aura-border text-aura-lavender/50 hover:text-white'}`}
-              title="Voice Typing"
-            >
-              {isListening ? <Mic size={19} /> : <MicOff size={19} />}
+            <button type="button" onClick={toggleListening} className={clsx("p-2.5 rounded-xl shrink-0 border transition-all active:scale-90", isListening ? "bg-red-500 border-red-400 text-white animate-pulse" : "bg-aura-surface border-aura-border/40 text-aura-lavender/40 hover:text-white")} title="Voice">
+              {isListening ? <Mic size={18} /> : <MicOff size={18} />}
             </button>
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="p-2.5 bg-aura-primary text-white rounded-xl shrink-0 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-90 transition-all"
-            >
-              <Send size={19} />
+            <button type="submit" disabled={!input.trim()} className="p-2.5 gradient-primary text-white rounded-xl shrink-0 disabled:opacity-30 disabled:cursor-not-allowed active:scale-90 transition-all shadow-sm shadow-aura-primary/20">
+              <Send size={18} />
             </button>
           </form>
         </div>
       </div>
 
-      {/* Tools Area / Split View */}
+      {/* Tools Panel */}
       <AnimatePresence>
         {toolTab !== 'none' && (
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="w-full md:w-1/2 flex flex-col h-full bg-aura-panel border-l border-aura-border absolute md:relative z-[30] inset-0 md:inset-auto shadow-2xl md:shadow-none"
+            transition={{ type: 'spring', damping: 28, stiffness: 250 }}
+            className="w-full md:w-1/2 flex flex-col h-full bg-aura-panel border-l border-aura-border/50 absolute md:relative z-[30] inset-0 md:inset-auto shadow-2xl md:shadow-none"
           >
-            <div className="h-14 sm:h-16 flex items-center justify-between px-3 sm:px-6 border-b border-aura-border shrink-0 bg-aura-panel/95 backdrop-blur-md z-10 shadow-sm gap-2">
-              {/* Mobile back button */}
-              <button
-                onClick={() => setToolTab('none')}
-                className="md:hidden p-2 -ml-1 text-aura-lavender/70 hover:text-white active:bg-aura-border rounded-full transition-all shrink-0"
-                aria-label="Back to chat"
-              >
+            <div className="h-[56px] flex items-center justify-between px-4 border-b border-aura-border/40 shrink-0 bg-aura-panel/95 backdrop-blur-md z-10">
+              <button onClick={() => setToolTab('none')} className="md:hidden p-2 -ml-1 text-aura-lavender/60 hover:text-white active:bg-aura-surface rounded-xl transition-all shrink-0" aria-label="Back">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               </button>
-              <h2 className="text-white font-bold flex items-center gap-2 text-[14px] sm:text-base flex-1 min-w-0">
-                {toolTab === 'notes' && <div className="p-1.5 bg-aura-primary/10 rounded-lg shrink-0"><FileText size={17} className="text-aura-primary" /></div>}
-                {toolTab === 'vault' && <div className="p-1.5 bg-aura-primary/10 rounded-lg shrink-0"><Paperclip size={17} className="text-aura-primary" /></div>}
-                {toolTab === 'timetable' && <div className="p-1.5 bg-aura-pink/10 rounded-lg shrink-0"><Calendar size={17} className="text-aura-pink" /></div>}
-                <span className="truncate">
-                  {toolTab === 'notes' && 'SyncNotes'}
-                  {toolTab === 'vault' && 'SmartVault'}
-                  {toolTab === 'timetable' && 'Shared Timetable'}
-                </span>
+              <h2 className="text-white font-bold flex items-center gap-2 text-sm flex-1 min-w-0">
+                {toolTab === 'notes' && <div className="p-1.5 bg-aura-primary/10 rounded-lg shrink-0"><FileText size={15} className="text-aura-primary" /></div>}
+                {toolTab === 'vault' && <div className="p-1.5 bg-aura-primary/10 rounded-lg shrink-0"><Paperclip size={15} className="text-aura-primary" /></div>}
+                {toolTab === 'timetable' && <div className="p-1.5 bg-aura-pink/10 rounded-lg shrink-0"><Calendar size={15} className="text-aura-pink" /></div>}
+                <span className="truncate">{toolTab === 'notes' ? 'SyncNotes' : toolTab === 'vault' ? 'SmartVault' : 'Timetable'}</span>
               </h2>
-              <button
-                onClick={() => setToolTab('none')}
-                className="hidden md:flex p-2 text-aura-lavender/50 hover:text-white transition-all bg-aura-navy hover:bg-aura-border rounded-xl active:scale-90 border border-aura-border/50 items-center justify-center"
-              >
-                <X size={22} />
+              <button onClick={() => setToolTab('none')} className="hidden md:flex p-2 text-aura-lavender/40 hover:text-white transition-all bg-aura-surface hover:bg-aura-border rounded-xl active:scale-90 border border-aura-border/40 items-center justify-center">
+                <X size={18} />
               </button>
             </div>
-            <div className="flex-1 overflow-visible relative bg-aura-navy/20">
-              {toolTab === 'notes' && (
-                <SyncNotes connectionId={isVirtualBot ? undefined : connectionId} partner={isVirtualBot ? undefined : partner} />
-              )}
-              {toolTab === 'vault' && (
-                <SmartVault
-                  connectionId={isVirtualBot ? '' : (connectionId || '')}
-                  messages={messages}
-                  partner={isVirtualBot ? null : partner}
-                  isPersonal={isVirtualBot}
-                />
-              )}
-              {toolTab === 'timetable' && (
-                <SharedTimetable connectionId={isVirtualBot ? undefined : connectionId} partner={isVirtualBot ? undefined : partner} />
-              )}
+            <div className="flex-1 overflow-visible relative bg-aura-navy/30">
+              {toolTab === 'notes' && <SyncNotes connectionId={isVirtualBot ? undefined : connectionId} partner={isVirtualBot ? undefined : partner} />}
+              {toolTab === 'vault' && <SmartVault connectionId={isVirtualBot ? '' : (connectionId || '')} messages={messages} partner={isVirtualBot ? null : partner} isPersonal={isVirtualBot} />}
+              {toolTab === 'timetable' && <SharedTimetable connectionId={isVirtualBot ? undefined : connectionId} partner={isVirtualBot ? undefined : partner} />}
             </div>
           </motion.div>
         )}

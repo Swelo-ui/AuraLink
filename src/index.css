@@ -1,24 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --font-sans: "Nunito", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Brand colors */
-  --color-aura-primary: #9B59B6;
-  --color-aura-primary-hover: #8E44AD;
-  --color-aura-pink: #EC4899;
-  --color-aura-pink-hover: #DB2777;
-  --color-aura-teal: #00D4AA;
-  --color-aura-navy: #0D0D1A;
-  --color-aura-panel: #1A1A2E;
-  --color-aura-border: #2D1F3D;
-  --color-aura-lavender: #E9D5FF;
+  /* Professional Purple Palette */
+  --color-aura-primary: #7C3AED;
+  --color-aura-primary-hover: #6D28D9;
+  --color-aura-primary-light: #A78BFA;
+  --color-aura-primary-subtle: rgba(124, 58, 237, 0.08);
+  --color-aura-pink: #E879F9;
+  --color-aura-pink-hover: #D946EF;
+  --color-aura-teal: #34D399;
+  --color-aura-navy: #0F0A1A;
+  --color-aura-panel: #1A1025;
+  --color-aura-surface: #221533;
+  --color-aura-border: #2E1F42;
+  --color-aura-border-light: #3D2A56;
+  --color-aura-lavender: #DDD6FE;
+  --color-aura-muted: #9CA3AF;
+  --color-aura-success: #34D399;
+  --color-aura-error: #F87171;
+  --color-aura-warning: #FBBF24;
 }
 
 /* ─── Base Reset ─────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body,
 html {
   height: 100%;
@@ -44,6 +58,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
 /* ─── Mobile Safe Areas ──────────────────────────────────────────────────── */
@@ -58,8 +73,8 @@ body {
 
 /* ─── Custom Scrollbar ───────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -98,21 +113,21 @@ body {
 }
 
 .ProseMirror h1 {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 800;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .ProseMirror h2 {
-  font-size: 1.5rem;
-  font-weight: bold;
-  margin-bottom: 1rem;
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
 }
 
 /* ─── Animations ─────────────────────────────────────────────────────────── */
 @keyframes slideUp {
   from {
-    transform: translateY(10px);
+    transform: translateY(8px);
     opacity: 0;
   }
 
@@ -123,7 +138,7 @@ body {
 }
 
 .animate-slide-up {
-  animation: slideUp 0.3s ease-out forwards;
+  animation: slideUp 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes shimmer {
@@ -137,15 +152,15 @@ body {
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(124, 58, 237, 0.06) 50%, transparent 100%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 2s infinite;
 }
 
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
 
   to {
@@ -155,7 +170,67 @@ body {
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.3s ease-out forwards;
+  animation: fadeInUp 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(124, 58, 237, 0);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ─── Glass Morphism Utilities ───────────────────────────────────────────── */
+.glass {
+  background: rgba(26, 16, 37, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(124, 58, 237, 0.1);
+}
+
+.glass-strong {
+  background: rgba(26, 16, 37, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+}
+
+/* ─── Gradient Utilities ─────────────────────────────────────────────────── */
+.gradient-primary {
+  background: linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, #7C3AED 0%, #E879F9 100%);
+}
+
+.gradient-surface {
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.04) 0%, transparent 100%);
 }
 
 /* ─── Input Autofill Fix ─────────────────────────────────────────────────── */
@@ -163,7 +238,7 @@ input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px #0d0d1a inset !important;
+  -webkit-box-shadow: 0 0 0 30px #0F0A1A inset !important;
   -webkit-text-fill-color: white !important;
   transition: background-color 5000s ease-in-out 0s;
 }
@@ -183,14 +258,13 @@ a:focus-visible {
 
 /* ─── Selection ──────────────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(155, 89, 182, 0.3);
+  background: rgba(124, 58, 237, 0.35);
   color: white;
 }
 
 /* ─── Mobile Touch Improvements ──────────────────────────────────────────── */
 @media (hover: none) and (pointer: coarse) {
 
-  /* Larger touch targets on mobile */
   button,
   a,
   [role="button"] {
@@ -198,7 +272,6 @@ a:focus-visible {
     min-width: 44px;
   }
 
-  /* Disable hover effects on touch devices */
   .hover\:bg-aura-border:hover {
     background-color: inherit;
   }
@@ -222,4 +295,34 @@ a:focus-visible {
     background: white;
     color: black;
   }
+}
+
+/* ─── Bottom Navigation (Mobile) ─────────────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ─── Card Hover Effects ─────────────────────────────────────────────────── */
+.card-interactive {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-interactive:active {
+  transform: scale(0.98);
+}
+
+/* ─── Status Indicator ───────────────────────────────────────────────────── */
+.status-online {
+  background: var(--color-aura-success);
+  box-shadow: 0 0 0 2px var(--color-aura-panel), 0 0 6px var(--color-aura-success);
+}
+
+.status-offline {
+  background: #6B7280;
+  box-shadow: 0 0 0 2px var(--color-aura-panel);
 }

@@ -97,7 +97,7 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className={clsx(
-          'flex-1 min-h-0 overflow-hidden bg-[#151525]',
+          'flex-1 min-h-0 overflow-hidden bg-aura-navy',
           hideSidebarOnMobile ? 'flex' : 'hidden md:flex'
         )}>
           <ErrorBoundary>
@@ -107,9 +107,9 @@ export default function Dashboard() {
                   path="/"
                   element={
                     <EmptyState
-                      icon={<MessageSquare size={32} className="text-aura-primary opacity-60" />}
+                      icon={<MessageSquare size={28} className="text-aura-primary" />}
                       title="Welcome to AuraLink"
-                      description="Select a connection from the sidebar or open your personal workspace to get started."
+                      description="Select a conversation from the sidebar or open your personal workspace to get started."
                     />
                   }
                 />
