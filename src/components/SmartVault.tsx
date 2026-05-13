@@ -425,7 +425,7 @@ export default function SmartVault({
     <div className="flex flex-col h-full bg-aura-navy overflow-hidden w-full relative">
 
       {/* ── Header & Navigation ──────────────────────────────────────────── */}
-      <div className="p-3 border-b border-aura-border/50 bg-aura-panel/30 flex flex-col gap-2.5 shrink-0">
+      <div className="p-3 border-b border-aura-border/50 bg-aura-panel/30 flex flex-col gap-2.5 shrink-0 overflow-hidden">
         {/* Top row: title + actions */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -471,7 +471,7 @@ export default function SmartVault({
         </div>
 
         {/* ── Filters - scrollable row ───────────────────────────────────── */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none -mx-1 px-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
           {['all', 'image', 'video', 'pdf', 'doc'].map(ft => (
             <button
               key={ft}

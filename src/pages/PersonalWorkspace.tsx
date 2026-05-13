@@ -50,7 +50,7 @@ export default function PersonalWorkspace() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col md:flex-row overflow-hidden min-w-0">
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden min-w-0 w-full">
         {/* Mobile Tab Bar - all 3 tabs always visible */}
         <div className="md:hidden grid grid-cols-3 w-full bg-aura-panel border-b border-aura-border/50 p-1.5 gap-1 shrink-0">
           {TABS.map(tab => {
@@ -103,7 +103,7 @@ export default function PersonalWorkspace() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-aura-navy overflow-hidden relative">
+        <div className="flex-1 bg-aura-navy overflow-hidden relative min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -111,7 +111,7 @@ export default function PersonalWorkspace() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.15 }}
-              className="h-full"
+              className="h-full w-full overflow-hidden"
             >
               {activeTab === 'notes' && <SyncNotes connectionId={undefined} />}
               {activeTab === 'timetable' && <SharedTimetable connectionId={undefined} />}
