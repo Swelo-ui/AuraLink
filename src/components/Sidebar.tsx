@@ -93,10 +93,10 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
             const subData = subscription.toJSON();
             await supabase.from('push_subscriptions').upsert({
               user_id: user.id,
-              endpoint: subData.endpoint,
-              auth: subData.keys?.auth,
-              p256dh: subData.keys?.p256dh,
-            }, { onConflict: 'endpoint' });
+              endpoint: subData.endpoint as string,
+              auth: subData.keys?.auth as string,
+              p256dh: subData.keys?.p256dh as string,
+            } as any, { onConflict: 'endpoint' });
           }
         }
       } catch (e) { console.error('Push subscription failed:', e); }
@@ -163,7 +163,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
       .from('users')
       .select('id, username, avatar_url')
       .ilike('username', `%${query}%`)
-      .neq('id', user?.id)
+      .neq('id', user?.id ?? '')
       .limit(15);
     if (data) setResults(data);
   };
@@ -172,7 +172,7 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
     const { data } = await supabase
       .from('users')
       .select('id, username, avatar_url')
-      .neq('id', user?.id)
+      .neq('id', user?.id ?? '')
       .limit(20);
     if (data) setAllUsers(data);
     setShowDiscover(true);
@@ -213,8 +213,8 @@ export default function Sidebar({ connections, onRefresh, isLoading = false, cla
       {/* Header */}
       <div className="px-5 py-4 flex items-center justify-between border-b border-aura-border/50">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center shadow-md shadow-aura-primary/20">
-            <span className="text-white font-black text-sm">A</span>
+          <div className="w-9 h-9 rounded-xl overflow-hidden shadow-md shadow-aura-primary/20 shrink-0">
+            <img src="/auralink-logo.png" alt="AuraLink" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-white font-bold text-lg tracking-tight">AuraLink</h1>
         </div>

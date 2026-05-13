@@ -60,7 +60,7 @@ export default function AuthPage() {
         setAuth(data.session.access_token, {
           id: userToSet.id,
           username: userToSet.username,
-          avatarUrl: userToSet.avatar_url || undefined,
+          avatarUrl: ('avatar_url' in userToSet ? userToSet.avatar_url : null) || undefined,
         });
         navigate('/dashboard');
       } else {
@@ -141,8 +141,8 @@ export default function AuthPage() {
             transition={{ delay: 0.2, duration: 0.4 }}
             className="relative"
           >
-            <div className="w-[72px] h-[72px] rounded-[22px] gradient-primary flex items-center justify-center shadow-[0_8px_32px_rgba(124,58,237,0.4)]">
-              <Zap className="w-9 h-9 text-white" strokeWidth={2.5} />
+            <div className="w-[72px] h-[72px] rounded-[22px] overflow-hidden shadow-[0_8px_32px_rgba(124,58,237,0.4)]">
+              <img src="/auralink-logo.png" alt="AuraLink Logo" className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-aura-teal flex items-center justify-center shadow-lg">
               <div className="w-2 h-2 rounded-full bg-white" />
