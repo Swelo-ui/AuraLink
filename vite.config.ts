@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['auralink-icon.jpeg', 'auralink-logo.jpeg'],
+        includeAssets: ['auralink-logo.png'],
         workbox: {
           cleanupOutdatedCaches: true,
           clientsClaim: true,
@@ -49,14 +49,20 @@ export default defineConfig(({ mode }) => {
           display: 'standalone',
           icons: [
             {
-              src: '/auralink-icon.jpeg',
+              src: '/auralink-logo.png',
               sizes: '192x192',
-              type: 'image/jpeg'
+              type: 'image/png'
             },
             {
-              src: '/auralink-icon.jpeg',
+              src: '/auralink-logo.png',
               sizes: '512x512',
-              type: 'image/jpeg'
+              type: 'image/png'
+            },
+            {
+              src: '/auralink-logo.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         }
