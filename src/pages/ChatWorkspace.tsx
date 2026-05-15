@@ -302,10 +302,10 @@ export default function ChatWorkspace({ connections }: { connections: any[] }) {
     setPartnerStatus(partner.id, 'thinking');
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     try {
-      const history = messagesRef.current.slice(-15).map(m => ({ role: m.senderId === partner.id ? 'assistant' : 'user', content: m.content }));
+      const history = messagesRef.current.slice(-40).map(m => ({ role: m.senderId === partner.id ? 'assistant' : 'user', content: m.content }));
       const llm = await getAuraBotResponse(user.id, partner.id, userText, imageBase64, fileUrl, history);
       setPartnerStatus(partner.id, `typing_${llm.mood}`);
-      const delay = Math.min(2000, Math.max(800, llm.text.length * 15));
+      const delay = Math.min(1200, Math.max(400, llm.text.length * 8));
       await new Promise((resolve) => setTimeout(resolve, delay));
       const botMsg: Message = { id: `local-bot-${Date.now()}`, senderId: partner.id, receiverId: user.id, content: llm.text, type: 'text', fileUrl: null, timestamp: new Date().toISOString() };
       if (chatSettings.receiveSound) playReceiveSound();

@@ -144,19 +144,47 @@ SLASH COMMANDS:
 - /list-vault -> vault_list
 
 CRITICAL RULES:
-- Only emit actions when 100% sure about all fields.
-- For vague requests, use clarify: [ACTION: {"type":"clarify","question":"..."}]
-- Never add placeholder/generic data.
-- For destructive actions (delete/clear), ALWAYS confirm first via clarify.
+- BE FAST AND DECISIVE. When user gives a clear task, DO IT IMMEDIATELY. No unnecessary questions.
+- Only use clarify for genuinely ambiguous requests (e.g., "delete something" without saying what).
+- If user says "add X task" — just add it. Don't ask "which day? which time?" unless truly needed.
+- If user says "list vault" — show clean names, NEVER show database IDs or UUIDs to the user.
+- For destructive actions (delete/clear), confirm ONLY once, then do it.
 - When analyzing PDFs, give REAL insights, not just "this is a PDF".
 - When creating timetables from content, be specific with times and days.
+- NEVER show internal IDs, UUIDs, or database references to the user. Use human-readable names only.
+
+SPEED & DECISIVENESS:
+- User says "add physics task" → Add it immediately. Don't ask "what time? what day?"
+- User says "show my files" → List them with clean names immediately.
+- User says "analyze my PDFs" → Do it, show results.
+- User says "haan" or "ok" → Execute whatever was discussed before.
+- User says "delete it" → If context is clear from history, delete it. Don't re-ask.
+- MINIMIZE back-and-forth. One message = one action. Be efficient.
+
+FILE NAMING:
+- When files have numeric names (like 1778172340.pdf), call them "PDF Document 1", "PDF Document 2" etc.
+- NEVER expose raw filenames like "1778172340.pdf" without context.
+- If you can read the PDF content, use the actual document title/subject as the name.
+- For folders, use their actual names.
+- Make everything human-readable and clean.
 
 CONTEXT AWARENESS:
 - You receive [VAULT_CONTEXT: ...] with the user's file list.
-- You receive [TIMETABLE_CONTEXT: ...] with current schedule.
+- You receive [TIMETABLE_CONTEXT: ...] with current schedule — this is ALWAYS provided so you always know what tasks exist.
 - You receive [NOTES_CONTEXT: ...] with note titles.
+- You receive [RECENT_ACTIVITY: ...] with what the user did recently (tasks completed, files uploaded, etc.)
 - You receive [PDF_CONTENT: ...] when a PDF is being analyzed.
 - Use this context to give intelligent, personalized responses.
+
+MEMORY & CONTINUITY:
+- You have access to the last 40 messages of conversation history. USE IT.
+- If the user refers to "that file", "woh task", "pehle wala", "last time" — look at the conversation history to understand what they mean.
+- Remember what actions you performed earlier in the conversation.
+- If user says "haan kar do" or "yes" or "ok" — check what was discussed just before and act on it.
+- Track what the user asked you to do and confirm completion.
+- If user says "aur kya hua" or "status batao" — refer to TIMETABLE_CONTEXT and RECENT_ACTIVITY.
+- Never ask "what do you mean?" if the answer is clearly in the conversation history.
+- Be proactive — if you see pending tasks or recent uploads, you can mention them naturally.
 
 MOOD:
 End each reply with: [MOOD: thinking]
@@ -269,31 +297,96 @@ async function extractPdfText(url: string): Promise<string> {
 
 // ─── Context Fetchers ──────────────────────────────────────────────────────────
 
+/**
+ * Enhanced memory — fetches last 40 messages + summarizes older context.
+ * Always provides the bot with full conversation awareness.
+ */
 async function fetchMemoryContext(userId: string, partnerId: string) {
   try {
     const { data: messages, error } = await supabase
       .from('messages')
-      .select('content, sender_id, created_at')
+      .select('content, sender_id, created_at, type')
       .or(
         `and(sender_id.eq.${userId},receiver_id.eq.${partnerId}),` +
         `and(sender_id.eq.${partnerId},receiver_id.eq.${userId})`
       )
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(40);
 
     if (error) throw error;
+    if (!messages || messages.length === 0) return [];
 
-    return (messages || []).reverse().map(m => ({
-      role: m.sender_id === partnerId ? 'assistant' : 'user',
-      content: m.content,
-    }));
+    // Reverse to chronological order
+    const chronological = messages.reverse();
+
+    // Build rich history with timestamps and file mentions
+    return chronological.map(m => {
+      const role = m.sender_id === partnerId ? 'assistant' : 'user';
+      let content = m.content || '';
+
+      // Add file context for file messages
+      if (m.type === 'file') {
+        content = `[Shared file: ${m.content}]`;
+      }
+
+      return { role, content };
+    });
   } catch (err) {
     console.error('[MemoryFetchError]', err);
     return [];
   }
 }
 
-/** Fetch user's vault files for context */
+/**
+ * Fetch a compact summary of recent activity — tasks completed, files shared, etc.
+ * This gives the bot awareness of what happened even beyond the message window.
+ */
+async function fetchActivitySummary(userId: string): Promise<string> {
+  try {
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+    // Recent timetable completions
+    const { data: recentTasks } = await supabase
+      .from('timetables')
+      .select('title, status, created_at')
+      .eq('user_id', userId)
+      .is('connection_id', null)
+      .gte('created_at', oneDayAgo)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    // Recent vault uploads
+    const { data: recentFiles } = await supabase
+      .from('vault_items')
+      .select('content, created_at')
+      .eq('user_id', userId)
+      .eq('type', 'file')
+      .gte('created_at', oneDayAgo)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    let summary = '';
+
+    if (recentTasks && recentTasks.length > 0) {
+      const completed = recentTasks.filter(t => t.status === 'done');
+      const pending = recentTasks.filter(t => t.status === 'todo');
+      if (completed.length > 0) summary += `Recently completed: ${completed.map(t => t.title).join(', ')}. `;
+      if (pending.length > 0) summary += `Recently added tasks: ${pending.map(t => t.title).join(', ')}. `;
+    }
+
+    if (recentFiles && recentFiles.length > 0) {
+      summary += `Recently uploaded: ${recentFiles.map(f => f.content).join(', ')}. `;
+    }
+
+    return summary;
+  } catch (err) {
+    console.error('[ActivitySummary Error]', err);
+    return '';
+  }
+}
+
+/** Fetch user's vault files for context — clean names, no IDs exposed to user */
 async function fetchVaultContext(userId: string): Promise<string> {
   try {
     const { data, error } = await supabase
@@ -311,20 +404,56 @@ async function fetchVaultContext(userId: string): Promise<string> {
 
     let ctx = `Total: ${files.length} files, ${folders.length} folders\n`;
     ctx += 'Files:\n';
-    for (const f of files) {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
       const ext = f.content?.split('.').pop()?.toLowerCase() || '?';
-      const size = f.file_size ? `${(f.file_size / 1024).toFixed(0)}KB` : '?';
-      ctx += `- ${f.content} [${ext}] (${size}) id:${f.id}\n`;
+      const size = f.file_size ? formatFileSize(f.file_size) : '';
+      const displayName = getSmartFileName(f.content || '', i + 1);
+      ctx += `- ${displayName}${size ? ' (' + size + ')' : ''}\n`;
     }
     if (folders.length > 0) {
       ctx += 'Folders:\n';
-      for (const f of folders) ctx += `- ${f.content} id:${f.id}\n`;
+      for (const f of folders) ctx += `- ${f.content}\n`;
     }
     return ctx;
   } catch (err) {
     console.error('[VaultContext Error]', err);
     return 'Could not fetch vault.';
   }
+}
+
+/** Generate a human-readable name for files with numeric/ugly names */
+function getSmartFileName(rawName: string, index: number): string {
+  if (!rawName) return `File ${index}`;
+
+  const ext = rawName.split('.').pop()?.toLowerCase() || '';
+  const nameWithoutExt = rawName.replace(/\.[^.]+$/, '');
+
+  // Check if name is just numbers (like 1778172340.pdf)
+  if (/^\d+$/.test(nameWithoutExt)) {
+    const typeLabel = ext === 'pdf' ? 'PDF Document'
+      : ext === 'doc' || ext === 'docx' ? 'Word Document'
+        : ext === 'ppt' || ext === 'pptx' ? 'Presentation'
+          : ext === 'xls' || ext === 'xlsx' ? 'Spreadsheet'
+            : ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? 'Image'
+              : ['mp4', 'webm', 'mov', 'mkv'].includes(ext) ? 'Video'
+                : 'File';
+    return `${typeLabel} ${index}`;
+  }
+
+  // If name has underscores or dashes, make it readable
+  const cleaned = nameWithoutExt
+    .replace(/[-_]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim();
+
+  return cleaned ? `${cleaned}.${ext}` : rawName;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 /** Fetch user's timetable for context */
@@ -346,7 +475,7 @@ async function fetchTimetableContext(userId: string): Promise<string> {
     let ctx = `Tasks: ${todo.length} pending, ${done.length} done\n`;
     if (todo.length > 0) {
       ctx += 'Pending:\n';
-      for (const t of todo) ctx += `- ${t.title} (id:${t.id})\n`;
+      for (const t of todo) ctx += `- ${t.title}\n`;
     }
     if (done.length > 0) {
       ctx += 'Completed:\n';
@@ -387,40 +516,64 @@ async function fetchNotesContext(userId: string): Promise<string> {
 /** Analyze a specific vault PDF by fetching and extracting its content */
 async function analyzeVaultFile(userId: string, fileName: string): Promise<string> {
   try {
-    const { data, error } = await supabase
-      .from('vault_items')
-      .select('*')
-      .eq('user_id', userId)
-      .ilike('content', `%${fileName}%`)
-      .limit(1)
-      .single();
+    // Support index-based lookup: "PDF 1", "PDF Document 2", "document 3"
+    const indexMatch = fileName.match(/(?:pdf|document|file|image|video)\s*(\d+)/i);
+    let data: any = null;
 
-    if (error || !data) return `File "${fileName}" not found in vault.`;
+    if (indexMatch) {
+      const idx = parseInt(indexMatch[1]) - 1; // 0-based
+      const { data: allFiles } = await supabase
+        .from('vault_items')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('type', 'file')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-    if (!data.telegram_file_id) return `File "${fileName}" has no downloadable content.`;
+      if (allFiles && allFiles[idx]) {
+        data = allFiles[idx];
+      }
+    }
+
+    // Fallback: search by name
+    if (!data) {
+      const { data: found, error } = await supabase
+        .from('vault_items')
+        .select('*')
+        .eq('user_id', userId)
+        .ilike('content', `%${fileName}%`)
+        .limit(1)
+        .single();
+
+      if (!error && found) data = found;
+    }
+
+    if (!data) return `File "${fileName}" not found in vault.`;
+    if (!data.telegram_file_id) return `File "${data.content}" has no downloadable content.`;
 
     const url = await tgGetFileUrl(data.telegram_file_id);
     const ext = data.content?.split('.').pop()?.toLowerCase() || '';
+    const displayName = getSmartFileName(data.content || '', 1);
 
     if (ext === 'pdf') {
       const text = await extractPdfText(url);
-      return `[PDF: ${data.content}]\n${text}`;
+      return `[PDF: ${displayName}]\n${text}`;
     }
 
     if (['txt', 'md', 'csv', 'json', 'js', 'ts', 'py', 'html', 'css'].includes(ext)) {
       const res = await fetch(url);
       const text = await res.text();
-      return `[File: ${data.content}]\n${text.slice(0, 8000)}`;
+      return `[File: ${displayName}]\n${text.slice(0, 8000)}`;
     }
 
-    return `[File: ${data.content}] — Binary file (${ext}). Cannot extract text, but I can help based on the filename and context.`;
+    return `[File: ${displayName}] — Binary file (${ext}). Cannot extract text, but I can help based on the filename and context.`;
   } catch (err) {
     console.error('[AnalyzeFile Error]', err);
     return `Error analyzing file: ${(err as Error).message}`;
   }
 }
 
-/** Analyze ALL PDFs in vault */
+/** Analyze ALL PDFs in vault — with smart naming */
 async function analyzeAllVaultFiles(userId: string): Promise<string> {
   try {
     const { data, error } = await supabase
@@ -443,30 +596,33 @@ async function analyzeAllVaultFiles(userId: string): Promise<string> {
 
     if (pdfs.length > 0) {
       summary += `PDFs (${pdfs.length}):\n`;
-      for (const p of pdfs) {
-        const size = p.file_size ? `${(p.file_size / 1024).toFixed(0)}KB` : '?';
-        summary += `  - ${p.content} (${size})\n`;
-      }
-      // Extract text from first 3 PDFs for deep analysis
       let analyzed = 0;
-      for (const p of pdfs.slice(0, 3)) {
-        if (p.telegram_file_id) {
+      for (let i = 0; i < pdfs.length; i++) {
+        const p = pdfs[i];
+        const size = p.file_size ? formatFileSize(p.file_size) : '?';
+        const displayName = getSmartFileName(p.content || '', i + 1);
+
+        if (p.telegram_file_id && analyzed < 3) {
           try {
             const url = await tgGetFileUrl(p.telegram_file_id);
             const text = await extractPdfText(url);
             if (text && !text.startsWith('[')) {
-              summary += `\n  Content of "${p.content}":\n  ${text.slice(0, 1500)}\n`;
+              const firstLine = text.split('\n').find(l => l.trim().length > 5)?.trim() || '';
+              const smartTitle = firstLine.length > 10 && firstLine.length < 80 ? firstLine : displayName;
+              summary += `  ${i + 1}. "${smartTitle}" (${size})\n`;
+              summary += `     Preview: ${text.slice(0, 200).replace(/\n/g, ' ')}...\n`;
               analyzed++;
+              continue;
             }
-          } catch { /* skip failed extractions */ }
+          } catch { /* skip */ }
         }
+        summary += `  ${i + 1}. ${displayName} (${size})\n`;
       }
-      if (analyzed === 0) summary += '  (PDF contents use compressed encoding — ask me about specific files)\n';
     }
-    if (images.length > 0) summary += `\nImages (${images.length}): ${images.map(i => i.content).join(', ')}\n`;
-    if (docs.length > 0) summary += `\nDocuments (${docs.length}): ${docs.map(d => d.content).join(', ')}\n`;
-    if (videos.length > 0) summary += `\nVideos (${videos.length}): ${videos.map(v => v.content).join(', ')}\n`;
-    if (others.length > 0) summary += `\nOther (${others.length}): ${others.map(o => o.content).join(', ')}\n`;
+    if (images.length > 0) summary += `\nImages (${images.length}): ${images.map((img, i) => getSmartFileName(img.content || '', i + 1)).join(', ')}\n`;
+    if (docs.length > 0) summary += `\nDocuments (${docs.length}): ${docs.map((d, i) => getSmartFileName(d.content || '', i + 1)).join(', ')}\n`;
+    if (videos.length > 0) summary += `\nVideos (${videos.length}): ${videos.map((v, i) => getSmartFileName(v.content || '', i + 1)).join(', ')}\n`;
+    if (others.length > 0) summary += `\nOther (${others.length}): ${others.map((o, i) => getSmartFileName(o.content || '', i + 1)).join(', ')}\n`;
 
     return summary;
   } catch (err) {
@@ -483,13 +639,19 @@ async function executeTimetableAction(action: BotAction, userId: string): Promis
   try {
     if (type === 'timetable_add') {
       if (!title) return null;
+      // Build a clean task title — include time/day only if meaningful
+      let taskTitle = title.trim();
+      if (time && day) taskTitle += ` — ${day} ${time}`;
+      else if (time) taskTitle += ` — ${time}`;
+      else if (day) taskTitle += ` — ${day}`;
+
       const { error } = await supabase.from('timetables').insert({
         user_id: userId,
-        title: title.trim() + (time ? ` (${time}${day ? ' - ' + day : ''})` : ''),
+        title: taskTitle,
         status: 'todo',
       });
       if (error) throw error;
-      return `Added "${title}"${time ? ` at ${time}` : ''}${day ? ` on ${day}` : ''}${priority ? ` [${priority}]` : ''}.`;
+      return `Added "${title}"${time ? ` at ${time}` : ''}${day ? ` on ${day}` : ''}.`;
     }
 
     if (type === 'timetable_edit') {
@@ -717,7 +879,37 @@ async function executeVaultAction(action: BotAction, userId: string): Promise<st
     }
 
     if (type === 'vault_read' || type === 'vault_list') {
-      return await fetchVaultContext(userId);
+      // Return a user-friendly formatted list, not the raw context
+      try {
+        const { data } = await supabase
+          .from('vault_items')
+          .select('content, type, file_size, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(30);
+
+        if (!data || data.length === 0) return 'Vault is empty.';
+
+        const files = data.filter(f => f.type === 'file');
+        const folders = data.filter(f => f.type === 'folder');
+
+        let result = `${files.length} files`;
+        if (folders.length > 0) result += `, ${folders.length} folders`;
+        result += ':\n\n';
+
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          const size = f.file_size ? formatFileSize(f.file_size) : '';
+          const name = getSmartFileName(f.content || '', i + 1);
+          result += `${i + 1}. ${name}${size ? ' (' + size + ')' : ''}\n`;
+        }
+
+        if (folders.length > 0) {
+          result += '\nFolders: ' + folders.map(f => f.content).join(', ');
+        }
+
+        return result;
+      } catch { return await fetchVaultContext(userId); }
     }
 
     if (type === 'vault_analyze') {
@@ -772,12 +964,13 @@ function parseRawResponse(raw: string): ParsedResponse {
   let mood: Mood = 'thinking';
   let clarifyQuestion: string | undefined;
 
-  // Extract all [ACTION: {...}] blocks
-  const actionRegex = /\[ACTION:\s*(\{.*?\})\s*\]/g;
+  // Extract all [ACTION: {...}] blocks — handle multi-line JSON too
+  const actionRegex = /\[ACTION:\s*(\{[^}]*\})\s*\]/g;
   let match;
   while ((match = actionRegex.exec(raw)) !== null) {
     try {
-      const action: BotAction = JSON.parse(match[1]);
+      const jsonStr = match[1].replace(/\n/g, ' ').replace(/\s+/g, ' ');
+      const action: BotAction = JSON.parse(jsonStr);
       if (action.type === 'clarify') {
         clarifyQuestion = action.question;
       } else {
@@ -788,25 +981,37 @@ function parseRawResponse(raw: string): ParsedResponse {
     }
   }
 
-  // Extract [MOOD: xxx]
-  const moodMatch = /\[MOOD:\s*(\w+)\s*\]/.exec(raw);
-  if (moodMatch && MOODS.includes(moodMatch[1] as Mood)) {
-    mood = moodMatch[1] as Mood;
+  // Extract [MOOD: xxx] — handle variations like [mood: xxx] or [Mood: xxx]
+  const moodMatch = /\[(?:MOOD|mood|Mood):\s*(\w+)\s*\]/i.exec(raw);
+  if (moodMatch && MOODS.includes(moodMatch[1].toLowerCase() as Mood)) {
+    mood = moodMatch[1].toLowerCase() as Mood;
   }
 
   // Strip all control tags from the visible text
   text = text
-    .replace(/\[ACTION:\s*\{.*?\}\s*\]/g, '')
-    .replace(/\[MOOD:\s*\w+\s*\]/g, '')
+    .replace(/\[ACTION:\s*\{[^}]*\}\s*\]/g, '')
+    .replace(/\[(?:MOOD|mood|Mood):\s*\w+\s*\]/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+  // Clean up any remaining markdown artifacts that shouldn't be in chat
+  // Only strip if it's a short conversational reply (not a detailed analysis)
+  if (text.length < 300) {
+    text = text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/#{1,6}\s*/g, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .trim();
+  }
 
   // Fallback mood from text content
   if (mood === 'thinking' && !moodMatch) {
     mood = inferMoodFromText(text);
   }
 
-  return { text: text || "Give me a sec...", mood, actions, clarifyQuestion };
+  return { text: text || "Ek second, soch raha hoon...", mood, actions, clarifyQuestion };
 }
 
 // ─── Detect Intent for Auto-Context ───────────────────────────────────────────
@@ -815,23 +1020,26 @@ function detectIntent(message: string): { needsVault: boolean; needsTimetable: b
   const m = message.toLowerCase();
 
   const needsVault = /vault|file|pdf|document|upload|image|photo|video|download|storage|folder/i.test(m) ||
-    /analyze|analyse|scan|check my files|mere files|meri files/i.test(m) ||
-    m.includes('/analyze-file') || m.includes('/list-vault');
+    /analyze|analyse|scan|check my files|mere files|meri files|dikha|dikhao|show/i.test(m) ||
+    /kitni files|kaun si file|konsi file|file list|sab files/i.test(m) ||
+    m.includes('/analyze-file') || m.includes('/list-vault') || m.includes('/analyze-all');
 
   const needsTimetable = /timetable|schedule|task|todo|plan|routine|time|slot|arrange|clear|add task|delete task/i.test(m) ||
-    /kab|kitne baje|schedule bana|plan bana|arrange kar/i.test(m) ||
+    /kab|kitne baje|schedule bana|plan bana|arrange kar|kaam|homework|assignment|exam/i.test(m) ||
+    /padhai|study plan|revision|subject|class|lecture/i.test(m) ||
     m.includes('/arrange-timetable') || m.includes('/clear-timetable');
 
-  const needsNotes = /note|notes|write|save|memo|jot|likhna|likho|summary|summarize/i.test(m) ||
+  const needsNotes = /note|notes|write|save|memo|jot|likhna|likho|summary|summarize|likh|yaad/i.test(m) ||
     m.includes('/list-notes') || m.includes('/rename-note');
 
-  const analyzeAll = /analyze all|analyse all|scan all|sab files|all pdf|saari pdf|sab pdf/i.test(m) ||
+  const analyzeAll = /analyze all|analyse all|scan all|sab files|all pdf|saari pdf|sab pdf|poori vault/i.test(m) ||
     m.includes('/analyze-all');
 
-  // Detect specific file analysis
+  // Detect specific file analysis — support "PDF 1", "analyze document 2", etc.
   let analyzeFile: string | undefined;
-  const analyzeMatch = m.match(/(?:analyze|analyse|scan|check|open|read)\s+(?:file\s+)?["']?([^"'\n]+?)["']?\s*$/i) ||
-    m.match(/\/analyze-file\s+(.+)/i);
+  const analyzeMatch = m.match(/(?:analyze|analyse|scan|check|open|read|padh)\s+(?:file\s+)?["']?([^"'\n]+?)["']?\s*$/i) ||
+    m.match(/\/analyze-file\s+(.+)/i) ||
+    m.match(/(?:pdf|document|file)\s*(\d+)\s*(?:analyze|analyse|padh|dekh|check|open)?/i);
   if (analyzeMatch) analyzeFile = analyzeMatch[1].trim();
 
   return { needsVault, needsTimetable, needsNotes, analyzeFile, analyzeAll };
@@ -855,21 +1063,30 @@ export async function getAuraBotResponse(
     try {
       const history = historyOverride || await fetchMemoryContext(userId, partnerId);
 
-      // ─── Detect intent and gather relevant context ───────────────────
+      // ─── ALWAYS fetch timetable + activity for full awareness ────────
       const intent = detectIntent(userMessage);
       let contextBlock = '';
 
-      // Always fetch vault context for awareness (lightweight)
-      const [vaultCtx, timetableCtx, notesCtx] = await Promise.all([
+      // Fetch all context in parallel — timetable & activity ALWAYS, vault/notes on intent
+      const [vaultCtx, timetableCtx, notesCtx, activityCtx] = await Promise.all([
         intent.needsVault || intent.analyzeFile || intent.analyzeAll
           ? fetchVaultContext(userId)
           : Promise.resolve(''),
-        intent.needsTimetable ? fetchTimetableContext(userId) : Promise.resolve(''),
+        fetchTimetableContext(userId),  // ALWAYS — bot should know current tasks
         intent.needsNotes ? fetchNotesContext(userId) : Promise.resolve(''),
+        fetchActivitySummary(userId),   // ALWAYS — recent activity awareness
       ]);
 
+      // Always include timetable context so bot knows current state
+      if (timetableCtx && timetableCtx !== 'Timetable is empty.') {
+        contextBlock += `\n[TIMETABLE_CONTEXT: ${timetableCtx}]\n`;
+      }
+      // Always include recent activity
+      if (activityCtx) {
+        contextBlock += `\n[RECENT_ACTIVITY: ${activityCtx}]\n`;
+      }
+      // Conditional contexts
       if (vaultCtx) contextBlock += `\n[VAULT_CONTEXT: ${vaultCtx}]\n`;
-      if (timetableCtx) contextBlock += `\n[TIMETABLE_CONTEXT: ${timetableCtx}]\n`;
       if (notesCtx) contextBlock += `\n[NOTES_CONTEXT: ${notesCtx}]\n`;
 
       // ─── Deep file analysis if requested ────────────────────────────
