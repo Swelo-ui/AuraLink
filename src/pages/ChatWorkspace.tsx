@@ -94,9 +94,14 @@ function deriveMoodFromString(text: string): string | null {
 }
 
 const SLASH_COMMANDS = [
+  { cmd: '/analyze-file', desc: 'Deep analyze a vault file/PDF', icon: <Sparkles size={14} /> },
+  { cmd: '/analyze-all', desc: 'Scan & analyze all vault files', icon: <Sparkles size={14} /> },
+  { cmd: '/arrange-timetable', desc: 'Smart arrange all tasks', icon: <Calendar size={14} /> },
+  { cmd: '/clear-timetable', desc: 'Clear entire timetable', icon: <Calendar size={14} /> },
+  { cmd: '/list-vault', desc: 'Show all vault files', icon: <Paperclip size={14} /> },
+  { cmd: '/list-notes', desc: 'Show all notes', icon: <FileText size={14} /> },
   { cmd: '/rename-note', desc: 'Rename a note', icon: <FileText size={14} /> },
   { cmd: '/rename-file', desc: 'Rename vault file', icon: <Paperclip size={14} /> },
-  { cmd: '/analyze-file', desc: 'Analyse a file/note', icon: <Sparkles size={14} /> },
 ];
 
 function deriveAvatarMoodFromMessages(msgs: any[]): string | null {
