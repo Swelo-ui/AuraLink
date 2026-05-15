@@ -231,8 +231,15 @@ function FaceSVG({ state, vx, vy, mOpen, blinking, lidColor }: any) {
       </>;
       mouth = <path d="M33,60 Q50,54 67,60" fill="none" stroke="#0e0420" strokeWidth={3.2} strokeLinecap="round" />;
       extras = <>
-        <text x={6} y={27} fontSize={13} fill="#ff1010" fontWeight="900" style={{ animation: "ak4_ang .8s ease-in-out infinite", fontFamily: "sans-serif" }}>✕</text>
-        <text x={80} y={27} fontSize={13} fill="#ff1010" fontWeight="900" style={{ animation: "ak4_ang .8s ease-in-out .18s infinite", fontFamily: "sans-serif" }}>✕</text>
+        {/* Anger vein marks — pure SVG, no emoji */}
+        <g style={{ animation: "ak4_ang .8s ease-in-out infinite" }}>
+          <line x1={7} y1={18} x2={14} y2={24} stroke="#ff1010" strokeWidth={2.8} strokeLinecap="round" />
+          <line x1={14} y1={18} x2={7} y2={24} stroke="#ff1010" strokeWidth={2.8} strokeLinecap="round" />
+        </g>
+        <g style={{ animation: "ak4_ang .8s ease-in-out .18s infinite" }}>
+          <line x1={80} y1={18} x2={87} y2={24} stroke="#ff1010" strokeWidth={2.8} strokeLinecap="round" />
+          <line x1={87} y1={18} x2={80} y2={24} stroke="#ff1010" strokeWidth={2.8} strokeLinecap="round" />
+        </g>
       </>;
       break;
     case "sad":
@@ -332,25 +339,6 @@ function FaceSVG({ state, vx, vy, mOpen, blinking, lidColor }: any) {
     <svg viewBox="0 0 100 80" style={SS}>
       {brows}{le}{re}{mouth}{cheeks}{extras}
     </svg>
-  );
-}
-
-function Sparkle({ x, y, delay, sz, col }: any) {
-  return (
-    <div style={{ position: "absolute", left: x, top: y, animation: "ak4_sp " + (2.8 + delay * .4) + "s ease-in-out " + delay + "s infinite", pointerEvents: "none", lineHeight: 0 }}>
-      <svg width={sz} height={sz} viewBox="0 0 20 20" fill={col}>
-        <path d="M10 0L11.9 8.1 20 10l-8.1 1.9L10 20l-1.9-8.1L0 10l8.1-1.9Z" />
-      </svg>
-    </div>
-  );
-}
-function HeartDeco({ x, y, delay, sz }: any) {
-  return (
-    <div style={{ position: "absolute", left: x, top: y, animation: "ak4_sp 3.4s ease-in-out " + delay + "s infinite", pointerEvents: "none", lineHeight: 0 }}>
-      <svg width={sz} height={sz * .9} viewBox="0 0 24 22">
-        <path fill="#ff7eb3" d="M12 21.6C6.4 16 1 11.3 1 7.2 1 3.4 4.1 2 6.3 2c1.3 0 4.2.5 5.7 4.5C13.6 2.5 16.5 2 17.7 2c2.5 0 5.3 1.6 5.3 5.2 0 4.1-5.1 8.6-11 14.4z" />
-      </svg>
-    </div>
   );
 }
 
@@ -528,30 +516,193 @@ export default function ActionMojiAvatar({
       ))
   );
 
-  const ActivityProp = useMemo(() => {
-    const props: Record<string, any> = {
-      browsing_vault: { emoji: "📂", pos: { right: fp(-s * .1), top: fp(s * .1) } },
-      browsing_files: { emoji: "📂", pos: { right: fp(-s * .1), top: fp(s * .1) } },
-      timetable_open: { emoji: "📅", pos: { right: fp(-s * .1), top: fp(s * .1) } },
-      viewing_notes: { emoji: "📝", pos: { left: fp(-s * .1), top: fp(s * .1) } },
-      writing_code: { emoji: "💻", pos: { right: fp(-s * .1), bottom: fp(s * .1) } },
-      searching: { emoji: "🔍", pos: { right: fp(-s * .1), top: fp(s * .1) } },
-      celebrating: { emoji: "🎉", pos: { right: fp(-s * .1), top: fp(-s * .1) } },
-      partying: { emoji: "🎊", pos: { left: fp(-s * .1), top: fp(-s * .1) } },
-      magic: { emoji: "✨", pos: { right: fp(-s * .15), top: fp(-s * .1) } },
-      reading_book: { emoji: "📖", pos: { left: fp(-s * .1), bottom: fp(s * .1) } },
-      playing_games: { emoji: "🎮", pos: { right: fp(-s * .15), bottom: fp(0) } },
-      listening_music: { emoji: "🎵", pos: { right: fp(-s * .1), top: fp(s * .05) } },
-      uploading: { emoji: "⬆️", pos: { right: fp(-s * .1), top: fp(s * .1) } },
+  // Pure SVG activity prop icons — no emojis
+  const ActivityPropIcon = useMemo(() => {
+    const ic = s * .28;
+    const icons: Record<string, { svg: React.ReactNode; pos: React.CSSProperties }> = {
+      browsing_vault: {
+        pos: { right: fp(-s * .1), top: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="4" width="20" height="16" rx="2" fill={T.m} opacity=".9" />
+            <rect x="2" y="4" width="9" height="4" rx="1.5" fill={T.l} opacity=".85" />
+            <rect x="5" y="11" width="14" height="1.5" rx=".75" fill="rgba(255,255,255,.55)" />
+            <rect x="5" y="14" width="10" height="1.5" rx=".75" fill="rgba(255,255,255,.35)" />
+          </svg>
+        ),
+      },
+      browsing_files: {
+        pos: { right: fp(-s * .1), top: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="4" width="20" height="16" rx="2" fill={T.m} opacity=".9" />
+            <rect x="2" y="4" width="9" height="4" rx="1.5" fill={T.l} opacity=".85" />
+            <rect x="5" y="11" width="14" height="1.5" rx=".75" fill="rgba(255,255,255,.55)" />
+            <rect x="5" y="14" width="10" height="1.5" rx=".75" fill="rgba(255,255,255,.35)" />
+          </svg>
+        ),
+      },
+      timetable_open: {
+        pos: { right: fp(-s * .1), top: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="4" width="18" height="17" rx="2" fill={T.m} opacity=".9" />
+            <rect x="3" y="4" width="18" height="5" rx="2" fill={T.l} opacity=".85" />
+            <line x1="8" y1="2" x2="8" y2="6" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" />
+            <line x1="16" y1="2" x2="16" y2="6" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" />
+            <rect x="6" y="12" width="3" height="3" rx=".5" fill="rgba(255,255,255,.7)" />
+            <rect x="10.5" y="12" width="3" height="3" rx=".5" fill="rgba(255,255,255,.5)" />
+            <rect x="15" y="12" width="3" height="3" rx=".5" fill="rgba(255,255,255,.5)" />
+          </svg>
+        ),
+      },
+      viewing_notes: {
+        pos: { left: fp(-s * .1), top: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <rect x="4" y="2" width="16" height="20" rx="2" fill={T.m} opacity=".9" />
+            <rect x="4" y="2" width="16" height="5" rx="2" fill={T.l} opacity=".7" />
+            <rect x="7" y="10" width="10" height="1.5" rx=".75" fill="rgba(255,255,255,.65)" />
+            <rect x="7" y="13" width="8" height="1.5" rx=".75" fill="rgba(255,255,255,.45)" />
+            <rect x="7" y="16" width="6" height="1.5" rx=".75" fill="rgba(255,255,255,.3)" />
+            {/* Pencil mark */}
+            <line x1="15" y1="19" x2="19" y2="15" stroke={T.l} strokeWidth="2" strokeLinecap="round" />
+            <line x1="14" y1="20" x2="15" y2="19" stroke={T.l} strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        ),
+      },
+      writing_code: {
+        pos: { right: fp(-s * .1), bottom: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="3" width="20" height="15" rx="2" fill="#1a1a2e" opacity=".95" />
+            <rect x="2" y="3" width="20" height="3.5" rx="2" fill={T.d} opacity=".9" />
+            <circle cx="5.5" cy="4.75" r="1" fill="#ff5f57" />
+            <circle cx="8.5" cy="4.75" r="1" fill="#febc2e" />
+            <circle cx="11.5" cy="4.75" r="1" fill="#28c840" />
+            <path d="M5 11 L8 13.5 L5 16" stroke={T.l} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <line x1="10" y1="16" x2="16" y2="16" stroke="rgba(255,255,255,.4)" strokeWidth="1.5" strokeLinecap="round" />
+            <rect x="2" y="18" width="20" height="3" rx="1" fill={T.d} opacity=".6" />
+          </svg>
+        ),
+      },
+      searching: {
+        pos: { right: fp(-s * .1), top: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <circle cx="10" cy="10" r="7" stroke={T.l} strokeWidth="2.5" fill={T.m} opacity=".85" />
+            <circle cx="10" cy="10" r="4" fill={T.d} opacity=".7" />
+            <line x1="15.5" y1="15.5" x2="21" y2="21" stroke={T.l} strokeWidth="2.8" strokeLinecap="round" />
+            <circle cx="10" cy="10" r="1.5" fill="rgba(255,255,255,.7)" />
+          </svg>
+        ),
+      },
+      celebrating: {
+        pos: { right: fp(-s * .1), top: fp(-s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            {/* Party popper — pure SVG */}
+            <path d="M3 21 L10 10" stroke={T.l} strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M10 10 L21 3" stroke={T.m} strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="10" r="2.5" fill={T.l} />
+            <circle cx="5" cy="5" r="1.2" fill="#ffdd44" opacity=".9" />
+            <circle cx="18" cy="6" r="1" fill="#ff7eb3" opacity=".9" />
+            <circle cx="20" cy="14" r="1.2" fill={T.l} opacity=".8" />
+            <circle cx="14" cy="19" r="1" fill="#ffdd44" opacity=".8" />
+            <line x1="7" y1="3" x2="8" y2="5" stroke="#ffdd44" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="19" y1="10" x2="21" y2="11" stroke="#ff7eb3" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        ),
+      },
+      partying: {
+        pos: { left: fp(-s * .1), top: fp(-s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <path d="M3 21 L10 10" stroke={T.l} strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M10 10 L21 3" stroke={T.m} strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="10" r="2.5" fill={T.l} />
+            <circle cx="4" cy="7" r="1.2" fill="#ffdd44" opacity=".9" />
+            <circle cx="17" cy="5" r="1" fill="#ff7eb3" opacity=".9" />
+            <circle cx="19" cy="15" r="1.2" fill={T.l} opacity=".8" />
+            <circle cx="13" cy="20" r="1" fill="#ffdd44" opacity=".8" />
+          </svg>
+        ),
+      },
+      magic: {
+        pos: { right: fp(-s * .15), top: fp(-s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            {/* Wand */}
+            <line x1="4" y1="20" x2="16" y2="8" stroke={T.l} strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="16" cy="8" r="2.5" fill="#ffdd44" opacity=".95" />
+            {/* Star sparks */}
+            <path d="M20 3 L20.7 5.3 L23 6 L20.7 6.7 L20 9 L19.3 6.7 L17 6 L19.3 5.3Z" fill="#ffdd44" opacity=".9" />
+            <path d="M6 3 L6.5 4.5 L8 5 L6.5 5.5 L6 7 L5.5 5.5 L4 5 L5.5 4.5Z" fill={T.l} opacity=".8" />
+          </svg>
+        ),
+      },
+      reading_book: {
+        pos: { left: fp(-s * .1), bottom: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <path d="M4 4 Q12 2 12 12 Q12 2 20 4 L20 20 Q12 18 12 20 Q12 18 4 20Z" fill={T.m} opacity=".9" />
+            <line x1="12" y1="4" x2="12" y2="20" stroke={T.d} strokeWidth="1.5" />
+            <rect x="5" y="7" width="5" height="1.2" rx=".6" fill="rgba(255,255,255,.5)" />
+            <rect x="5" y="10" width="4" height="1.2" rx=".6" fill="rgba(255,255,255,.35)" />
+            <rect x="14" y="7" width="5" height="1.2" rx=".6" fill="rgba(255,255,255,.5)" />
+            <rect x="14" y="10" width="4" height="1.2" rx=".6" fill="rgba(255,255,255,.35)" />
+          </svg>
+        ),
+      },
+      playing_games: {
+        pos: { right: fp(-s * .15), bottom: fp(0) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="7" width="20" height="12" rx="4" fill={T.d} opacity=".95" />
+            {/* D-pad */}
+            <rect x="5" y="11" width="5" height="1.8" rx=".9" fill="rgba(255,255,255,.6)" />
+            <rect x="7" y="9" width="1.8" height="5" rx=".9" fill="rgba(255,255,255,.6)" />
+            {/* Buttons */}
+            <circle cx="16" cy="11" r="1.3" fill="#ff5f57" opacity=".85" />
+            <circle cx="19" cy="13" r="1.3" fill={T.l} opacity=".85" />
+            <circle cx="16" cy="15" r="1.3" fill="#28c840" opacity=".85" />
+            <circle cx="13" cy="13" r="1.3" fill="#ffdd44" opacity=".85" />
+          </svg>
+        ),
+      },
+      listening_music: {
+        pos: { right: fp(-s * .1), top: fp(s * .05) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            {/* Music note */}
+            <path d="M9 17 L9 7 L19 5 L19 15" stroke={T.l} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <circle cx="7" cy="17" r="2.5" fill={T.m} opacity=".9" />
+            <circle cx="17" cy="15" r="2.5" fill={T.m} opacity=".9" />
+            <circle cx="7" cy="17" r="1" fill={T.l} opacity=".7" />
+            <circle cx="17" cy="15" r="1" fill={T.l} opacity=".7" />
+          </svg>
+        ),
+      },
+      uploading: {
+        pos: { right: fp(-s * .1), top: fp(s * .1) },
+        svg: (
+          <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="14" width="18" height="7" rx="2" fill={T.d} opacity=".8" />
+            <path d="M12 2 L12 13" stroke={T.l} strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M7 7 L12 2 L17 7" stroke={T.l} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <rect x="9" y="17" width="6" height="1.5" rx=".75" fill="rgba(255,255,255,.5)" />
+          </svg>
+        ),
+      },
     };
-    const act = props[activeState];
+    const act = icons[activeState];
     if (!act) return null;
     return (
-      <div style={{ position: "absolute", ...act.pos, zIndex: 10, pointerEvents: "none", animation: "ak4_sp 3s ease-in-out infinite" }}>
-        <span style={{ fontSize: fp(s * .25) }}>{act.emoji}</span>
+      <div style={{ position: "absolute", ...act.pos, zIndex: 10, pointerEvents: "none", animation: "ak4_sp 3s ease-in-out infinite", filter: "drop-shadow(0 2px 6px " + T.g + ")" }}>
+        {act.svg}
       </div>
     );
-  }, [activeState, s]);
+  }, [activeState, s, T]);
 
   const Hearts = (activeState === "love" || activeState === "heart_eyes") && (
     [{ x: -s * .09, y: s * .12, d: 0, sz: s * .15, f: "#ff7eb3" }, { x: s * .9, y: s * .04, d: .65, sz: s * .12, f: "#ffaacc" }, { x: -s * .04, y: s * .44, d: 1.2, sz: s * .09, f: "#ff9ec8" }]
@@ -574,20 +725,10 @@ export default function ActionMojiAvatar({
         className={`relative inline-flex flex-col items-center user-select-none cursor-pointer transition-transform duration-300 hover:scale-110 active:scale-95 ${isGrayscale ? 'grayscale opacity-70' : ''}`}
         style={{ ...cv as React.CSSProperties }}
       >
-        {/* Sparkles and Decorations */}
-        {!isGrayscale && (
-          <>
-            <Sparkle x={fp(-s * .34)} y={fp(s * .08)} delay={0} sz={s * .135} col="rgba(255,255,255,.9)" />
-            <Sparkle x={fp(s * .74)} y={fp(s * .28)} delay={.9} sz={s * .09} col="rgba(255,255,255,.62)" />
-            <HeartDeco x={fp(s * .77)} y={fp(-s * .06)} delay={.42} sz={s * .18} />
-            <div style={{ position: "absolute", left: fp(-s * .22), top: fp(s * .6), width: s * .068, height: s * .068, borderRadius: "50%", background: T.l, opacity: .7, animation: "ak4_sp 3s ease-in-out 1.2s infinite" }} />
-            <div style={{ position: "absolute", right: fp(-s * .1), top: fp(s * .75), width: s * .05, height: s * .05, borderRadius: "50%", background: "#ffb3d1", opacity: .82, animation: "ak4_sp 3.4s ease-in-out .5s infinite" }} />
-          </>
-        )}
-
+        {/* Decorations — state-specific only, no generic sparkles */}
         {Zs}
         {Hearts}
-        {ActivityProp}
+        {ActivityPropIcon}
 
         {/* Listening Arcs */}
         {(activeState === "listening" || activeState === "reading_chat") && (

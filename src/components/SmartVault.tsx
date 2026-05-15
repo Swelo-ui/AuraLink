@@ -476,12 +476,16 @@ export default function SmartVault({
             <button
               key={ft}
               onClick={() => { setFilterType(ft); setCurrentFolderId(null); }}
-              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg capitalize whitespace-nowrap transition-all border ${filterType === ft
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg capitalize whitespace-nowrap transition-all border flex items-center gap-1.5 ${filterType === ft
                 ? 'bg-aura-primary/15 border-aura-primary/40 text-aura-primary'
                 : 'bg-aura-surface/50 border-aura-border/50 text-aura-lavender/50 hover:text-white active:bg-aura-surface'
                 }`}
             >
-              {ft === 'all' ? '📁 All' : ft === 'image' ? '🖼 Images' : ft === 'video' ? '🎬 Videos' : ft === 'pdf' ? '📄 PDF' : '📝 Docs'}
+              {ft === 'all' && <><Folder size={12} /> All</>}
+              {ft === 'image' && <><ImageIcon size={12} /> Images</>}
+              {ft === 'video' && <><Film size={12} /> Videos</>}
+              {ft === 'pdf' && <><FileText size={12} /> PDF</>}
+              {ft === 'doc' && <><FileText size={12} /> Docs</>}
             </button>
           ))}
         </div>
